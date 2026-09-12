@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUMO Edge Mapper</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        h1 { color: #333; margin-bottom: 20px; }
+        .controls { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .file-inputs { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+        .file-group { flex: 1; min-width: 300px; }
+        .file-group label { display: block; font-weight: 600; margin-bottom: 8px; color: #555; }
+        .file-group input[type="file"] { width: 100%; padding: 10px; border: 2px dashed #ddd; border-radius: 4px; background: #fafafa; }
+        .file-group input[type="file"]:hover { border-color: #007bff; }
+        .btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn:hover { background: #0056b3; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .btn.secondary { background: #6c757d; }
+        .btn.secondary:hover { background: #5a6268; }
+        .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .panel { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; }
+        .panel-header { background: #f8f9fa; padding: 15px 20px; border-bottom: 1px solid #eee; font-weight: 600; }
+        .panel-content { max-height: 70vh; overflow-y: auto; }
+        .edge-list { list-style: none; padding: 0; margin: 0; }
+        .edge-item { padding: 12px 20px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s; }
+        .edge-item:hover { background: #f8f9fa; }
+        .edge-item.selected { background: #e7f1ff; border-left: 3px solid #007bff; }
+        .edge-id { font-family: monospace; font-size: 13px; font-weight: 600; color: #333; }
+        .edge-detail { font-size: 12px; color: #666; margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap; }
+        .edge-detail span { display: flex; align-items: center; gap: 4px; }
+        .match-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .match-badge.matched { background: #d4edda; color: #155724; }
+        .match-badge.unmatched { background: #f8d7da; color: #721c24; }
+        .match-badge.pending { background: #fff3cd; color: #856404; }
+        .stats { display: flex; gap: 20px; padding: 15px 20px; background: #f8f9fa; border-top: 1px solid #eee; font-size: 13px; color: #666; }
+        .mapping-panel { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 20px; }
+        .mapping-header { background: #f8f9fa; padding: 15px 20px; border-bottom: 1px solid #eee; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+        .mapping-table { width: 100%; border-collapse: collapse; }
+        .mapping-table th, .mapping-table td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        .mapping-table th { background: #f8f9fa; font-weight: 600; color: #555; }
+        .mapping-table tr:hover { background: #f8f9fa; }
+        .mapping-table input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px; }
+        .mapping-table input.matched { background: #e7f1ff; border-color: #007bff; }
+        .mapping-table .actions { white-space: nowrap; }
+        .mapping-table .btn-sm { padding: 4px 10px; font-size: 12px; margin-right: 4px; }
+        .empty-state { padding: 40px; text-align: center; color: #999; }
+        .search-box { width: 100%; padding: 10px 15px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px; font-size: 14px; }
+        .legend { display: flex; gap: 16px; padding: 10px 20px; background: #f8f9fa; border-bottom: 1px solid #eee; font-size: 12px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 16px; height: 16px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>SUMO Edge Mapper</h1>
+    <p style="color: #666; margin-top: -10px; margin-bottom: 20px;">Load two SUMO .net.xml files to compare and map edges pairwise</p>
+
+    <div class="controls">
+        <div class="file-inputs">
+            <div class="file-group">
+                <label>File A (Reference / Hand-drawn)</label>
+                <input type="file" id="fileA" accept=".net.xml,.xml" title="Load balagere-proposed.net.xml or balagere-today.net.xml">
+            </div>
+            <div class="file-group">
+                <label>File B (Downloaded / OSM)</label>
+                <input type="file" id="fileB" accept=".net.xml,.xml" title="Load net-area.net.xml">
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn" id="loadBtn" disabled>Load & Compare</button>
+            <button class="btn secondary" id="clearBtn">Clear</button>
+            <button class="btn secondary" id="exportBtn" disabled>Export Mapping (JSON)</button>
+        </div>
+    </div>
+
+    <div class="comparison" id="comparison" style="display: none;">
+        <div class="panel">
+            <div class="panel-header">File A Edges <span id="countA" style="font-weight: normal; color: #666; font-size: 13px;"></span></div>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-color" style="background: #e7f1ff; border: 1px solid #007bff;"></div> Selected</div>
+                <div class="legend-item"><span class="match-badge matched">Mapped</span></div>
+                <div class="legend-item"><span class="match-badge pending">Pending</span></div>
+            </div>
+            <input type="text" class="search-box" id="searchA" placeholder="Filter edges...">
+            <div class="panel-content">
+                <ul class="edge-list" id="listA"></ul>
+            </div>
+            <div class="stats">
+                <span>Total: <strong id="totalA">0</strong></span>
+                <span>Mapped: <strong id="mappedA">0</strong></span>
+                <span>Selected: <strong id="selectedA" style="color: #007bff;">None</strong></span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">File B Edges <span id="countB" style="font-weight: normal; color: #666; font-size: 13px;"></span></div>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-color" style="background: #e7f1ff; border: 1px solid #007bff;"></div> Selected</div>
+                <div class="legend-item"><span class="match-badge matched">Mapped</span></div>
+                <div class="legend-item"><span class="match-badge pending">Pending</span></div>
+            </div>
+            <input type="text" class="search-box" id="searchB" placeholder="Filter edges...">
+            <div class="panel-content">
+                <ul class="edge-list" id="listB"></ul>
+            </div>
+            <div class="stats">
+                <span>Total: <strong id="totalB">0</strong></span>
+                <span>Mapped: <strong id="mappedB">0</strong></span>
+                <span>Selected: <strong id="selectedB" style="color: #007bff;">None</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="mapping-panel" id="mappingPanel" style="display: none;">
+        <div class="mapping-header">
+            <span>Edge Mappings</span>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn secondary btn-sm" id="autoMatchBtn">Auto-match by ID</button>
+                <button class="btn secondary btn-sm" id="clearMappingsBtn">Clear All</button>
+            </div>
+        </div>
+        <table class="mapping-table">
+            <thead>
+                <tr>
+                    <th style="width: 35%;">File A Edge</th>
+                    <th style="width: 35%;">File B Edge</th>
+                    <th style="width: 15%;">Status</th>
+                    <th class="actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="mappingBody"></tbody>
+        </table>
+        <div style="padding: 15px 20px; background: #f8f9fa; border-top: 1px solid #eee; font-size: 13px; color: #666;">
+            <span id="mappingStats">0 mappings</span>
+        </div>
+    </div>
+
+    <script>
+        let edgesA = [];
+        let edgesB = [];
+        let mappings = new Map(); // edgeA_id -> edgeB_id
+        let reverseMappings = new Map(); // edgeB_id -> edgeA_id
+        let selectedA = null;
+        let selectedB = null;
+
+        const fileA = document.getElementById('fileA');
+        const fileB = document.getElementById('fileB');
+        const loadBtn = document.getElementById('loadBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const searchA = document.getElementById('searchA');
+        const searchB = document.getElementById('searchB');
+        const listA = document.getElementById('listA');
+        const listB = document.getElementById('listB');
+        const mappingBody = document.getElementById('mappingBody');
+        const comparison = document.getElementById('comparison');
+        const mappingPanel = document.getElementById('mappingPanel');
+        const autoMatchBtn = document.getElementById('autoMatchBtn');
+        const clearMappingsBtn = document.getElementById('clearMappingsBtn');
+
+        fileA.addEventListener('change', updateLoadBtn);
+        fileB.addEventListener('change', updateLoadBtn);
+        loadBtn.addEventListener('click', loadFiles);
+        clearBtn.addEventListener('click', clearAll);
+        exportBtn.addEventListener('click', exportMapping);
+        searchA.addEventListener('input', () => renderList(listA, edgesA, searchA.value, 'A'));
+        searchB.addEventListener('input', () => renderList(listB, edgesB, searchB.value, 'B'));
+        autoMatchBtn.addEventListener('click', autoMatch);
+        clearMappingsBtn.addEventListener('click', clearMappings);
+
+        function updateLoadBtn() {
+            loadBtn.disabled = !fileA.files[0] || !fileB.files[0];
+        }
+
+        function clearAll() {
+            fileA.value = '';
+            fileB.value = '';
+            edgesA = [];
+            edgesB = [];
+            mappings.clear();
+            reverseMappings.clear();
+            selectedA = null;
+            selectedB = null;
+            listA.innerHTML = '';
+            listB.innerHTML = '';
+            mappingBody.innerHTML = '';
+            comparison.style.display = 'none';
+            mappingPanel.style.display = 'none';
+            exportBtn.disabled = true;
+            updateLoadBtn();
+        }
+
+        function loadFiles() {
+            const readerA = new FileReader();
+            const readerB = new FileReader();
+
+            readerA.onload = (e) => parseNetXML(e.target.result, 'A');
+            readerB.onload = (e) => parseNetXML(e.target.result, 'B');
+
+            readerA.readAsText(fileA.files[0]);
+            readerB.readAsText(fileB.files[0]);
+        }
+
+        function parseNetXML(xmlText, which) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xmlText, 'application/xml');
+            const edges = Array.from(doc.querySelectorAll('edge:not([function="internal"])'));
+            
+            const edgeData = edges.map(edge => {
+                const id = edge.getAttribute('id');
+                const from = edge.getAttribute('from');
+                const to = edge.getAttribute('to');
+                const priority = edge.getAttribute('priority');
+                const type = edge.getAttribute('type');
+                const lanes = Array.from(edge.querySelectorAll('lane')).map(l => ({
+                    id: l.getAttribute('id'),
+                    index: l.getAttribute('index'),
+                    speed: l.getAttribute('speed'),
+                    length: l.getAttribute('length'),
+                    allow: l.getAttribute('allow'),
+                    disallow: l.getAttribute('disallow'),
+                    shape: l.getAttribute('shape')
+                }));
+                const shape = edge.getAttribute('shape');
+                return { id, from, to, priority, type, lanes, shape, xml: edge.outerHTML };
+            });
+
+            if (which === 'A') {
+                edgesA = edgeData;
+                document.getElementById('countA').textContent = `(${edgesA.length})`;
+                document.getElementById('totalA').textContent = edgesA.length;
+            } else {
+                edgesB = edgeData;
+                document.getElementById('countB').textContent = `(${edgesB.length})`;
+                document.getElementById('totalB').textContent = edgesB.length;
+            }
+
+            if (edgesA.length > 0 && edgesB.length > 0) {
+                comparison.style.display = 'grid';
+                mappingPanel.style.display = 'block';
+                exportBtn.disabled = false;
+                renderList(listA, edgesA, '', 'A');
+                renderList(listB, edgesB, '', 'B');
+                renderMappings();
+            }
+        }
+
+        function renderList(container, edges, filter, which) {
+            const filtered = edges.filter(e => 
+                e.id.toLowerCase().includes(filter.toLowerCase()) ||
+                (e.from && e.from.toLowerCase().includes(filter.toLowerCase())) ||
+                (e.to && e.to.toLowerCase().includes(filter.toLowerCase()))
+            );
+
+            container.innerHTML = filtered.map(edge => {
+                const isMapped = which === 'A' ? mappings.has(edge.id) : reverseMappings.has(edge.id);
+                const isSelected = (which === 'A' && selectedA === edge.id) || (which === 'B' && selectedB === edge.id);
+                const matchedTo = which === 'A' ? mappings.get(edge.id) : reverseMappings.get(edge.id);
+                
+                return `
+                    <li class="edge-item ${isSelected ? 'selected' : ''}" data-id="${edge.id}" onclick="selectEdge('${which}', '${escapeHtml(edge.id)}')">
+                        <div class="edge-id">${escapeHtml(edge.id)}</div>
+                        <div class="edge-detail">
+                            <span>${edge.from ? `from: ${escapeHtml(edge.from)}` : ''}</span>
+                            <span>${edge.to ? `to: ${escapeHtml(edge.to)}` : ''}</span>
+                            <span>${edge.type ? `type: ${escapeHtml(edge.type)}` : ''}</span>
+                            <span>${edge.lanes.length} lane(s)</span>
+                            ${matchedTo ? `<span class="match-badge matched">→ ${escapeHtml(matchedTo)}</span>` : '<span class="match-badge pending">Unmapped</span>'}
+                        </div>
+                    </li>
+                `;
+            }).join('') || '<li class="empty-state">No edges found</li>';
+
+            updateStats();
+        }
+
+        function selectEdge(which, id) {
+            if (which === 'A') {
+                selectedA = id;
+                selectedB = null;
+            } else {
+                selectedB = id;
+                selectedA = null;
+            }
+            renderList(listA, edgesA, searchA.value, 'A');
+            renderList(listB, edgesB, searchB.value, 'B');
+            updateMappingInputs();
+        }
+
+        function updateMappingInputs() {
+            document.querySelectorAll('#mappingBody input').forEach(input => {
+                const aId = input.dataset.edgeA;
+                const bId = input.dataset.edgeB;
+                input.value = mappings.get(aId) || '';
+                input.classList.toggle('matched', mappings.has(aId));
+            });
+        }
+
+        function createMapping(aId, bId) {
+            if (mappings.has(aId)) {
+                reverseMappings.delete(mappings.get(aId));
+            }
+            if (reverseMappings.has(bId)) {
+                mappings.delete(reverseMappings.get(bId));
+            }
+            mappings.set(aId, bId);
+            reverseMappings.set(bId, aId);
+            renderMappings();
+            renderList(listA, edgesA, searchA.value, 'A');
+            renderList(listB, edgesB, searchB.value, 'B');
+        }
+
+        function removeMapping(aId) {
+            const bId = mappings.get(aId);
+            if (bId) {
+                mappings.delete(aId);
+                reverseMappings.delete(bId);
+                renderMappings();
+                renderList(listA, edgesA, searchA.value, 'A');
+                renderList(listB, edgesB, searchB.value, 'B');
+            }
+        }
+
+        function renderMappings() {
+            const allAIds = [...new Set([...edgesA.map(e => e.id), ...mappings.keys()])].sort();
+            
+            mappingBody.innerHTML = allAIds.map(aId => {
+                const edgeA = edgesA.find(e => e.id === aId);
+                const bId = mappings.get(aId);
+                const edgeB = bId ? edgesB.find(e => e.id === bId) : null;
+                const isMapped = !!bId;
+                
+                return `
+                    <tr>
+                        <td><code>${escapeHtml(aId)}${edgeA ? ` (${edgeA.from}→${edgeA.to})` : ' [File B only]'}</code></td>
+                        <td>
+                            <input type="text" 
+                                   data-edge-a="${escapeHtml(aId)}"
+                                   data-edge-b="${escapeHtml(bId || '')}"
+                                   value="${escapeHtml(bId || '')}"
+                                   placeholder="Select from File B list or type..."
+                                   onchange="handleMappingInput(this)"
+                                   ${!edgeA ? 'style="background:#fff3cd;"' : ''}>
+                        </td>
+                        <td><span class="match-badge ${isMapped ? 'matched' : 'pending'}">${isMapped ? 'Mapped' : 'Pending'}</span></td>
+                        <td class="actions">
+                            ${isMapped ? `<button class="btn secondary btn-sm" onclick="removeMapping('${escapeHtml(aId)}')">Remove</button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Also add File B edges that aren't mapped
+            const unmappedB = edgesB.filter(e => !reverseMappings.has(e.id));
+            if (unmappedB.length > 0) {
+                const extraRows = unmappedB.map(edgeB => `
+                    <tr style="background: #fff8f0;">
+                        <td><input type="text" 
+                                   data-edge-a=""
+                                   data-edge-b="${escapeHtml(edgeB.id)}"
+                                   value=""
+                                   placeholder="Map to File A edge..."
+                                   onchange="handleReverseMappingInput(this)"></td>
+                        <td><code>${escapeHtml(edgeB.id)} (${edgeB.from}→${edgeB.to})</code></td>
+                        <td><span class="match-badge pending">Unmapped</span></td>
+                        <td></td>
+                    </tr>
+                `).join('');
+                mappingBody.innerHTML += extraRows;
+            }
+
+            updateStats();
+        }
+
+        window.handleMappingInput = function(input) {
+            const aId = input.dataset.edgeA;
+            const bId = input.value.trim();
+            if (bId) {
+                const edgeB = edgesB.find(e => e.id === bId);
+                if (edgeB) {
+                    createMapping(aId, bId);
+                } else {
+                    alert(`Edge "${bId}" not found in File B`);
+                    input.value = mappings.get(aId) || '';
+                }
+            } else {
+                removeMapping(aId);
+            }
+        };
+
+        window.handleReverseMappingInput = function(input) {
+            const bId = input.dataset.edgeB;
+            const aId = input.value.trim();
+            if (aId) {
+                const edgeA = edgesA.find(e => e.id === aId);
+                if (edgeA) {
+                    createMapping(aId, bId);
+                } else {
+                    alert(`Edge "${aId}" not found in File A`);
+                    input.value = '';
+                }
+            }
+        };
+
+        window.removeMapping = function(aId) {
+            removeMapping(aId);
+        };
+
+        function autoMatch() {
+            let count = 0;
+            edgesA.forEach(edgeA => {
+                const match = edgesB.find(edgeB => edgeB.id === edgeA.id);
+                if (match && !mappings.has(edgeA.id)) {
+                    createMapping(edgeA.id, match.id);
+                    count++;
+                }
+            });
+            alert(`Auto-matched ${count} edges by identical ID`);
+        }
+
+        function clearMappings() {
+            mappings.clear();
+            reverseMappings.clear();
+            renderMappings();
+            renderList(listA, edgesA, searchA.value, 'A');
+            renderList(listB, edgesB, searchB.value, 'B');
+        }
+
+        function updateStats() {
+            document.getElementById('mappedA').textContent = mappings.size;
+            document.getElementById('mappedB').textContent = mappings.size;
+            document.getElementById('selectedA').textContent = selectedA || 'None';
+            document.getElementById('selectedB').textContent = selectedB || 'None';
+            document.getElementById('mappingStats').textContent = `${mappings.size} mappings`;
+        }
+
+        function exportMapping() {
+            const mappingObj = {};
+            mappings.forEach((bId, aId) => {
+                mappingObj[aId] = bId;
+            });
+            const blob = new Blob([JSON.stringify(mappingObj, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'edge-mapping.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Make selectEdge global
+        window.selectEdge = selectEdge;
+    </script>
+</body>
+</html>

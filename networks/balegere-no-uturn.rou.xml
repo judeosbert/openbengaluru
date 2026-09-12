@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2026-08-16T15:23:25.306806+05:30 by Eclipse SUMO netedit 1.27.1
+<!-- generated on 2026-09-12T15:29:38.601844+05:30 by Eclipse SUMO netedit 1.27.1
 -->
 
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
@@ -13,19 +13,18 @@
     <vType id="truck" minGap="1.00" vClass="truck" color="red"/>
     <vType id="water-tanker" vClass="truck"/>
     <!-- Routes -->
-    <route id="kundalahalli_panathur" edges="E4 E3 E0.75 -E0 -E0.79 -E0.79.36" color="0,128,0"/>
-    <route id="kundalahalli_sarjapur" edges="E4 E3 E0.75 -E0 E2.7" color="0,128,0"/>
-    <route id="kundalahalli_varthur" edges="E4 E3 E0.75 E2" color="0,128,0"/>
-    <route id="panathur_kundalahalli" edges="E0 E1 -E4"/>
-    <route id="panathur_sarjapur" edges="E0 E0.18 E0.75 -E0 E2.7"/>
-    <route id="panthur_kundalahalli" edges="E0 E1 -E4"/>
-    <route id="panthur_varthur" edges="E0 E0.18 E0.75 E2"/>
-    <route id="sarjapur_kundalahalli" edges="-E2.7 -E0.79 E1 -E4" color="blue"/>
-    <route id="sarjapur_panathur" edges="-E2.7 -E0.79 -E0.79.36" color="blue"/>
-    <route id="sarjapur_varthur" edges="-E2.7 -E0.79 E0.18 E0.75 E2" color="blue"/>
-    <route id="varthur_kundalahalli" edges="-E2 -E0 -E0.79 E1 -E4" color="cyan"/>
-    <route id="varthur_panathur" edges="-E2 -E0 -E0.79 -E0.79.36" color="cyan"/>
-    <route id="varthur_sarjapur" edges="-E2 -E0 E2.7" color="cyan"/>
+    <route id="kundalahalli_panathur" edges="-775878215#3 -775878215#2 -775878215#1 -775878215#0 1312010948 1268357430 1268357431#0 1268357431#1 1268357431#3 1108930308"/>
+    <route id="kundalahalli_sarjapur" edges="-775878215#2 775878215#2 775878215#3 -775878215#3 -775878215#2 -775878215#1 -775878215#0 1312010948 1268357430 1268357431#0 -1075287422"/>
+    <route id="kundalahalli_varthur" edges="-775878215#3 -775878215#2 -775878215#1 -775878215#0 1312010948 1268357430 -1108930310#3"/>
+    <route id="panathur_kundalahalli" edges="-1108930308 1322468269 1315463571 1387181955#1 775878215#0 775878215#1 775878215#2 775878215#3"/>
+    <route id="panathur_sarjapur" edges="-1108930308 1322468269 1312285977 1268357430 1268357431#0 -1075287422"/>
+    <route id="panathur_varthur" edges="-1108930308 1322468269 1312285977 1268357430 -1108930310#3"/>
+    <route id="sarjapur_kundalahalli" edges="1122552636#1 1268357431#1 1315463571 1387181955#1 775878215#0 775878215#1 775878215#2 775878215#3"/>
+    <route id="sarjapur_panathur" edges="1122552636#1 1268357431#1 1268357431#3 1108930308"/>
+    <route id="sarjapur_varthur" edges="1122552636#1 1268357431#1 1312285977 1268357430 -1108930310#3"/>
+    <route id="varthur_kundalahalli" edges="1108930310#3 1268357431#0 1268357431#1 1315463571 1387181955#1 775878215#0 775878215#1 775878215#2 775878215#3"/>
+    <route id="varthur_panathur" edges="1108930310#3 1268357431#0 1268357431#1 1268357431#3 1108930308"/>
+    <route id="varthur_sarjapur" edges="1108930310#3 1268357431#0 -1075287422"/>
     <!-- Vehicles, persons and containers (sorted by depart) -->
     <flow id="f_10" type="truck" begin="0.00" end="3600.00" perHour="10.00" color="155,226,161" route="panathur_kundalahalli"/>
     <flow id="f_11" type="auto" begin="0.00" end="3600.00" perHour="22.00" color="155,226,161" route="panathur_kundalahalli"/>

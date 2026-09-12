@@ -29,7 +29,7 @@ FIXDIR = os.path.join(HERE, "phase1")
 GENERATOR = os.path.join(HERE, "..", "sim", "build_player.py")
 
 EXPECTED_CONSTS = ["BALAGERE_CSS_STYLE", "LANES_PALETTE", "BALAGERE_GEOMETRY",
-                   "BALAGERE_STREAM", "OTHER_SIMS", "CATALOG"]
+                   "OTHER_SIMS", "CATALOG"]
 ANCHOR = (12.9517, 77.7894)          # plan: latlngAnchor
 DEMAND_BALAGERE = 5743               # real peak demand (build_player note)
 SILK_BOARD_ID = "silk-board-peak-baseline"  # only entry allowed an oversized zone
@@ -330,7 +330,12 @@ class TestABToggle(Base):
         self.assertLessEqual(keys, {"today", "proposed"})
         self.assertEqual(keys, {"today", "proposed"},
                          "Balagere must carry both scenarios")
-        self.assertEqual(set(D["BALAGERE_STREAM"]["scenarios"].keys()),
+        spath = os.path.join(HERE, "streams", "balagere-t-junction.js")
+        with open(spath, encoding="utf-8") as fh:
+            spayload = json.loads(re.match(
+                r"^window\.__simoStreamCallback\('[^']+',\s*(\{.*\})\);\s*$",
+                fh.read(), re.S).group(1))
+        self.assertEqual(set(spayload["scenarios"].keys()),
                          {"today", "proposed"})
         for e in D["OTHER_SIMS"]:
             self.assertLessEqual(set(e["scenarios"].keys()),

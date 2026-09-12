@@ -109,12 +109,24 @@ function cmdApprove(arg, ctx) {
   };
 }
 
+/* Load streams/balagere-t-junction.js: parse the JSONP-style callback and
+ * return the payload (nFrames, bounds, scenarios.{today,proposed}.frames). */
+function loadBalagereStream() {
+  const sp = path.join(ROOT, 'streams', 'balagere-t-junction.js');
+  if (!fs.existsSync(sp)) throw new Error('missing stream file: ' + sp);
+  const src = fs.readFileSync(sp, 'utf8');
+  const m = src.match(/^window\.__simoStreamCallback\('[^']+',\s*(\{.*\})\);\s*$/s);
+  if (!m) throw new Error('stream file is not a __simoStreamCallback payload');
+  return JSON.parse(m[1]);
+}
+
 function cmdInterpEdge(ctx) {
   if (typeof ctx.TrafficSimEngine !== 'function') {
     throw new Error('app.js pure head does not define TrafficSimEngine');
   }
-  const eng = new ctx.TrafficSimEngine(ctx.BALAGERE_STREAM);
-  const nf = ctx.BALAGERE_STREAM.nFrames;
+  const stream = loadBalagereStream();
+  const eng = new ctx.TrafficSimEngine(stream);
+  const nf = stream.nFrames;
   const len = (t) => {
     const v = eng.getVehiclesAtTime(t, 'today');
     if (!Array.isArray(v)) throw new Error('getVehiclesAtTime did not return an array at t=' + t);

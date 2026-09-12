@@ -452,6 +452,25 @@ function useTrafficStore() {
 
   const stopAll = useCallback(() => { setRunning(false); }, []);
 
+  /* Merge a lazily-loaded stream payload (streams/<id>.js) into a catalog
+   * entry: scenarios[key].frames (and nFrames) — stats already ride inline.
+   * Immutable: new catalog array + new entry object. */
+  const mergeStream = useCallback((id, payload) => {
+    if (!payload || !payload.scenarios) return;
+    setCatalog((cat) => cat.map((e) => {
+      if (e.id !== id) return e;
+      const scenarios = { ...e.scenarios };
+      for (const k of Object.keys(payload.scenarios)) {
+        scenarios[k] = { ...(scenarios[k] || {}), ...payload.scenarios[k] };
+      }
+      return {
+        ...e,
+        scenarios,
+        nFrames: payload.nFrames || e.nFrames,
+      };
+    }));
+  }, []);
+
   const setScenario = useCallback((key) => {
     setActiveScenario(key);
     setSimT(0);
@@ -520,7 +539,7 @@ function useTrafficStore() {
     draftSub, toast, username,
     setView, setUsername, viewSim, runOnMap, stopAll, setScenario, closeSim,
     startDraft, cancelDraft, updateDraft, placeDraft, submitDraft, setDraftGeo,
-    dismissToast, setSimT, setSpeed, tick,
+    dismissToast, setSimT, setSpeed, tick, mergeStream,
   };
 }
 
@@ -787,7 +806,6 @@ globalThis.classifyUploadFile = classifyUploadFile;
 globalThis.placementScale = placementScale;
 if (typeof CATALOG !== 'undefined') globalThis.CATALOG = CATALOG;
 if (typeof OTHER_SIMS !== 'undefined') globalThis.OTHER_SIMS = OTHER_SIMS;
-if (typeof BALAGERE_STREAM !== 'undefined') globalThis.BALAGERE_STREAM = BALAGERE_STREAM;
 if (typeof BALAGERE_GEOMETRY !== 'undefined') globalThis.BALAGERE_GEOMETRY = BALAGERE_GEOMETRY;
 if (typeof LANES_PALETTE !== 'undefined') globalThis.LANES_PALETTE = LANES_PALETTE;
 if (typeof BALAGERE_CSS_STYLE !== 'undefined') globalThis.BALAGERE_CSS_STYLE = BALAGERE_CSS_STYLE;
@@ -834,26 +852,38 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-/* The one sim backed by the real generated stream; all other catalog entries
- * synthesise vehicles from their own lanes. */
-function isRealSim(entry) {
-  return typeof BALAGERE_STREAM !== 'undefined'
-    && typeof CATALOG !== 'undefined' && CATALOG.length > 0
-    && entry && entry.id === CATALOG[0].id;
-}
-
+/* Create engine for an entry. If the entry's scenario has frames (base64 BLGR),
+ * TrafficSimEngine will decode them; otherwise it synthesises vehicles from lanes. */
 function engineFor(entry) {
-  return isRealSim(entry)
-    ? new TrafficSimEngine(BALAGERE_STREAM, BALAGERE_GEOMETRY, entry.id)
-    : new TrafficSimEngine(null, entry, entry.id);
+  return new TrafficSimEngine(null, entry, entry.id);
 }
 function scenarioGeoOf(entry, scenKey) {
-  const src = isRealSim(entry) ? BALAGERE_GEOMETRY : entry;
-  if (src && src.scenarios) {
-    return src.scenarios[scenKey] || src.scenarios.today
-      || src.scenarios[Object.keys(src.scenarios)[0]] || null;
+  if (entry && entry.scenarios) {
+    return entry.scenarios[scenKey] || entry.scenarios.today
+      || entry.scenarios[Object.keys(entry.scenarios)[0]] || null;
   }
   return null;
+}
+
+/* Lazy-load a per-sim stream payload via script injection.
+ * Streams live at streams/<id>.js and call window.__simoStreamCallback(id, payload).
+ * This works on file:// where fetch() fails. */
+function loadSimStream(simId, callback) {
+  const url = 'streams/' + simId + '.js';
+  const script = document.createElement('script');
+  script.src = url;
+  script.async = true;
+  window.__simoStreamCallback = function (id, payload) {
+    if (id === simId) {
+      callback(payload);
+      delete window.__simoStreamCallback;
+    }
+  };
+  script.onerror = function () {
+    callback(null);
+    delete window.__simoStreamCallback;
+  };
+  document.head.appendChild(script);
 }
 
 /* Canvas overlay on the Leaflet overlay pane. Owns one <canvas> sized to the
@@ -1225,7 +1255,7 @@ function SimScenarioToggle({ value, onChange, scenarios }) {
 
 function SimPanel({ entry, scenKey, simT, running, speed,
   onScenario, onRun, onStop, onScrub, onSpeed, onClose }) {
-  const eng = React.useMemo(() => engineFor(entry), [entry && entry.id]);
+  const eng = React.useMemo(() => engineFor(entry), [entry]);
   const stats = eng.getStatsAt(simT, scenKey);
   const geo = scenarioGeoOf(entry, scenKey);
   const nf = entry.nFrames || 900;
@@ -1447,6 +1477,20 @@ function App() {
     const id = setTimeout(store.dismissToast, 2600);
     return () => clearTimeout(id);
   }, [store.toast, store.dismissToast]);
+
+  /* Lazy stream load: opening an entry whose scenarios lack frames pulls
+   * streams/<id>.js via script injection and merges the payload into the
+   * catalog (mergeStream). Synthetic entries never ship a stream file —
+   * the onerror path is a no-op. */
+  React.useEffect(() => {
+    if (!entry) return;
+    const needsFrames = Object.values(entry.scenarios || {})
+      .some((s) => !s.frames);
+    if (!needsFrames) return;
+    loadSimStream(entry.id, (payload) => {
+      if (payload) store.mergeStream(entry.id, payload);
+    });
+  }, [entry && entry.id]);
 
   const onScrub = (v) => { store.stopAll(); store.setSimT(v); };
 

@@ -12,52 +12,18 @@ to OUT_PATH instead of writing video/player.html. Fully deterministic.
 """
 import base64, json, os, random, re, struct, sys
 
+# Import shared geometry extraction from simo-player/tools
+TOOLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "simo-player", "tools")
+sys.path.insert(0, TOOLS_DIR)
+from sumo_geom import geom
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "video", "player.html")
 
 NETS = [("current", os.path.join(HERE, "..", "networks", "BELAGERE.net.xml"),
-         "TODAY", "no signal · two give-way U-turns"),
-        ("proposed", os.path.join(HERE, "nets", "R2-paint180.net.xml"),
-         "PROPOSED", "U-turns banned · signalised · two 3.0 m lanes")]
-
-
-def geom(p):
-    s = open(p).read()
-    lanes = []
-    for m in re.finditer(r'<lane id="([^:][^"]*)"([^>]*)>?', s):
-        attrs = m.group(2)
-        sh = re.search(r'shape="([^"]+)"', attrs)
-        if not sh:
-            continue
-        w = re.search(r'width="([\d.]+)"', attrs)
-        pts = [[round(float(v) * 10) for v in q.split(",")]
-               for q in sh.group(1).split()]
-        lanes.append({"p": pts, "w": float(w.group(1)) if w else 3.2})
-    ends = {}
-    for m in re.finditer(r'<junction id="([^:][^"]*)" type="dead_end" '
-                         r'x="([-\d.]+)" y="([-\d.]+)"', s):
-        ends[m.group(1)] = [round(float(m.group(2)) * 10),
-                            round(float(m.group(3)) * 10)]
-    arms = {}
-    if ends:
-        xs = sorted(ends.values(), key=lambda v: v[0])
-        ys = sorted(ends.values(), key=lambda v: v[1])
-        arms = {"Panathur": xs[0], "Varthur": xs[-1],
-                "Sarjapur": ys[0], "Kundalahalli": ys[-1]}
-    phases, stops, links = [], {}, {}
-    if "<tlLogic" in s:
-        phases = [[float(m.group(1)), m.group(2)] for m in
-                  re.finditer(r'<phase duration="([\d.]+)" state="(\w+)"', s)]
-        for m in re.finditer(r'<connection from="([^"]+)"[^>]*tl="[^"]*"'
-                             r'[^>]*linkIndex="(\d+)"', s):
-            frm, idx = m.group(1), int(m.group(2))
-            links.setdefault(frm, []).append(idx)
-            lm = re.search(rf'<lane id="{re.escape(frm)}_0"[^>]*shape="([^"]+)"', s)
-            if lm:
-                last = lm.group(1).split()[-1].split(",")
-                stops[frm] = [round(float(last[0]) * 10), round(float(last[1]) * 10)]
-    return {"lanes": lanes, "arms": arms, "phases": phases,
-            "stops": stops, "links": links}
+          "TODAY", "no signal · two give-way U-turns"),
+         ("proposed", os.path.join(HERE, "nets", "R2-paint180.net.xml"),
+          "PROPOSED", "U-turns banned · signalised · two 3.0 m lanes")]
 
 
 def load_scen():
@@ -608,11 +574,6 @@ def build_mock():
     geometry = {"latlngAnchor": [12.9517, 77.7894], "rotation": -8,
                 "scenarios": {"today": scen_geom(scen[0]),
                               "proposed": scen_geom(scen[1])}}
-    stream = {"nFrames": nf, "bounds": bounds,
-              "scenarios": {"today": {"frames": b64(frames_b[0]),
-                                      "stats": b64(stats_b[0])},
-                            "proposed": {"frames": b64(frames_b[1]),
-                                         "stats": b64(stats_b[1])}}}
     final_through = [struct.unpack_from("<5H", sb, (nf - 1) * 10)[0]
                      for sb in stats_b]
     bal_entry = {"id": "balagere-t-junction",
@@ -636,16 +597,34 @@ def build_mock():
              emit_const("BALAGERE_CSS_STYLE", MOCK_CSS.strip()),
              emit_const("LANES_PALETTE", LANES_PALETTE),
              emit_const("BALAGERE_GEOMETRY", geometry),
-             emit_const("BALAGERE_STREAM", stream),
              emit_const("OTHER_SIMS", others),
              emit_const("CATALOG", catalog)]
     return "\n".join(lines) + "\n"
+
+
+def build_stream():
+    """The Balagere stream payload as a JSONP-style streams/<id>.js file.
+    Loaded lazily by app.js (script injection) — keeps data.js small."""
+    nf, bounds, frames_b, stats_b = read_run()
+    b64 = lambda b: base64.b64encode(b).decode("ascii")
+    payload = {"nFrames": nf, "bounds": bounds,
+               "scenarios": {"today": {"frames": b64(frames_b[0])},
+                             "proposed": {"frames": b64(frames_b[1])}}}
+    return ("window.__simoStreamCallback('balagere-t-junction',"
+            + json.dumps(payload, separators=(",", ":")) + ");\n")
 
 
 def export_mock(out_path):
     text = build_mock()
     open(out_path, "w").write(text)
     print(f"wrote {out_path} ({len(text)/1024:.0f} KB)")
+    streams_dir = os.path.join(os.path.dirname(os.path.abspath(out_path)),
+                               "streams")
+    os.makedirs(streams_dir, exist_ok=True)
+    spath = os.path.join(streams_dir, "balagere-t-junction.js")
+    with open(spath, "w") as fh:
+        fh.write(build_stream())
+    print(f"wrote {spath} ({os.path.getsize(spath)/1024:.0f} KB)")
 
 
 def main(argv):
