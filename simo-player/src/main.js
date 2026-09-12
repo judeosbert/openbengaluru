@@ -1,0 +1,87 @@
+/* App entry: inject BALAGERE_CSS_STYLE (data bundle) + EXTRA_CSS into a
+ * <style> tag, then mount <App/>. Replaces the DOM-gated bootstrap at the
+ * bottom of the old app.js. */
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import 'leaflet/dist/leaflet.css';
+import { BALAGERE_CSS_STYLE } from './data.js';
+import { App } from './components/App.js';
+
+/* App-only styles on top of BALAGERE_CSS_STYLE (dark tokens stay there). */
+const EXTRA_CSS = ''
+  + '.map-el{position:absolute;inset:0}\n'
+  + '@keyframes flipIn{from{transform:perspective(700px) rotateY(7deg);'
+  + 'opacity:0}to{transform:none;opacity:1}}\n'
+  + '.flip-step{animation:flipIn .28s ease both}\n'
+  + '.dropzone{margin:10px 0;padding:24px;border:1px dashed var(--hair);'
+  + 'border-radius:5px;text-align:center;color:var(--ink3);font-size:12.5px}\n'
+  + '.dropzone.over{border-color:var(--accent);color:var(--ink)}\n'
+  + '.slot{margin:10px 0;padding:10px 12px;border:1px dashed var(--hair);'
+  + 'border-radius:5px}\n'
+  + '.slot.over{border-color:var(--accent)}\n'
+  + '.slot-label{display:flex;gap:10px;align-items:baseline;margin-bottom:6px}'
+  + '\n.slot-label b{letter-spacing:.06em;font-size:11.5px}\n'
+  + '.fld{display:flex;align-items:center;gap:9px;font-size:12px;'
+  + 'color:var(--ink3);padding:7px 18px}\n'
+  + '.fld label{letter-spacing:.08em;font-weight:600;font-size:10.5px;'
+  + 'min-width:48px}\n'
+  + '.fld input[type=range]{flex:1;accent-color:var(--accent)}\n'
+  + '.fld .val{font-family:var(--mono);font-size:12.5px;color:var(--ink);'
+  + 'min-width:52px;text-align:right;font-variant-numeric:tabular-nums}\n'
+  + '.sheet .closex{position:absolute;top:10px;right:12px;min-width:0;'
+  + 'padding:4px 10px}\n'
+  + '.modal textarea{width:100%;background:var(--surface2);'
+  + 'border:1px solid var(--hair);border-radius:3px;color:var(--ink);'
+  + 'font:inherit;font-size:13px;padding:8px 10px;margin:6px 0;resize:vertical}\n'
+  + '.modal input[type=file]{color:var(--ink3);font-size:12px;margin:6px 0}\n'
+  + '.modal .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}\n'
+  + '.modal button[disabled]{opacity:.45;cursor:not-allowed}\n'
+  + '.reject{font-size:11.5px;color:var(--red);margin:4px 0}\n'
+  + '.hint{font-size:11.5px;color:var(--ink3);margin:8px 0}\n'
+  + '.review{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;'
+  + 'font-size:12.5px;color:var(--ink2);margin:10px 0}\n'
+  + '.review b{color:var(--ink3);font-weight:600;letter-spacing:.08em;'
+  + 'font-size:10px}\n'
+  + '.leaflet-tooltip.sim-tt{background:rgba(23,23,26,.94);'
+  + 'border:1px solid var(--hair);color:var(--ink);font-family:var(--body);'
+  + 'font-size:11.5px;box-shadow:0 8px 22px rgba(0,0,0,.5)}\n'
+  + '.leaflet-tooltip-top.sim-tt:before{border-top-color:var(--hair)}\n'
+  + '.sim-canvas{position:absolute;top:0;left:0;z-index:640;pointer-events:none}\n'
+  + '/* minimized anchor/rotation bar: modal-veil is gone while this shows,\n'
+  + '   so the map underneath stays fully pannable / zoomable / clickable */\n'
+  + '.anchor-bar{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);\n'
+  + '  z-index:900;display:flex;align-items:center;gap:14px;background:var(--surface);\n'
+  + '  border:1px solid var(--hair);border-radius:6px;padding:10px 14px;\n'
+  + '  box-shadow:0 10px 30px rgba(0,0,0,.55);max-width:min(720px,92%)}\n'
+  + '.anchor-bar .ab-step{font-family:var(--mono);font-size:10px;\n'
+  + '  letter-spacing:.14em;color:var(--ink3);white-space:nowrap}\n'
+  + '.anchor-bar .ab-body{flex:1;font-size:12.5px;color:var(--ink2);\n'
+  + '  min-width:180px}\n'
+  + '.anchor-bar .ab-body .num{font-family:var(--mono);color:var(--ink);\n'
+  + '  font-variant-numeric:tabular-nums}\n'
+  + '.anchor-bar .ab-row{display:flex;gap:8px}\n'
+  + '.anchor-bar button{min-width:0;padding:8px 14px}\n'
+  + '.anchor-bar .fld{flex:1}\n'
+  + '/* export draw mode: crosshair pinned to the map container center,\n'
+  + '   above .sim-canvas (640), below .anchor-bar (900) */\n'
+  + '.export-crosshair{position:absolute;left:50%;top:50%;width:0;height:0;\n'
+  + '  z-index:800;pointer-events:none}\n'
+  + '.export-crosshair i{position:absolute;display:block;background:#E50914}\n'
+  + '.export-crosshair .ch{left:-10px;top:-0.75px;width:20px;height:1.5px}\n'
+  + '.export-crosshair .cv{top:-10px;left:-0.75px;width:1.5px;height:20px}\n'
+  + '/* loading screen: covers the map area until the first tile load */\n'
+  + '.loader{position:absolute;inset:0;z-index:1200;background:var(--ground);\n'
+  + '  display:flex;flex-direction:column;align-items:center;\n'
+  + '  justify-content:center;gap:16px}\n'
+  + '.loader .mark{font-size:15px}\n'
+  + '.loader .spin{width:30px;height:30px;border-radius:50%;\n'
+  + '  border:3px solid var(--hair);border-top-color:var(--accent);\n'
+  + '  animation:simospin .8s linear infinite}\n'
+  + '@keyframes simospin{to{transform:rotate(360deg)}}\n'
+  + '.loader .msg{font-size:12.5px;color:var(--ink3);letter-spacing:.04em}\n';
+
+const __simoStyle = document.createElement('style');
+__simoStyle.textContent = BALAGERE_CSS_STYLE + EXTRA_CSS;
+document.head.appendChild(__simoStyle);
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));

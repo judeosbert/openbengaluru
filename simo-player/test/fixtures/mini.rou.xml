@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<routes>
+    <vType id="passenger" accel="2.6" decel="4.5" maxSpeed="13.9"/>
+    <vType id="bus" vClass="bus" accel="1.2" decel="4.0" maxSpeed="11.0"/>
+    <route id="r0" edges="A0B0 B0B1 B1A1"/>
+    <route id="r1" edges="A0A1 A1B1"/>
+    <flow id="f0" type="passenger" route="r0" begin="0" end="600" vehsPerHour="120"/>
+    <flow id="f1" type="bus" route="r1" begin="0" end="600" vehsPerHour="30"/>
+    <vehicle id="v0" type="passenger" route="r0" depart="1"/>
+</routes>
