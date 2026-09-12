@@ -1,0 +1,23 @@
+{
+  "id": "balagere-t-junction",
+  "title": "Balagere T Junction \u2014 peak hour",
+  "desc": "Real SUMO study: 5,743-vehicle peak hour at the Balagere/Panathur T junction. TODAY: no signal, two give-way U-turns. PROPOSED: U-turns banned, signalised, two 3.0 m lanes.",
+  "anchor": [
+    12.9517,
+    77.7894
+  ],
+  "rotation": -8,
+  "demand": 5743,
+  "scenarios": [
+    "today",
+    "proposed"
+  ],
+  "files": {
+    "playerData": "balagere-bundle.json",
+    "net.today": "balagere-today.net.xml",
+    "net.proposed": "balagere-proposed.net.xml",
+    "routes.today": "demand-peak-baseline.rou.xml",
+    "routes.proposed": "demand-peak-nouturn.rou.xml"
+  },
+  "notes": "balagere-bundle.json is sim/build_player.py --export-mock output (geometry + 1Hz frames + phases + stats, base64). Net/route files are the SUMO inputs that produced it."
+}

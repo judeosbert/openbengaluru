@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nodes>
+    <node id="J0" x="-131.59" y="-0.13" type="dead_end"/>
+    <node id="J3" x="115.03" y="0.69" type="dead_end"/>
+    <node id="J15" x="0.64" y="59.52" type="dead_end"/>
+    <node id="J2" x="-5.43" y="-55.56" type="dead_end"/>
+    <node id="C" x="-3.69" y="3.03" type="traffic_light" tl="BalegereX"/>
+</nodes>

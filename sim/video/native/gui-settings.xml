@@ -1,0 +1,6 @@
+<viewsettings>
+    <!-- 80 ms between steps to start with. Change it live in the toolbar's
+         "Delay (ms)" box: lower is faster, 0 is as fast as the machine goes. -->
+    <delay value="80"/>
+    <scheme name="real world"/>
+</viewsettings>

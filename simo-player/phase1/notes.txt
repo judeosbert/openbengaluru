@@ -1,0 +1,1 @@
+Not a simulation bundle file — the classifier must reject this extension.

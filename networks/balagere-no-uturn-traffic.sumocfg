@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-08-16T14:47:34.631846+05:30 by Eclipse SUMO sumo 1.27.1
+-->
+
+<sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value="balegere-no-uturn-traffic.net.xml"/>
+        <route-files value="balegere-no-uturn.rou.xml"/>
+    </input>
+
+    <output>
+        <fcd-output.distance value="true"/>
+        <fcd-output.acceleration value="true"/>
+        <fcd-output.speed-relative value="true"/>
+        <full-output value="SimReports/no-uturn-traffic-full.xml"/>
+        <queue-output value="SimReports/no-uturn-traffic-queue.xml"/>
+        <summary-output value="SimReports/no-uturn-traffic-summary.xml"/>
+    </output>
+
+</sumoConfiguration>

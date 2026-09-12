@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<routes>
+    <vType id="passenger" accel="2.6" decel="4.5" maxSpeed="13.9"/>
+    <vehicle id="veh0" type="passenger" depart="0" route="r0"/>
+    <route id="r0" edges="in out"/>
+</routes>

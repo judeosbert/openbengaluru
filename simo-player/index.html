@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SIMO — Bengaluru traffic lab</title>
+<!-- Map: Leaflet 1.9.4 (no API key, opens from disk) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- React 18 UMD + Babel standalone: no build step, no ES modules -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  /* pre-paint shell only; full theme arrives via BALAGERE_CSS_STYLE (data.js),
+     which app.js injects into a <style> tag at bootstrap */
+  html,body{margin:0;height:100%;background:#0B0B0C;color:#F5F5F7;
+    font-family:"Helvetica Neue",Helvetica,Arial,sans-serif}
+  #root{height:100%;display:flex;flex-direction:column}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<!-- generated data bundle: BALAGERE_CSS_STYLE, LANES_PALETTE, BALAGERE_GEOMETRY,
+     BALAGERE_STREAM, OTHER_SIMS, CATALOG -->
+<script src="data.js"></script>
+<script type="text/babel" data-presets="react" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-08-16T15:23:25.306806+05:30 by Eclipse SUMO netedit 1.27.1
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <!-- VTypes -->
+    <vType id="DEFAULT_VEHTYPE" vClass="truck"/>
+    <vType id="auto" length="3.20" minGap="0.10" vClass="taxi" color="yellow"/>
+    <vType id="bangloreCar" length="4.50" minGap="0.30" maxSpeed="55.00" color="blue"/>
+    <vType id="motorcycle" minGap="0.10" vClass="motorcycle" color="black"/>
+    <vType id="schoolbus" vClass="bus"/>
+    <vType id="truck" minGap="1.00" vClass="truck" color="red"/>
+    <vType id="water-tanker" vClass="truck"/>
+    <!-- Routes -->
+    <route id="kundalahalli_panathur" edges="E4 E3 E0.75 -E0 -E0.79 -E0.79.36" color="0,128,0"/>
+    <route id="kundalahalli_sarjapur" edges="E4 E3 E0.75 -E0 E2.7" color="0,128,0"/>
+    <route id="kundalahalli_varthur" edges="E4 E3 E0.75 E2" color="0,128,0"/>
+    <route id="panathur_kundalahalli" edges="E0 E1 -E4"/>
+    <route id="panathur_sarjapur" edges="E0 E0.18 E0.75 -E0 E2.7"/>
+    <route id="panthur_kundalahalli" edges="E0 E1 -E4"/>
+    <route id="panthur_varthur" edges="E0 E0.18 E0.75 E2"/>
+    <route id="sarjapur_kundalahalli" edges="-E2.7 -E0.79 E1 -E4" color="blue"/>
+    <route id="sarjapur_panathur" edges="-E2.7 -E0.79 -E0.79.36" color="blue"/>
+    <route id="sarjapur_varthur" edges="-E2.7 -E0.79 E0.18 E0.75 E2" color="blue"/>
+    <route id="varthur_kundalahalli" edges="-E2 -E0 -E0.79 E1 -E4" color="cyan"/>
+    <route id="varthur_panathur" edges="-E2 -E0 -E0.79 -E0.79.36" color="cyan"/>
+    <route id="varthur_sarjapur" edges="-E2 -E0 E2.7" color="cyan"/>
+    <!-- Vehicles, persons and containers (sorted by depart) -->
+    <flow id="f_10" type="truck" begin="0.00" end="3600.00" perHour="10.00" color="155,226,161" route="panathur_kundalahalli"/>
+    <flow id="f_11" type="auto" begin="0.00" end="3600.00" perHour="22.00" color="155,226,161" route="panathur_kundalahalli"/>
+    <flow id="f_12" type="bangloreCar" begin="0.00" end="3600.00" perHour="200.00" color="155,226,161" route="kundalahalli_sarjapur"/>
+    <flow id="f_13" type="motorcycle" begin="0.00" end="3600.00" perHour="320.00" color="155,226,161" route="kundalahalli_sarjapur"/>
+    <flow id="f_14" type="truck" begin="0.00" end="3600.00" perHour="14.00" color="155,226,161" route="kundalahalli_sarjapur"/>
+    <flow id="f_15" type="auto" begin="0.00" end="3600.00" perHour="50.00" color="155,226,161" route="kundalahalli_sarjapur"/>
+    <flow id="f_16" type="bangloreCar" begin="0.00" end="3600.00" perHour="80.00" color="155,226,161" route="varthur_kundalahalli"/>
+    <flow id="f_17" type="motorcycle" begin="0.00" end="3600.00" perHour="130.01" color="155,226,161" route="varthur_kundalahalli"/>
+    <flow id="f_18" type="truck" begin="0.00" end="3600.00" perHour="8.00" color="155,226,161" route="varthur_kundalahalli"/>
+    <flow id="f_19" type="auto" begin="0.00" end="3600.00" perHour="20.00" color="155,226,161" route="varthur_kundalahalli"/>
+    <flow id="f_20" type="bangloreCar" begin="0.00" end="3600.00" perHour="50.00" color="155,226,161" route="varthur_sarjapur"/>
+    <flow id="f_21" type="motorcycle" begin="0.00" end="3600.00" perHour="85.01" color="155,226,161" route="varthur_sarjapur"/>
+    <flow id="f_22" type="truck" begin="0.00" end="3600.00" perHour="5.00" color="155,226,161" route="varthur_sarjapur"/>
+    <flow id="f_23" type="bangloreCar" begin="0.00" end="3600.00" perHour="154.97" color="155,226,161" route="kundalahalli_panathur"/>
+    <flow id="f_24" type="bangloreCar" begin="0.00" end="3600.00" perHour="154.97" color="155,226,161" route="kundalahalli_panathur"/>
+    <flow id="f_25" type="motorcycle" begin="0.00" end="3600.00" perHour="250.00" color="155,226,161" route="kundalahalli_panathur"/>
+    <flow id="f_26" type="truck" begin="0.00" end="3600.00" perHour="7.00" color="155,226,161" route="kundalahalli_panathur"/>
+    <flow id="f_27" type="auto" begin="0.00" end="3600.00" perHour="38.00" color="155,226,161" route="kundalahalli_panathur"/>
+    <flow id="f_30" type="truck" begin="0.00" end="3600.00" perHour="10.00" color="155,226,161" route="kundalahalli_varthur"/>
+    <flow id="f_31" type="auto" begin="0.00" end="3600.00" perHour="30.00" color="155,226,161" route="kundalahalli_varthur"/>
+    <flow id="f_32" type="bangloreCar" begin="0.00" end="3600.00" perHour="184.99" color="155,226,161" route="sarjapur_kundalahalli"/>
+    <flow id="f_33" type="motorcycle" begin="0.00" end="3600.00" perHour="298.01" color="155,226,161" route="sarjapur_kundalahalli"/>
+    <flow id="f_34" type="truck" begin="0.00" end="3600.00" perHour="15.00" color="155,226,161" route="sarjapur_kundalahalli"/>
+    <flow id="f_35" type="auto" begin="0.00" end="3600.00" perHour="45.00" color="155,226,161" route="sarjapur_kundalahalli"/>
+    <flow id="f_36" type="bangloreCar" begin="0.00" end="3600.00" perHour="94.99" color="155,226,161" route="sarjapur_kundalahalli"/>
+    <flow id="f_37" type="motorcycle" begin="0.00" end="3600.00" perHour="154.97" color="155,226,161" route="sarjapur_varthur"/>
+    <flow id="f_38" type="truck" begin="0.00" end="3600.00" perHour="5.00" color="155,226,161" route="sarjapur_kundalahalli"/>
+    <flow id="f_39" type="auto" begin="0.00" end="3600.00" perHour="24.00" color="155,226,161" route="sarjapur_kundalahalli"/>
+    <flow id="f_4" type="bangloreCar" begin="0.00" end="3600.00" perHour="64.99" color="155,226,161" route="varthur_sarjapur"/>
+    <flow id="f_40" type="bangloreCar" begin="0.00" end="3600.00" perHour="109.99" color="155,226,161" route="sarjapur_varthur"/>
+    <flow id="f_41" type="motorcycle" begin="0.00" end="3600.00" perHour="177.95" color="155,226,161" route="sarjapur_varthur"/>
+    <flow id="f_42" type="truck" begin="0.00" end="3600.00" perHour="7.00" color="155,226,161" route="sarjapur_varthur"/>
+    <flow id="f_43" type="auto" begin="0.00" end="3600.00" perHour="28.00" color="155,226,161" route="sarjapur_varthur"/>
+    <flow id="f_5" type="motorcycle" begin="0.00" end="3600.00" perHour="109.99" color="155,226,161" route="varthur_sarjapur"/>
+    <flow id="f_6" type="truck" begin="0.00" end="3600.00" perHour="8.00" color="155,226,161" route="varthur_sarjapur"/>
+    <flow id="f_7" type="auto" begin="0.00" end="3600.00" perHour="22.00" color="155,226,161" route="varthur_sarjapur"/>
+    <flow id="f_8" type="bangloreCar" begin="0.00" end="3600.00" perHour="90.00" color="155,226,161" route="panathur_kundalahalli"/>
+    <flow id="f_9" type="motorcycle" begin="0.00" end="3600.00" perHour="150.00" color="155,226,161" route="panathur_kundalahalli"/>
+</routes>

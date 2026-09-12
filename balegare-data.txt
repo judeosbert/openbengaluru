@@ -1,0 +1,227 @@
+================================================================================
+BALEGERE CROSS — SUMO TRAFFIC DATA
+================================================================================
+Location:    Balegere Cross, East Bangalore (~12.939°N, 77.718°E)
+Type:        4-way signalised intersection
+Generated:   2026-07-28
+Data source: ESTIMATED — calibrated from IRC:106 benchmarks + Bangalore modal
+             split studies. NOT from actual TMC survey. Validate before
+             production use.
+
+--------------------------------------------------------------------------------
+INTERSECTION ARMS
+--------------------------------------------------------------------------------
+  EAST  → Panathur Railway Cross
+  WEST  → Varthur Traffic Police Station
+  NORTH → Kundalahalli
+  SOUTH → Sarjapur
+
+                         NORTH (Kundalahalli)
+                               |
+                               |
+WEST (Varthur TPS) ←——— [BALEGERE X] ———→ EAST (Panathur Railway Cross)
+                               |
+                               |
+                         SOUTH (Sarjapur)
+
+--------------------------------------------------------------------------------
+VEHICLE TYPES (SUMO vType)
+--------------------------------------------------------------------------------
+  passenger  — Cars, SUVs, cabs           | accel=2.6  decel=4.5  len=4.5m   maxSpeed=13.9m/s
+  motorcycle — 2-wheelers, scooters       | accel=3.5  decel=5.0  len=2.2m   maxSpeed=16.7m/s
+  bus        — BMTC / private bus         | accel=1.2  decel=3.5  len=12.0m  maxSpeed=11.1m/s
+  truck      — LCV, trucks, mini-trucks   | accel=1.0  decel=3.0  len=8.0m   maxSpeed=11.1m/s
+  auto       — Auto-rickshaws             | accel=2.8  decel=4.0  len=3.2m   maxSpeed=11.1m/s
+  bicycle    — Bicycles, e-cycles         | accel=1.5  decel=3.0  len=1.8m   maxSpeed=5.6m/s
+
+  PCU factors: passenger=1.0  motorcycle=0.5  bus=3.0  truck=2.5  auto=0.75  bicycle=0.2
+
+--------------------------------------------------------------------------------
+TURNING MOVEMENT COUNTS — PEAK HOUR (AM 08:00–09:00 / PM 17:30–18:30)
+--------------------------------------------------------------------------------
+  vehicles/hour per type
+
+  Movement               | passenger | motorcycle | bus | truck | auto | bicycle | TOTAL
+  -----------------------|-----------|------------|-----|-------|------|---------|------
+  E→W  Panathur→Varthur  |    380    |    610     |  14 |   28  |  72  |   20    | 1124
+  E→S  Panathur→Sarjapur |     65    |    110     |   3 |    8  |  18  |    7    |  211
+  E→N  Panathur→Kundal.  |     90    |    150     |   5 |   10  |  22  |    8    |  285
+  W→E  Varthur→Panathur  |    400    |    645     |  15 |   30  |  80  |   22    | 1192
+  W→N  Varthur→Kundal.   |     80    |    130     |   4 |    8  |  20  |    7    |  249
+  W→S  Varthur→Sarjapur  |     50    |     85     |   2 |    5  |  14  |    5    |  161
+  N→S  Kundal.→Sarjapur  |    200    |    320     |   8 |   18  |  50  |   15    |  611
+  N→E  Kundal.→Panathur  |    155    |    250     |   7 |   14  |  38  |   12    |  476
+  N→W  Kundal.→Varthur   |    120    |    195     |   5 |   10  |  30  |   10    |  370
+  S→N  Sarjapur→Kundal.  |    185    |    298     |   7 |   16  |  45  |   13    |  564
+  S→W  Sarjapur→Varthur  |     95    |    155     |   4 |    9  |  24  |    8    |  295
+  S→E  Sarjapur→Panathur |    110    |    178     |   5 |   11  |  28  |   10    |  342
+  -----------------------|-----------|------------|-----|-------|------|---------|------
+  TOTAL                  |   1930    |   3126     |  79 |  167  | 441  |  137    | 5880
+
+--------------------------------------------------------------------------------
+TURNING MOVEMENT COUNTS — OFF-PEAK HOUR (10:00–16:00)
+--------------------------------------------------------------------------------
+  Movement               | passenger | motorcycle | bus | truck | auto | bicycle | TOTAL
+  -----------------------|-----------|------------|-----|-------|------|---------|------
+  E→W  Panathur→Varthur  |    145    |    232     |   6 |   13  |  28  |    8    |  432
+  E→S  Panathur→Sarjapur |     24    |     42     |   1 |    3  |   7  |    3    |   80
+  E→N  Panathur→Kundal.  |     34    |     57     |   2 |    4  |   9  |    3    |  109
+  W→E  Varthur→Panathur  |    152    |    246     |   6 |   14  |  31  |    9    |  458
+  W→N  Varthur→Kundal.   |     30    |     50     |   2 |    3  |   8  |    3    |   96
+  W→S  Varthur→Sarjapur  |     19    |     32     |   1 |    2  |   5  |    2    |   61
+  N→S  Kundal.→Sarjapur  |     76    |    122     |   3 |    7  |  19  |    6    |  233
+  N→E  Kundal.→Panathur  |     59    |     95     |   3 |    5  |  15  |    5    |  182
+  N→W  Kundal.→Varthur   |     46    |     74     |   2 |    4  |  12  |    4    |  142
+  S→N  Sarjapur→Kundal.  |     70    |    114     |   3 |    6  |  17  |    5    |  215
+  S→W  Sarjapur→Varthur  |     36    |     59     |   2 |    4  |   9  |    3    |  113
+  S→E  Sarjapur→Panathur |     42    |     68     |   2 |    4  |  11  |    4    |  131
+  -----------------------|-----------|------------|-----|-------|------|---------|------
+  TOTAL                  |    733    |   1191     |  33 |   69  | 171  |   55    | 2252
+
+--------------------------------------------------------------------------------
+DOMINANT FLOWS (PEAK)
+--------------------------------------------------------------------------------
+  Rank | Movement | Total veh/hr | Notes
+  -----|----------|--------------|------------------------------------------
+    1  | W→E      |    1192      | IT workers Varthur→Panathur (AM dominant)
+    2  | E→W      |    1124      | Return flow (PM dominant)
+    3  | N→S      |     611      | Kundalahalli→Sarjapur corridor
+    4  | S→N      |     564      | Reverse
+    5  | N→E      |     476      | Kundalahalli→Panathur shortcut
+
+--------------------------------------------------------------------------------
+MODAL SPLIT (% of total vehicles)
+--------------------------------------------------------------------------------
+  2-wheelers (motorcycle)  53%
+  Cars/cabs (passenger)    33%
+  Auto-rickshaws           8%
+  Trucks/LCV               3%
+  Buses                    1.5%
+  Bicycles                 2.5%
+
+--------------------------------------------------------------------------------
+SUMO <flow> XML — PEAK AM (begin=0 end=3600)
+--------------------------------------------------------------------------------
+
+<routes>
+  <!-- vType definitions -->
+  <vType id="passenger"  accel="2.6" decel="4.5" sigma="0.5" length="4.5"  maxSpeed="13.9"/>
+  <vType id="motorcycle" accel="3.5" decel="5.0" sigma="0.6" length="2.2"  maxSpeed="16.7"/>
+  <vType id="bus"        accel="1.2" decel="3.5" sigma="0.4" length="12.0" maxSpeed="11.1"/>
+  <vType id="truck"      accel="1.0" decel="3.0" sigma="0.4" length="8.0"  maxSpeed="11.1"/>
+  <vType id="auto"       accel="2.8" decel="4.0" sigma="0.5" length="3.2"  maxSpeed="11.1"/>
+  <vType id="bicycle"    accel="1.5" decel="3.0" sigma="0.7" length="1.8"  maxSpeed="5.6"/>
+
+  <!-- E→W: Panathur → Varthur -->
+  <flow id="EW_car"   type="passenger"  from="panathur"     to="varthur"      begin="0" end="3600" vehsPerHour="380"/>
+  <flow id="EW_moto"  type="motorcycle" from="panathur"     to="varthur"      begin="0" end="3600" vehsPerHour="610"/>
+  <flow id="EW_bus"   type="bus"        from="panathur"     to="varthur"      begin="0" end="3600" vehsPerHour="14"/>
+  <flow id="EW_truck" type="truck"      from="panathur"     to="varthur"      begin="0" end="3600" vehsPerHour="28"/>
+  <flow id="EW_auto"  type="auto"       from="panathur"     to="varthur"      begin="0" end="3600" vehsPerHour="72"/>
+  <flow id="EW_bike"  type="bicycle"    from="panathur"     to="varthur"      begin="0" end="3600" vehsPerHour="20"/>
+
+  <!-- E→S: Panathur → Sarjapur -->
+  <flow id="ES_car"   type="passenger"  from="panathur"     to="sarjapur"     begin="0" end="3600" vehsPerHour="65"/>
+  <flow id="ES_moto"  type="motorcycle" from="panathur"     to="sarjapur"     begin="0" end="3600" vehsPerHour="110"/>
+  <flow id="ES_bus"   type="bus"        from="panathur"     to="sarjapur"     begin="0" end="3600" vehsPerHour="3"/>
+  <flow id="ES_truck" type="truck"      from="panathur"     to="sarjapur"     begin="0" end="3600" vehsPerHour="8"/>
+  <flow id="ES_auto"  type="auto"       from="panathur"     to="sarjapur"     begin="0" end="3600" vehsPerHour="18"/>
+  <flow id="ES_bike"  type="bicycle"    from="panathur"     to="sarjapur"     begin="0" end="3600" vehsPerHour="7"/>
+
+  <!-- E→N: Panathur → Kundalahalli -->
+  <flow id="EN_car"   type="passenger"  from="panathur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="90"/>
+  <flow id="EN_moto"  type="motorcycle" from="panathur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="150"/>
+  <flow id="EN_bus"   type="bus"        from="panathur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="5"/>
+  <flow id="EN_truck" type="truck"      from="panathur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="10"/>
+  <flow id="EN_auto"  type="auto"       from="panathur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="22"/>
+  <flow id="EN_bike"  type="bicycle"    from="panathur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="8"/>
+
+  <!-- W→E: Varthur → Panathur -->
+  <flow id="WE_car"   type="passenger"  from="varthur"      to="panathur"     begin="0" end="3600" vehsPerHour="400"/>
+  <flow id="WE_moto"  type="motorcycle" from="varthur"      to="panathur"     begin="0" end="3600" vehsPerHour="645"/>
+  <flow id="WE_bus"   type="bus"        from="varthur"      to="panathur"     begin="0" end="3600" vehsPerHour="15"/>
+  <flow id="WE_truck" type="truck"      from="varthur"      to="panathur"     begin="0" end="3600" vehsPerHour="30"/>
+  <flow id="WE_auto"  type="auto"       from="varthur"      to="panathur"     begin="0" end="3600" vehsPerHour="80"/>
+  <flow id="WE_bike"  type="bicycle"    from="varthur"      to="panathur"     begin="0" end="3600" vehsPerHour="22"/>
+
+  <!-- W→N: Varthur → Kundalahalli -->
+  <flow id="WN_car"   type="passenger"  from="varthur"      to="kundalahalli" begin="0" end="3600" vehsPerHour="80"/>
+  <flow id="WN_moto"  type="motorcycle" from="varthur"      to="kundalahalli" begin="0" end="3600" vehsPerHour="130"/>
+  <flow id="WN_bus"   type="bus"        from="varthur"      to="kundalahalli" begin="0" end="3600" vehsPerHour="4"/>
+  <flow id="WN_truck" type="truck"      from="varthur"      to="kundalahalli" begin="0" end="3600" vehsPerHour="8"/>
+  <flow id="WN_auto"  type="auto"       from="varthur"      to="kundalahalli" begin="0" end="3600" vehsPerHour="20"/>
+  <flow id="WN_bike"  type="bicycle"    from="varthur"      to="kundalahalli" begin="0" end="3600" vehsPerHour="7"/>
+
+  <!-- W→S: Varthur → Sarjapur -->
+  <flow id="WS_car"   type="passenger"  from="varthur"      to="sarjapur"     begin="0" end="3600" vehsPerHour="50"/>
+  <flow id="WS_moto"  type="motorcycle" from="varthur"      to="sarjapur"     begin="0" end="3600" vehsPerHour="85"/>
+  <flow id="WS_bus"   type="bus"        from="varthur"      to="sarjapur"     begin="0" end="3600" vehsPerHour="2"/>
+  <flow id="WS_truck" type="truck"      from="varthur"      to="sarjapur"     begin="0" end="3600" vehsPerHour="5"/>
+  <flow id="WS_auto"  type="auto"       from="varthur"      to="sarjapur"     begin="0" end="3600" vehsPerHour="14"/>
+  <flow id="WS_bike"  type="bicycle"    from="varthur"      to="sarjapur"     begin="0" end="3600" vehsPerHour="5"/>
+
+  <!-- N→S: Kundalahalli → Sarjapur -->
+  <flow id="NS_car"   type="passenger"  from="kundalahalli" to="sarjapur"     begin="0" end="3600" vehsPerHour="200"/>
+  <flow id="NS_moto"  type="motorcycle" from="kundalahalli" to="sarjapur"     begin="0" end="3600" vehsPerHour="320"/>
+  <flow id="NS_bus"   type="bus"        from="kundalahalli" to="sarjapur"     begin="0" end="3600" vehsPerHour="8"/>
+  <flow id="NS_truck" type="truck"      from="kundalahalli" to="sarjapur"     begin="0" end="3600" vehsPerHour="18"/>
+  <flow id="NS_auto"  type="auto"       from="kundalahalli" to="sarjapur"     begin="0" end="3600" vehsPerHour="50"/>
+  <flow id="NS_bike"  type="bicycle"    from="kundalahalli" to="sarjapur"     begin="0" end="3600" vehsPerHour="15"/>
+
+  <!-- N→E: Kundalahalli → Panathur -->
+  <flow id="NE_car"   type="passenger"  from="kundalahalli" to="panathur"     begin="0" end="3600" vehsPerHour="155"/>
+  <flow id="NE_moto"  type="motorcycle" from="kundalahalli" to="panathur"     begin="0" end="3600" vehsPerHour="250"/>
+  <flow id="NE_bus"   type="bus"        from="kundalahalli" to="panathur"     begin="0" end="3600" vehsPerHour="7"/>
+  <flow id="NE_truck" type="truck"      from="kundalahalli" to="panathur"     begin="0" end="3600" vehsPerHour="14"/>
+  <flow id="NE_auto"  type="auto"       from="kundalahalli" to="panathur"     begin="0" end="3600" vehsPerHour="38"/>
+  <flow id="NE_bike"  type="bicycle"    from="kundalahalli" to="panathur"     begin="0" end="3600" vehsPerHour="12"/>
+
+  <!-- N→W: Kundalahalli → Varthur -->
+  <flow id="NW_car"   type="passenger"  from="kundalahalli" to="varthur"      begin="0" end="3600" vehsPerHour="120"/>
+  <flow id="NW_moto"  type="motorcycle" from="kundalahalli" to="varthur"      begin="0" end="3600" vehsPerHour="195"/>
+  <flow id="NW_bus"   type="bus"        from="kundalahalli" to="varthur"      begin="0" end="3600" vehsPerHour="5"/>
+  <flow id="NW_truck" type="truck"      from="kundalahalli" to="varthur"      begin="0" end="3600" vehsPerHour="10"/>
+  <flow id="NW_auto"  type="auto"       from="kundalahalli" to="varthur"      begin="0" end="3600" vehsPerHour="30"/>
+  <flow id="NW_bike"  type="bicycle"    from="kundalahalli" to="varthur"      begin="0" end="3600" vehsPerHour="10"/>
+
+  <!-- S→N: Sarjapur → Kundalahalli -->
+  <flow id="SN_car"   type="passenger"  from="sarjapur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="185"/>
+  <flow id="SN_moto"  type="motorcycle" from="sarjapur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="298"/>
+  <flow id="SN_bus"   type="bus"        from="sarjapur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="7"/>
+  <flow id="SN_truck" type="truck"      from="sarjapur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="16"/>
+  <flow id="SN_auto"  type="auto"       from="sarjapur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="45"/>
+  <flow id="SN_bike"  type="bicycle"    from="sarjapur"     to="kundalahalli" begin="0" end="3600" vehsPerHour="13"/>
+
+  <!-- S→W: Sarjapur → Varthur -->
+  <flow id="SW_car"   type="passenger"  from="sarjapur"     to="varthur"      begin="0" end="3600" vehsPerHour="95"/>
+  <flow id="SW_moto"  type="motorcycle" from="sarjapur"     to="varthur"      begin="0" end="3600" vehsPerHour="155"/>
+  <flow id="SW_bus"   type="bus"        from="sarjapur"     to="varthur"      begin="0" end="3600" vehsPerHour="4"/>
+  <flow id="SW_truck" type="truck"      from="sarjapur"     to="varthur"      begin="0" end="3600" vehsPerHour="9"/>
+  <flow id="SW_auto"  type="auto"       from="sarjapur"     to="varthur"      begin="0" end="3600" vehsPerHour="24"/>
+  <flow id="SW_bike"  type="bicycle"    from="sarjapur"     to="varthur"      begin="0" end="3600" vehsPerHour="8"/>
+
+  <!-- S→E: Sarjapur → Panathur -->
+  <flow id="SE_car"   type="passenger"  from="sarjapur"     to="panathur"     begin="0" end="3600" vehsPerHour="110"/>
+  <flow id="SE_moto"  type="motorcycle" from="sarjapur"     to="panathur"     begin="0" end="3600" vehsPerHour="178"/>
+  <flow id="SE_bus"   type="bus"        from="sarjapur"     to="panathur"     begin="0" end="3600" vehsPerHour="5"/>
+  <flow id="SE_truck" type="truck"      from="sarjapur"     to="panathur"     begin="0" end="3600" vehsPerHour="11"/>
+  <flow id="SE_auto"  type="auto"       from="sarjapur"     to="panathur"     begin="0" end="3600" vehsPerHour="28"/>
+  <flow id="SE_bike"  type="bicycle"    from="sarjapur"     to="panathur"     begin="0" end="3600" vehsPerHour="10"/>
+</routes>
+
+--------------------------------------------------------------------------------
+DATA DISCLAIMER
+--------------------------------------------------------------------------------
+These figures are ESTIMATED based on:
+  - IRC:106-1990 (Indian Roads Congress traffic volume study manual)
+  - Bangalore urban modal split benchmarks (~53% 2-wheeler, ~33% car, ~8% auto)
+  - Sarjapur Road corridor general knowledge (high-volume IT corridor)
+  - Google Maps live data: UNAVAILABLE (blocked extraction)
+  - Web search: UNAVAILABLE (API error during generation)
+
+For production simulation, replace with actual TMC survey data:
+  - Survey method: Manual turning movement count (IRC:106 standard)
+  - Recommended days: Tuesday or Wednesday (avoid Monday/Friday)
+  - Survey windows: 07:00–09:00, 12:00–14:00, 17:00–19:00
+  - Data sources: BBMP Traffic Engineering Cell / DULT Karnataka / field survey
+================================================================================
