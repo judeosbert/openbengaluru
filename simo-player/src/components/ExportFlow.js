@@ -1,13 +1,17 @@
-/* Export-area modal (bbox -> OSM download + convert.sh). Ported verbatim
- * from app.js. */
+/* Export-area modal: draw a box on the map, the SERVER fetches the OSM
+ * roads + runs netconvert and returns the finished .net.xml (POST
+ * /api/export-net via the authed exportNet wrapper). Draw UX:
+ *   modal (idle) -> 'Draw a box' arms draw mode (minimizes to the
+ *   anchor-bar) -> click-drag on the map draws an arbitrary rect ->
+ *   drawn (bar: Redraw / Use this box / Cancel; drag inside the box
+ *   moves it). No resize handles — Redraw instead, unlimited. */
 import React from 'react';
 import L from 'leaflet';
-import { osmApiUrl, convertScript } from '../lib/areaExport.js';
+import { exportNet } from '../api.js';
 
 const h = React.createElement;
 
-export function downloadText(filename, text, mime) {
-  const blob = new Blob([text], { type: mime || 'text/plain' });
+export function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename;
@@ -15,125 +19,136 @@ export function downloadText(filename, text, mime) {
   URL.revokeObjectURL(url);
 }
 
+export function downloadText(filename, text, mime) {
+  downloadBlob(filename, new Blob([text], { type: mime || 'text/plain' }));
+}
+
 export function ExportFlow({ store, map, onClose }) {
   const [bbox, setBbox] = React.useState(() => {
     const b = map.getBounds();
     return [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()];
   });
-  const [dragging, setDragging] = React.useState(false);
-  const [status, setStatus] = React.useState('');
+  /* 'modal' (form) -> 'armed' (draw mode) -> 'drawn' (box on map) */
+  const [mode, setMode] = React.useState('modal');
+  const [busy, setBusy] = React.useState(false);
+  const [status, setStatus] = React.useState(() => (
+    typeof location !== 'undefined' && location.protocol === 'file:'
+      ? 'export needs the player server (`npm run dev` / `npm start`)'
+      : ''));
   const name = React.useRef('area');
   const boxRef = React.useRef(null);
 
-  /* fixed-size box glued to a center crosshair while the modal is
-   * minimized: pan the map to move the box, drag the box itself to
-   * fine-position. Zoom stays locked so the box's geographic extent is
-   * constant for the whole draw session. */
+  /* armed + drawn share one map-gesture effect: mousedown starts a draw
+   * (armed) or a box move (drawn, pointer inside the box); mousemove
+   * updates the rect; window-level mouseup finishes and ALWAYS re-enables
+   * dragging (a release outside the container can never leave it stuck).
+   * Zoom stays locked while the anchor-bar is up so the box's geographic
+   * extent is stable for the whole draw session. */
   React.useEffect(() => {
-    if (!dragging) return undefined;
+    if (mode === 'modal') return undefined;
 
-    /* zoom lock */
     map.scrollWheelZoom.disable();
     map.doubleClickZoom.disable();
     if (map.touchZoom) map.touchZoom.disable();
     if (map.boxZoom) map.boxZoom.disable();
 
-    /* half-extents fixed once from the current view: the box spans the
-     * middle 45% of the container on both axes (center ± 22.5%) */
-    const sz = map.getSize();
-    const nw = map.containerPointToLatLng(L.point(sz.x * 0.275, sz.y * 0.275));
-    const se = map.containerPointToLatLng(L.point(sz.x * 0.725, sz.y * 0.725));
-    const dLat = (nw.lat - se.lat) / 2;
-    const dLng = (se.lng - nw.lng) / 2;
-    const boundsAround = (c) => [
-      [c.lat - dLat, c.lng - dLng],
-      [c.lat + dLat, c.lng + dLng],
-    ];
-    const publish = (c) => setBbox(
-      [c.lat - dLat, c.lng - dLng, c.lat + dLat, c.lng + dLng]);
-
-    const rect = L.rectangle(boundsAround(map.getCenter()), {
+    const el = map.getContainer();
+    const styleOpts = {
       /* token-styled via .export-bbox (EXTRA_CSS); dashArray is a
        * non-color presentation option and stays here */
       className: 'export-bbox', weight: 1.5, dashArray: '6 5',
       fillOpacity: 0.08,
-    });
-    rect.addTo(map);
-    publish(map.getCenter());
-
-    /* crosshair pinned to the container's exact center */
-    const cross = document.createElement('div');
-    cross.className = 'export-crosshair';
-    cross.style.pointerEvents = 'none';
-    const crossH = document.createElement('i');
-    crossH.className = 'ch';
-    const crossV = document.createElement('i');
-    crossV.className = 'cv';
-    cross.appendChild(crossH);
-    cross.appendChild(crossV);
-    const el = map.getContainer();
-    el.appendChild(cross);
-
-    /* pan-to-position: the box follows the crosshair on every map move */
-    const onMove = () => {
-      const c = map.getCenter();
-      rect.setBounds(boundsAround(c));
-      publish(c);
     };
-    map.on('move', onMove);
+    let rect = null;
+    let gesture = null;   // { kind: 'draw' | 'move', anchor, bounds }
 
-    /* drag the box to fine-position: grab it anywhere inside its screen
-     * bounds; while held, the map itself does not pan */
-    let boxDrag = false;
     const insideBox = (ev) => {
+      if (!rect) return false;
       const p = map.mouseEventToContainerPoint(ev);
       const b = rect.getBounds();
       const pNw = map.latLngToContainerPoint(b.getNorthWest());
       const pSe = map.latLngToContainerPoint(b.getSouthEast());
       return p.x >= pNw.x && p.x <= pSe.x && p.y >= pNw.y && p.y <= pSe.y;
     };
+    const publish = (b) => setBbox([
+      Math.min(b.getSouth(), b.getNorth()),
+      Math.min(b.getWest(), b.getEast()),
+      Math.max(b.getSouth(), b.getNorth()),
+      Math.max(b.getWest(), b.getEast()),
+    ]);
+
     const dn = (ev) => {
-      if (!insideBox(ev)) return;
-      boxDrag = true;
-      ev.preventDefault();
-      map.dragging.disable();
+      if (gesture) return;
+      if (mode === 'armed') {
+        const ll = map.mouseEventToLatLng(ev);
+        rect = L.rectangle(L.latLngBounds(ll, ll), styleOpts).addTo(map);
+        boxRef.current = rect;
+        gesture = { kind: 'draw', anchor: ll };
+        ev.preventDefault();
+        map.dragging.disable();
+        el.style.cursor = 'crosshair';
+      } else if (rect && insideBox(ev)) {
+        gesture = {
+          kind: 'move',
+          anchor: map.mouseEventToLatLng(ev),
+          bounds: rect.getBounds(),
+        };
+        ev.preventDefault();
+        map.dragging.disable();
+      }
     };
     const mv = (ev) => {
-      if (boxDrag) {
-        const ll = map.mouseEventToLatLng(ev);
-        rect.setBounds(boundsAround(ll));
-        publish(ll);
+      if (!gesture) {
+        el.style.cursor = (mode === 'drawn' && insideBox(ev)) ? 'move' : '';
+        return;
+      }
+      const ll = map.mouseEventToLatLng(ev);
+      if (gesture.kind === 'draw') {
+        rect.setBounds(L.latLngBounds(gesture.anchor, ll));
       } else {
-        el.style.cursor = insideBox(ev) ? 'move' : '';
+        /* translate the drawn box: same size, offset by the pointer delta */
+        const dLat = ll.lat - gesture.anchor.lat;
+        const dLng = ll.lng - gesture.anchor.lng;
+        const b = gesture.bounds;
+        rect.setBounds(L.latLngBounds(
+          [b.getSouth() + dLat, b.getWest() + dLng],
+          [b.getNorth() + dLat, b.getEast() + dLng],
+        ));
       }
     };
     /* mouseup lives on window so a release outside the map container can
      * never leave map.dragging disabled */
     const up = () => {
-      if (!boxDrag) return;
-      boxDrag = false;
+      if (!gesture) return;
+      const g = gesture;
+      gesture = null;
       map.dragging.enable();
+      el.style.cursor = '';
+      publish(rect.getBounds());
+      if (g.kind === 'draw') setMode('drawn');
+    };
+    const key = (ev) => {
+      if (ev.key === 'Escape') onClose();
     };
     el.addEventListener('mousedown', dn, true);
     el.addEventListener('mousemove', mv, true);
     window.addEventListener('mouseup', up, true);
-    boxRef.current = rect;
-
+    window.addEventListener('keydown', key, true);
     return () => {
-      map.off('move', onMove);
       el.removeEventListener('mousedown', dn, true);
       el.removeEventListener('mousemove', mv, true);
       window.removeEventListener('mouseup', up, true);
-      if (boxDrag) map.dragging.enable();
+      window.removeEventListener('keydown', key, true);
+      map.dragging.enable();
       el.style.cursor = '';
-      map.removeLayer(rect);
-      if (cross.parentNode) cross.parentNode.removeChild(cross);
       map.scrollWheelZoom.enable();
       map.doubleClickZoom.enable();
       if (map.touchZoom) map.touchZoom.enable();
       if (map.boxZoom) map.boxZoom.enable();
+      if (rect) map.removeLayer(rect);
+      boxRef.current = null;
     };
-  }, [dragging, map]);
+  }, [mode, map]);
 
   const fmtB = (b) => b.map((v) => (+v).toFixed(5)).join(', ');
   const useView = () => {
@@ -142,45 +157,51 @@ export function ExportFlow({ store, map, onClose }) {
     setStatus('box = current view');
   };
 
-  const doOsm = async () => {
-    setStatus('fetching OSM…');
+  const doExport = async () => {
+    setBusy(true);
+    setStatus('fetching OSM + running netconvert…');
+    const nm = name.current || 'area';
     try {
-      const url = osmApiUrl(bbox);
-      const r = await fetch(url);
-      if (!r.ok) throw new Error('OSM HTTP ' + r.status);
-      let xml = await r.text();
-      /* stamp the current map zoom as a comment so convert.sh can carry it
-       * into the .net.xml — parseNetXml reads it back as suggestedZoom and
-       * the entry auto-snaps at that zoom on open/publish. */
-      const tag = '<!-- simo:zoom=' + Math.round(map.getZoom()) + ' -->';
-      if (/<bounds\b[^>]*\/>/.test(xml)) {
-        xml = xml.replace(/(<bounds\b[^>]*\/>)/, '$1\n' + tag);
-      } else {
-        xml = xml.replace(/<\/osm>/, tag + '\n</osm>');
-      }
-      downloadText((name.current || 'area') + '.osm.xml', xml, 'text/xml');
-      setStatus('.osm.xml downloaded — now grab convert.sh');
+      const blob = await exportNet(bbox,
+        { name: nm, zoom: map.getZoom() });
+      downloadBlob(nm + '.net.xml', blob);
+      setStatus('saved ' + nm + '.net.xml — upload it in the Submit wizard');
     } catch (e) {
-      setStatus('fetch failed: ' + e.message + ' (OSM may rate-limit big areas)');
+      const msg = String((e && e.message) || e);
+      if (msg === 'not signed in' || /auth/i.test(msg)) {
+        setStatus('sign in to export');
+      } else if (typeof location !== 'undefined'
+          && location.protocol === 'file:'
+          || /fetch|network/i.test(msg)) {
+        setStatus('export needs the player server (`npm run dev` / '
+          + '`npm start`) — ' + msg);
+      } else {
+        setStatus(msg);   // server errors surface verbatim (422 tail, 503…)
+      }
+    } finally {
+      setBusy(false);
     }
   };
-  const doScript = () => {
-    downloadText('convert.sh', convertScript(bbox, name.current), 'text/x-sh');
-    setStatus('convert.sh downloaded — run it next to the .osm.xml');
-  };
 
-  /* minimized box-draw mode */
-  if (dragging) {
+  /* anchor-bar: draw mode (armed or drawn) */
+  if (mode !== 'modal') {
     return h('div', { className: 'anchor-bar' },
       h('div', { className: 'ab-step' }, 'EXPORT AREA'),
       h('div', { className: 'ab-body' },
         h('span', { className: 'num' }, fmtB(bbox)),
         h('div', { className: 'hint', style: { margin: '4px 0 0' } },
-          'Pan the map — the box stays on the crosshair. '
-          + 'Drag the box to fine-position.')),
+          mode === 'armed'
+            ? 'Click-drag on the map to draw the box.'
+            : 'Drag inside the box to move it.')),
       h('div', { className: 'ab-row' },
-        h('button', { className: 'ghost', onClick: () => setDragging(false) },
-          'Show form'),
+        mode === 'drawn'
+          ? h('button', { className: 'ghost',
+            onClick: () => setMode('armed') }, 'Redraw')
+          : null,
+        mode === 'drawn'
+          ? h('button', { className: 'ghost',
+            onClick: () => setMode('modal') }, 'Use this box')
+          : null,
         h('button', { className: 'ghost', onClick: onClose }, 'Cancel')));
   }
 
@@ -192,8 +213,9 @@ export function ExportFlow({ store, map, onClose }) {
       h('div', { className: 'step' }, 'EXPORT AREA FOR SUMO'),
       h('h3', null, 'Get the real road network'),
       h('div', { className: 'hint' },
-        'Download the OpenStreetMap roads for a box, then run convert.sh '
-        + '(auto-finds netconvert) to make a SUMO .net.xml you upload here.'),
+        'The player server downloads the OpenStreetMap roads for your box '
+        + 'and runs netconvert for you — you get a SUMO .net.xml ready to '
+        + 'upload in the Submit wizard.'),
       h('input', {
         type: 'text', defaultValue: name.current, placeholder: 'area name',
         onChange: (ev) => { name.current = ev.target.value || 'area'; },
@@ -203,12 +225,14 @@ export function ExportFlow({ store, map, onClose }) {
         h('label', null, 'BOX'),
         h('span', { className: 'val num' }, fmtB(bbox))),
       h('div', { className: 'row', style: { justifyContent: 'flex-start' } },
-        h('button', { className: 'ghost', onClick: useView }, 'Use current view'),
-        h('button', { className: 'ghost', onClick: () => setDragging(true) },
+        h('button', { className: 'ghost', onClick: useView },
+          'Use current view'),
+        h('button', { className: 'ghost',
+          onClick: () => { setStatus(''); setMode('armed'); } },
           'Draw a box')),
       h('div', { className: 'row' },
         h('button', { className: 'ghost', onClick: onClose }, 'Cancel'),
-        h('button', { className: 'ghost', onClick: doScript }, 'convert.sh'),
-        h('button', { onClick: doOsm }, 'Download .osm.xml')),
+        h('button', { onClick: doExport, disabled: busy },
+          'Download .net.xml')),
       status ? h('div', { className: 'hint' }, status) : null));
 }

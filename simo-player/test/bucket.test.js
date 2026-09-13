@@ -9,8 +9,9 @@
 import { it, expect } from 'vitest';
 import { Readable } from 'node:stream';
 import {
-  ID_RE, FILE_NAMES, objectKey, createS3FromEnv,
+  ID_RE, FILE_NAMES, objectKey, reviewKey, createS3FromEnv,
   putObjects, deleteObjects, getObjectBytes,
+  putReviewArtifacts, getReviewStream,
 } from '../bucket.js';
 
 /* ------------------------------------------------------------- constants --- */
@@ -225,4 +226,74 @@ it.skipIf(!REAL)('real bucket round-trip (opt-in: SIMO_TEST_S3_REAL=1 + SIMO_S3_
   expect(buf.toString()).toBe(text);
   await deleteObjects(s3, id);
   await expect(getObjectBytes(s3, refs[0].object_key)).rejects.toThrow();
+});
+
+/* ------------------------------------------------------ review artifacts --- */
+/* Review pipeline artifacts (pack provenance + the playable stream payload)
+ * live under uploads/<id>/review/ — NOT sim_files rows (internal
+ * artifacts; the sim_files name CHECK stays as-is). Same guard style as
+ * objectKey: fixed kinds + ID_RE-validated id. */
+
+it('reviewKey builds uploads/<id>/review/<kind>.json only from validated parts', () => {
+  expect(reviewKey('bkt-rev', 'pack')).toBe('uploads/bkt-rev/review/pack.json');
+  expect(reviewKey('bkt-rev', 'stream')).toBe('uploads/bkt-rev/review/stream.json');
+  for (const bad of ['other', '../evil', '.hidden', 'a/b', '', null, 42]) {
+    expect(() => reviewKey('bkt-rev', bad), JSON.stringify(bad))
+      .toThrow(/invalid kind/);
+  }
+  for (const bad of ['', '../evil', 'UPPER', '-lead', 'a b']) {
+    expect(() => reviewKey(bad, 'pack'), JSON.stringify(bad))
+      .toThrow(/invalid id/);
+  }
+});
+
+it('putReviewArtifacts stores pack + stream JSON under the review prefix', async () => {
+  const s3 = fakeS3();
+  await putReviewArtifacts(s3, 'bkt-rev-put',
+    { pack: { nFrames: 2 }, stream: { nFrames: 2, scenarios: {} } });
+  const puts = s3.sent.filter(
+    (c) => c.constructor.name === 'PutObjectCommand');
+  expect(puts.length).toBe(2);
+  expect(puts[0].input).toEqual({
+    Bucket: 'fake-bkt', Key: 'uploads/bkt-rev-put/review/pack.json',
+    Body: '{"nFrames":2}',
+  });
+  expect(puts[1].input.Key).toBe('uploads/bkt-rev-put/review/stream.json');
+  expect(JSON.parse(puts[1].input.Body))
+    .toEqual({ nFrames: 2, scenarios: {} });
+  // invalid id never reaches the SDK
+  await expect(putReviewArtifacts(s3, '../evil', { stream: {} }))
+    .rejects.toThrow(/invalid id/);
+  expect(s3.sent.length).toBe(2);
+});
+
+it('putReviewArtifacts skips a missing pack (stream-only contract)', async () => {
+  const s3 = fakeS3();
+  await putReviewArtifacts(s3, 'bkt-rev-sonly',
+    { stream: { nFrames: 1, scenarios: {} } });
+  expect(s3.sent.length).toBe(1);
+  expect(s3.sent[0].input.Key).toBe('uploads/bkt-rev-sonly/review/stream.json');
+});
+
+it('getReviewStream returns the stored payload JSON or null when missing', async () => {
+  const s3 = fakeS3({
+    GetObjectCommand: (input) => {
+      if (input.Key === 'uploads/bkt-rev-get/review/stream.json') {
+        return { Body: Buffer.from('{"nFrames":3,"scenarios":{"today":{}}}') };
+      }
+      const e = new Error('NoSuchKey'); e.name = 'NoSuchKey'; throw e;
+    },
+  });
+  const payload = await getReviewStream(s3, 'bkt-rev-get');
+  expect(payload).toEqual({ nFrames: 3, scenarios: { today: {} } });
+  // missing object -> null (NoSuchKey), anything else propagates
+  expect(await getReviewStream(s3, 'bkt-rev-none')).toBeNull();
+});
+
+it('getReviewStream surfaces non-NoSuchKey errors', async () => {
+  const s3 = fakeS3({
+    GetObjectCommand: () => { throw new Error('network down'); },
+  });
+  await expect(getReviewStream(s3, 'bkt-rev-err'))
+    .rejects.toThrow(/network down/);
 });

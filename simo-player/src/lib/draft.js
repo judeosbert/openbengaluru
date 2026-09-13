@@ -76,8 +76,11 @@ export function approveDraft(state, draft) {
   const today = (draft.geo && draft.geo.today) || null;
   const locked = !!(today && today.geoLocked);
   /* geo-locked nets anchor at the downloaded bounds centre and cannot be
-   * rotated — the map bounds already fix position and orientation. */
-  const anchor = draft.latlng || (locked ? today.anchor : null);
+   * rotated — the map bounds already fix position and orientation. Hand
+   * nets (no provenance) have no manual anchor step anymore: they publish
+   * at the map default centre (TrafficMap's Bengaluru init) so placement
+   * stays defined. */
+  const anchor = draft.latlng || (locked ? today.anchor : [12.94, 77.72]);
   /* Auto-snap data for geo-locked nets: the downloaded bbox becomes the
    * entry's bounds + zone rectangle (replacing the default 40 m square), so
    * open/publish can fitBounds the map straight onto the net. The export's
@@ -101,6 +104,10 @@ export function approveDraft(state, draft) {
     desc: draft.desc || '',
     scenarios: draft.simMeta.scenarios,
   };
+  if (draft.dataSource) {
+    newEntry.dataSource = draft.dataSource;
+    if (draft.sourceUrl) newEntry.sourceUrl = draft.sourceUrl;
+  }
   if (snapBounds) {
     newEntry.bounds = snapBounds;
     if (today.suggestedZoom != null) {

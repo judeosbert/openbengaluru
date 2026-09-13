@@ -55,29 +55,29 @@ export function writeCatalog(src, catalog) {
   return out;
 }
 
-/* Core injection: build the catalog entry + stream payload from a pack and
- * write them. Idempotent on id. Returns a summary object.
+/* Core entry builder — the PURE (no fs) part of the injection: pack ->
+ * { entry, streamPayload }. Shared by the CLI (injectPack writes them out)
+ * and the SERVER (POST /api/simulate builds the catalog entry + review
+ * stream in-process; no player-dir mutation anywhere in the server).
  *
  * Wizard metadata (desc/anchor/rotation/suggestedZoom) rides onto the entry:
  * desc + suggestedZoom always; anchor/rotation only fill the FALLBACK
  * (non-geo-locked) placement path — geo-locked nets derive anchor/zone/
- * bounds from latlngMap and pin rotation to 0. */
-export function injectPack(opts) {
-  const playerDir = opts.playerDir || DEFAULT_PLAYER_DIR;
-  const dataPath = opts.dataPath || path.join(playerDir, 'data.js');
-  const streamsDir = opts.streamsDir || path.join(playerDir, 'streams');
+ * bounds from latlngMap and pin rotation to 0. opts.netGeo is the
+ * pre-resolved geo provenance ({latlngMap, utm} | null) — buildEntry stays
+ * fs-free, the caller resolves it (injectPack from --net, the server from
+ * the pack itself). */
+export function buildEntry(pack, opts) {
+  const o = opts || {};
   const {
-    packPath, title, author = 'dev', id, netPath,
-    desc, anchor, rotation, suggestedZoom,
-  } = opts;
-
-  const pack = JSON.parse(fs.readFileSync(packPath, 'utf8'));
+    title, author = 'dev', id, desc, anchor, rotation, suggestedZoom,
+    dataSource, sourceUrl,
+  } = o;
+  const netGeo = o.netGeo || { latlngMap: null, utm: null };
   const eid = id || slug(title);
 
   /* geo provenance: pack-carried per scenario (new packer) wins; --net is
    * the fallback for old packs */
-  const netGeo = netPath ? geoLock(netPath) : { latlngMap: null, utm: null };
-
   const scenarios = {};
   let peakServed = 0, qmaxAll = 0, latlngMap = null;
   for (const [key, sc] of Object.entries(pack.scenarios)) {
@@ -87,7 +87,7 @@ export function injectPack(opts) {
     const sLat = sc.latlngMap || netGeo.latlngMap;
     const sUtm = sc.utm || netGeo.utm;
     latlngMap = latlngMap || sLat;
-    const entry = { title: key.toUpperCase(), sub: 'packed run · dev inject',
+    const entry = { title: key.toUpperCase(),
       lanes: sc.lanes, arms: sc.arms || {},
       phases: sc.phases || [],
       stops: sc.stops || {},
@@ -106,10 +106,11 @@ export function injectPack(opts) {
 
   let anchor_, zone, bounds;
   if (latlngMap) {
-    const o = latlngMap.orig;
-    anchor_ = [(o[0] + o[2]) / 2, (o[1] + o[3]) / 2];
-    zone = [[o[0], o[1]], [o[0], o[3]], [o[2], o[3]], [o[2], o[1]]];
-    bounds = [[o[0], o[1]], [o[2], o[3]]];
+    const orig = latlngMap.orig;
+    anchor_ = [(orig[0] + orig[2]) / 2, (orig[1] + orig[3]) / 2];
+    zone = [[orig[0], orig[1]], [orig[0], orig[3]],
+      [orig[2], orig[3]], [orig[2], orig[1]]];
+    bounds = [[orig[0], orig[1]], [orig[2], orig[3]]];
   } else {
     /* fallback placement: wizard metadata flag when present, else the
      * historical hardcoded anchor */
@@ -139,17 +140,45 @@ export function injectPack(opts) {
   if (desc != null) entry.desc = desc;
   if (suggestedZoom != null) entry.suggestedZoom = suggestedZoom;
   if (bounds) entry.bounds = bounds;
+  /* data-source provenance rides onto the entry (SimPanel shows it) */
+  if (dataSource != null) {
+    entry.dataSource = dataSource;
+    if (sourceUrl != null) entry.sourceUrl = sourceUrl;
+  }
 
-  /* 1) stream file (frames only; stats ride inline in the catalog entry) */
-  fs.mkdirSync(streamsDir, { recursive: true });
-  const payload = { nFrames: pack.nFrames, bounds: pack.bounds,
+  /* stream payload (frames only; stats ride inline in the catalog entry) */
+  const streamPayload = { nFrames: pack.nFrames, bounds: pack.bounds,
     scenarios: Object.fromEntries(
       Object.entries(pack.scenarios).map(([k, sc]) => [k, { frames: sc.frames }])),
   };
+  return { entry, streamPayload };
+}
+
+/* Core injection: build the catalog entry + stream payload from a pack and
+ * write them. Idempotent on id. Returns a summary object. */
+export function injectPack(opts) {
+  const playerDir = opts.playerDir || DEFAULT_PLAYER_DIR;
+  const dataPath = opts.dataPath || path.join(playerDir, 'data.js');
+  const streamsDir = opts.streamsDir || path.join(playerDir, 'streams');
+  const { packPath, title, author = 'dev', id, netPath,
+    desc, anchor, rotation, suggestedZoom } = opts;
+
+  const pack = JSON.parse(fs.readFileSync(packPath, 'utf8'));
+
+  /* geo provenance: pack-carried per scenario (new packer) wins; --net is
+   * the fallback for old packs */
+  const netGeo = netPath ? geoLock(netPath) : { latlngMap: null, utm: null };
+  const { entry, streamPayload } = buildEntry(pack, {
+    title, author, id, desc, anchor, rotation, suggestedZoom, netGeo,
+  });
+  const eid = entry.id;
+
+  /* 1) stream file (frames only; stats ride inline in the catalog entry) */
+  fs.mkdirSync(streamsDir, { recursive: true });
   const spath = path.join(streamsDir, eid + '.js');
   fs.writeFileSync(spath,
     "window.__simoStreamCallback('" + eid + "',"
-    + JSON.stringify(payload) + ');\n');
+    + JSON.stringify(streamPayload) + ');\n');
 
   /* 2) catalog patch (idempotent on id) */
   const src = fs.readFileSync(dataPath, 'utf8');
@@ -158,7 +187,9 @@ export function injectPack(opts) {
   fs.writeFileSync(dataPath, writeCatalog(src, catalog));
 
   return { id: eid, entryCount: catalog.length, streamPath: spath,
-    dataPath, geoLocked: !!latlngMap, demand: entry.demand, peakServed };
+    dataPath, geoLocked: Object.values(entry.scenarios)
+      .some((s) => s.latlngMap != null),
+    demand: entry.demand, peakServed: entry.peakServed };
 }
 
 export function usage() {

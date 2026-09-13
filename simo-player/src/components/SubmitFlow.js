@@ -1,115 +1,53 @@
-/* Submit wizard (6 steps, map-interactive anchor/rotation). Ported verbatim
- * from app.js. */
+/* Submit wizard (3 steps; no anchor/rotation steps — the map auto-anchors:
+ * geo-locked nets take placement from the parsed net bounds, so the
+ * wizard never asks the user to place anything). A mandatory data-source
+ * field documents provenance; the survey options require an http(s)
+ * source link. The free-text username step is gone — the author comes
+ * from the Google profile. */
 import React from 'react';
-import L from 'leaflet';
-import { MapProvider, MapOverlayProvider } from '../state/store.js';
-import { classifyUploadFile, parseDemandCount, parseNetXml } from '../lib/netxml.js';
-import { defaultSimMeta } from '../lib/draft.js';
+import { MapProvider } from '../state/store.js';
+import { ingestSlot } from '../lib/ingestSlot.js';
+import {
+  DATA_SOURCES, DATA_SOURCE_LABELS, validSourceUrl,
+} from '../lib/submit.js';
 
 const h = React.createElement;
 
 export function SubmitFlow({ store }) {
-  const map = React.useContext(MapProvider);
   const d = store.draftSub;
   const [step, setStep] = React.useState(0);
   const [reject, setReject] = React.useState('');
   const [over, setOver] = React.useState(false);
-  /* steps 3/4 minimize the modal so the map is usable — but only after the
-   * user explicitly asks via the preamble modal's CTA */
-  const [minimized, setMinimized] = React.useState(false);
-
-  /* step 3: click the map to drop the anchor pin. Registered at the map
-   * container in the CAPTURE phase so it fires before any Leaflet layer
-   * (zones, pins, markers) can stopPropagation on the click. Leaflet chrome
-   * (zoom controls, attribution) sits inside the same container, so those
-   * clicks must be excluded or they'd re-place the pin. */
-  React.useEffect(() => {
-    if (!map || step !== 3 || !minimized) return undefined;
-    const h = (ev) => {
-      if (ev.target.closest && ev.target.closest(
-        '.anchor-bar, .leaflet-control, .leaflet-popup, .leaflet-tooltip')) {
-        return;
-      }
-      const ll = map.mouseEventToLatLng(ev);
-      store.placeDraft([+ll.lat.toFixed(5), +ll.lng.toFixed(5)]);
-    };
-    const el = map.getContainer();
-    el.addEventListener('click', h, true);
-    return () => { el.removeEventListener('click', h, true); };
-  }, [map, step, minimized, store.placeDraft]);
-
-  /* live geometry preview: paint parsed .net.xml lanes on the map overlay
-   * during the anchor + rotation steps so the user sees the network rotate
-   * and position in real geography. Draws the today net when present, else
-   * the proposed net. Cleared on every other step/unmount. */
-  const overlay = React.useContext(MapOverlayProvider);
-  const lat = d.latlng && d.latlng[0], lng = d.latlng && d.latlng[1];
-  /* Always have something to show: today net first, then proposed, then the
-   * placeholder cross — so the rotation preview is never empty. */
-  const previewNet = (d.geo && d.geo.today) || (d.geo && d.geo.proposed) || null;
-  const previewGeo = previewNet
-    || (defaultSimMeta(d).scenarios.today.lanes.length
-      ? { lanes: defaultSimMeta(d).scenarios.today.lanes } : null);
-  React.useEffect(() => {
-    if (!overlay) return undefined;
-    if ((step === 3 && d.latlng) || step === 4) {
-      overlay.setDraft(previewGeo, d.latlng, d.rotation || 0);
-    } else {
-      overlay.clearDraft();
-    }
-    return () => { overlay.clearDraft(); };
-  }, [overlay, step, minimized, lat, lng, d.rotation, previewGeo]);
-
-  /* geo-locked nets take their orientation from the map bounds, so the
-   * rotation is pinned to 0 when the rotation step is entered. */
-  React.useEffect(() => {
-    if (step === 4 && d.geo && d.geo.today && d.geo.today.geoLocked
-        && (d.rotation || 0) !== 0) {
-      store.updateDraft({ rotation: 0 });
-    }
-  }, [step, d.geo, d.rotation, store.updateDraft]);
-
-  /* draggable marker at the chosen anchor (steps 3-5) */
-  const latlngKey = d.latlng ? d.latlng.join(',') : '';
-  React.useEffect(() => {
-    if (!map || !d.latlng) return undefined;
-    const mk = L.marker(d.latlng, { draggable: true });
-    mk.on('dragend', () => {
-      const ll = mk.getLatLng();
-      store.placeDraft([+ll.lat.toFixed(5), +ll.lng.toFixed(5)]);
-    });
-    mk.addTo(map);
-    return () => { map.removeLayer(mk); };
-  }, [map, latlngKey, store.placeDraft]);
 
   /* Slot upload: DEMAND takes exactly one .rou.xml, TODAY/PROPOSED NET take
    * exactly one .net.xml each. Wrong extension -> slot-specific rejection.
    * Re-uploading a slot replaces it. The raw file text is kept on the slot
-   * record (`text`) — the server-submit flow POSTs it for the real SUMO run. */
+   * record (`text`) — the server-submit flow POSTs it for the real SUMO run.
+   * Classification + parsing live in the shared pure ingestSlot helper
+   * (same core the resubmit prefill uses); only the DOM FileReader stays
+   * here. */
   const addSlot = (slot, list) => {
     const arr = Array.from(list || []);
     if (!arr.length) return;
     const f = arr[arr.length - 1];
-    const c = classifyUploadFile(f.name, f.size);
-    const want = slot === 'demand' ? 'routes' : 'network';
-    const ext = slot === 'demand' ? '.rou.xml' : '.net.xml';
-    if (!c || c.kind !== want) {
-      setReject('DEMAND/TODAY NET/PROPOSED NET slot "' + slot.toUpperCase()
-        + '": ' + f.name + ' — needs a ' + ext + ' file');
-      return;
-    }
-    setReject('');
     if (typeof FileReader === 'undefined') {
-      store.updateDraft({ files: { ...(d.files || {}), [slot]: c } });
+      /* no DOM reader (test env): classify-only record, no text */
+      const r = ingestSlot(slot, f.name, '');
+      if (r.reject) { setReject(r.reject); return; }
+      setReject('');
+      store.updateDraft({ files: { ...(d.files || {}), [slot]: r.fileRecord } });
       return;
     }
     const rd = new FileReader();
     rd.onload = () => {
       const text = String(rd.result || '');
-      store.updateDraft({ files: { ...(d.files || {}), [slot]: { ...c, text } } });
+      const r = ingestSlot(slot, f.name, text);
+      if (r.reject) { setReject(r.reject); return; }
+      setReject('');
+      store.updateDraft({ files: { ...(d.files || {}), [slot]: r.fileRecord } });
       if (slot === 'demand') {
         /* real demand count parsed in-browser; 0 elements -> warn but keep */
-        const n = parseDemandCount(text);
+        const n = r.demandCount;
         store.updateDraft({ demandCount: n });
         if (n === 0) {
           setReject(f.name + ' — parsed 0 demand elements '
@@ -118,42 +56,33 @@ export function SubmitFlow({ store }) {
         return;
       }
       /* net slots: parse into draft.geo.<slot> for the live preview */
-      const geo = parseNetXml(text);
-      if (geo) {
-        store.setDraftGeo(slot, geo);
+      if (r.geo) {
+        store.setDraftGeo(slot, r.geo);
         /* geo-locked today net: anchor pre-filled from the downloaded
-         * bounds (placement comes from the TODAY net) */
-        if (slot === 'today' && geo.geoLocked) store.placeDraft(geo.anchor);
+         * bounds (placement comes from the TODAY net — no manual step) */
+        if (slot === 'today' && r.geo.geoLocked) {
+          store.placeDraft(r.geo.anchor);
+        }
+      } else {
+        setReject(f.name + ' — parsed 0 lanes (not a SUMO net?)');
       }
-      else setReject(f.name + ' — parsed 0 lanes (not a SUMO net?)');
     };
     rd.readAsText(f);
   };
 
   const files = d.files || {};
+  const surveySrc = d.dataSource === 'manual_survey'
+    || d.dataSource === 'survey_data';
+  const linkBad = surveySrc && !!d.sourceUrl && !validSourceUrl(d.sourceUrl);
   const canNext = [
-    d.username.trim().length > 0,
     !!files.demand && !!files.today,
-    d.title.trim().length > 0,
-    !!d.latlng,
+    d.title.trim().length > 0 && !!d.dataSource
+      && (!surveySrc || validSourceUrl(d.sourceUrl)),
     true,
-    false,
   ][step];
 
   let body = null;
   if (step === 0) {
-    body = [
-      h('h3', { key: 't' }, 'Pick a username'),
-      h('div', { key: 'h', className: 'hint' },
-        'Shown as the author. Google sign-in replaces this later — '
-        + 'for now it is just a name.'),
-      h('input', {
-        key: 'i', type: 'text', placeholder: 'e.g. balagere-traffic',
-        value: d.username, autoFocus: true,
-        onChange: (ev) => store.updateDraft({ username: ev.target.value }),
-      }),
-    ];
-  } else if (step === 1) {
     /* three individual slots: demand + today net required, proposed net
      * optional (skip = contribute without improving) */
     const slotDefs = [
@@ -208,7 +137,7 @@ export function SubmitFlow({ store }) {
         : null,
       reject ? h('div', { key: 'r', className: 'reject' }, reject) : null,
     ];
-  } else if (step === 2) {
+  } else if (step === 1) {
     body = [
       h('h3', { key: 't' }, 'Name it'),
       h('input', {
@@ -221,6 +150,31 @@ export function SubmitFlow({ store }) {
         value: d.desc,
         onChange: (ev) => store.updateDraft({ desc: ev.target.value }),
       }),
+      h('div', { key: 'ds', className: 'fld' },
+        h('label', null, 'DATA SOURCE'),
+        h('select', {
+          value: d.dataSource || '',
+          onChange: (ev) => store.updateDraft({
+            dataSource: ev.target.value,
+            ...(ev.target.value === 'approximation' ? { sourceUrl: '' } : {}),
+          }),
+        },
+          h('option', { value: '' },
+            'Choose — Manual survey / Survey data / Approximation'),
+          DATA_SOURCES.map((v) => h('option', { key: v, value: v },
+            DATA_SOURCE_LABELS[v]))),
+        surveySrc
+          ? h('input', {
+            type: 'url',
+            placeholder: 'https:// link to your survey / source data',
+            value: d.sourceUrl || '',
+            onChange: (ev) => store.updateDraft({ sourceUrl: ev.target.value }),
+          })
+          : null,
+        linkBad
+          ? h('div', { key: 'lb', className: 'reject' },
+            'the source link must be an http(s) URL')
+          : null),
     ];
   } else {
     body = [
@@ -235,84 +189,15 @@ export function SubmitFlow({ store }) {
         h('b', { key: 'fp' }, 'PROPOSED NET'),
         h('span', { key: 'fpv' }, files.proposed ? files.proposed.name : '—'),
         h('b', { key: 't' }, 'TITLE'), h('span', { key: 'tv' }, d.title),
-        h('b', { key: 'an' }, 'ANCHOR'),
-        h('span', { key: 'anv', className: 'num' },
-          d.latlng ? d.latlng.join(', ') : '—'),
-        h('b', { key: 'r' }, 'ROTATION'),
-        h('span', { key: 'rv2', className: 'num' }, (d.rotation || 0) + '°'),
+        h('b', { key: 'dsk' }, 'DATA SOURCE'),
+        h('span', { key: 'dsv' },
+          d.dataSource ? DATA_SOURCE_LABELS[d.dataSource] : '—'),
+        h('b', { key: 'su' }, 'SOURCE LINK'),
+        h('span', { key: 'suv' }, d.sourceUrl || '—'),
       ]),
       h('div', { key: 'h', className: 'hint' },
-        'Moderation is assumed in this mockup — submitting publishes '
-        + 'straight onto the map.'),
-    ];
-  }
-
-  /* Anchoring + rotation steps. Two presentations:
-   * - preamble: the normal modal explains what to do, with a CTA that
-   *   minimizes it (map placement is only armed while minimized);
-   * - minimized: a bottom bar keeps the map fully interactive
-   *   (pan / zoom / click-to-place / drag pin / rotate with live preview). */
-  if ((step === 3 || step === 4) && minimized) {
-    return h('div', { className: 'anchor-bar' },
-      h('div', { className: 'ab-step' },
-        'SUBMIT · STEP ' + (step + 1) + '/6'),
-      h('div', { className: 'ab-body' },
-        step === 3
-          ? (d.latlng
-            ? h('span', { className: 'num' },
-              d.latlng[0].toFixed(5) + ', ' + d.latlng[1].toFixed(5))
-            : 'Pan / zoom the map, then click to drop the anchor pin')
-          : (d.geo && d.geo.today && d.geo.today.geoLocked
-            ? h('span', null,
-              'Rotation locked — the map bounds set the orientation.')
-            : h('span', { className: 'fld', style: { padding: 0 } },
-              h('label', null, 'ROT'),
-              h('input', {
-                type: 'range', min: -45, max: 45, step: 1,
-                value: d.rotation || 0,
-                onInput: (ev) => store.updateDraft(
-                  { rotation: parseInt(ev.target.value, 10) || 0 }),
-              }),
-              h('span', { className: 'val' }, (d.rotation || 0) + '°')))),
-      h('div', { className: 'ab-row' },
-        h('button', { className: 'ghost', onClick: () => setMinimized(false) },
-          'Show instructions'),
-        h('button', { className: 'ghost', onClick: store.cancelDraft },
-          'Cancel'),
-        step === 3 && !d.latlng
-          ? null
-          : h('button', {
-            onClick: () => { setMinimized(false); setStep(step + 1); },
-          }, step === 3 ? 'Confirm anchor' : 'Confirm rotation')));
-  }
-
-  /* preamble bodies for the map-interactive steps (full modal) */
-  if (step === 3) {
-    body = [
-      h('h3', { key: 't' }, 'Anchor it to the map'),
-      h('div', { key: 'h', className: 'hint' },
-        "The simulation's local origin sits at this point. Next you will "
-        + 'pick the spot on the map: the window minimizes so you can pan '
-        + 'and zoom freely, then click to drop the pin and drag it to '
-        + 'fine-tune. Confirm when the pin sits on the junction.'),
-      d.geo && d.geo.today && d.geo.today.geoLocked
-        ? h('div', { key: 'gl', className: 'hint' },
-          'Position locked to the downloaded map bounds — '
-          + 'no manual anchoring needed')
-        : null,
-      d.latlng
-        ? h('div', { key: 'll', className: 'hint num' },
-          'current anchor: '
-          + d.latlng[0].toFixed(5) + ', ' + d.latlng[1].toFixed(5))
-        : null,
-    ];
-  } else if (step === 4) {
-    body = [
-      h('h3', { key: 't' }, 'Rotate the network'),
-      h('div', { key: 'h', className: 'hint' },
-        "Match the bundle's orientation to the real road — degrees clockwise "
-        + 'from north-aligned. The window minimizes so you can watch the '
-        + 'preview turn on the map while you drag the slider.'),
+        'Submitting runs the real simulation, then your sim goes to the '
+        + 'review queue — an admin activates it onto the public map.'),
     ];
   }
 
@@ -322,23 +207,20 @@ export function SubmitFlow({ store }) {
   },
     h('div', { className: 'modal' },
       h('div', { className: 'step' },
-        'SUBMIT A SIMULATION · STEP ' + (step + 1) + '/6'),
+        'SUBMIT A SIMULATION · STEP ' + (step + 1) + '/3'),
       h('div', { key: step, className: 'flip-step' }, body),
       h('div', { className: 'row' },
         h('button', { className: 'ghost', onClick: store.cancelDraft }, 'Cancel'),
         step > 0
           ? h('button', {
             className: 'ghost',
-            onClick: () => { setMinimized(false); setStep(step - 1); },
+            onClick: () => setStep(step - 1),
           }, 'Back') : null,
-        step === 3 || step === 4
-          ? h('button', { onClick: () => setMinimized(true) },
-            step === 3 ? 'Minimize & select location' : 'Minimize & rotate')
-          : step < 5
-            ? h('button', {
-              disabled: !canNext, onClick: () => setStep(step + 1),
-            }, 'Next')
-            : h('button', {
-              disabled: store.submitting, onClick: store.submitDraft,
-            }, store.submitting ? 'Simulating…' : 'Submit for review'))));
+        step < 2
+          ? h('button', {
+            disabled: !canNext, onClick: () => setStep(step + 1),
+          }, 'Next')
+          : h('button', {
+            disabled: store.submitting, onClick: store.submitDraft,
+          }, store.submitting ? 'Simulating…' : 'Submit for review'))));
 }

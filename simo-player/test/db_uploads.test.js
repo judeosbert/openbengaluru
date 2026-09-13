@@ -11,7 +11,9 @@
  * contract): PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE.
  */
 import { it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { putUploadRefs, listUploads, getUploadRef } from '../db.js';
+import {
+  putUploadRefs, listUploads, getUploadRef, listSubmissions,
+} from '../db.js';
 import { ensureTestDb, testPool, requirePgEnv } from './helpers/pgTest.js';
 
 /* Fail fast listing missing PG* vars (no defaults, mirroring db.js). */
@@ -163,4 +165,34 @@ it('hostile id stays a literal parameter (no interpolation, no damage)', async (
   const n = (await pool.query(
     'select count(*)::int as n from sims')).rows[0].n;
   expect(n).toBe(0);   // table intact and empty — the probe changed nothing
+});
+/* --------------------------------------------------------- data source --- */
+
+it('data source provenance maps body -> sims columns (and the list rows)', async () => {
+  await putUploadRefs(pool, 'dbup-ds', body({
+    dataSource: 'manual_survey',
+    sourceUrl: 'https://docs.test/counts',
+    authorUid: 'ds-user',
+  }), refs('dbup-ds'));
+  const row = (await pool.query('select * from sims where id = $1',
+    ['dbup-ds'])).rows[0];
+  expect(row.data_source).toBe('manual_survey');
+  expect(row.source_url).toBe('https://docs.test/counts');
+  /* dashboard list rows carry the provenance too (SUBMISSION_COLS) */
+  const list = await listSubmissions(pool, { authorUid: 'ds-user' });
+  expect(list.map((r) => r.id)).toEqual(['dbup-ds']);
+  expect(list[0].data_source).toBe('manual_survey');
+  expect(list[0].source_url).toBe('https://docs.test/counts');
+});
+
+it('minimal body -> null provenance; an unknown data_source is rejected', async () => {
+  await putUploadRefs(pool, 'dbup-ds-min', { title: 'min' },
+    refs('dbup-ds-min'));
+  const row = (await pool.query('select * from sims where id = $1',
+    ['dbup-ds-min'])).rows[0];
+  expect(row.data_source).toBeNull();
+  expect(row.source_url).toBeNull();
+  await expect(putUploadRefs(pool, 'dbup-ds-bad',
+    { title: 'bad', dataSource: 'vibes' }, refs('dbup-ds-bad')))
+    .rejects.toThrow(/check constraint/);
 });

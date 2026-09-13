@@ -1,6 +1,7 @@
-# CLAUDE.md — simo-player
+# CLAUDE.md — OpenBengaluru
 
-Bengaluru traffic lab player: React 18 + Leaflet + Vite. Migrated from a
+OpenBengaluru player ("What would you change?"): React 18 + Leaflet + Vite.
+Migrated from a
 single-file `app.js` (React UMD + Babel standalone) to ESM modules under Vite;
 generated data + JSONP streams are served from `public/`.
 
@@ -15,7 +16,8 @@ generated data + JSONP streams are served from `public/`.
 - `npm run build` / `npm run preview` — production build / serve `dist/`
 - `npm start` — player server only (binds 0.0.0.0, `PORT` env overrides 8787;
   LAN-reachable at `http://<your-ip>:8787`):
-  static hosting (player dir over dist/) + `POST /api/simulate`.
+  static hosting (player dir over dist/) + `POST /api/simulate` +
+  `POST /api/export-net`.
   **Needs env first** (Postgres + a bucket backend — `SIMO_BUCKET_DISK_DIR`
   for dev disk storage OR the SIMO_S3_* creds — plus
   `GOOGLE_APPLICATION_CREDENTIALS`; fails fast listing missing vars):
@@ -23,7 +25,10 @@ generated data + JSONP streams are served from `public/`.
   **Real wizard simulations need either `npm run dev` (proxy wired) or
   opening the player via this server URL** — on `file://` (or vite-only
   origins without the proxy) a submit falls back to a geometry-only preview
-  entry.
+  entry and Export shows the run-via-server hint.
+  Optional worker-pool sizing: `SIMO_WORKER_COUNT` (default cpus−1),
+  `SIMO_WORKER_QUEUE_MAX` (default 32 — a full queue answers 503 busy),
+  `SIMO_CONVERT_TIMEOUT_MS` (default 120000).
 - `npm run db:setup` — creates `PGDATABASE` + `${PGDATABASE}_test` and
   applies `db/schema.sql` (idempotent, transactional). Run twice to confirm
   idempotency; `--no-test-db` skips the test db.
@@ -51,7 +56,9 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   `catalogMerge.js` is the two-source merge (base bundle + /api/catalog:
   replace-by-id, API wins, `apiStream` stamp); `ingestSlot.js` is the
   shared upload-ingest core used by SubmitFlow's FileReader path AND the
-  resubmit prefill.
+  resubmit prefill. `areaExport.js` is the server-consumed export head:
+  `osmApiUrl` + `validateBbox` (shape/range/min<max/0.25° OSM cap) +
+  `sanitizeAreaName` — the client-side convert.sh era is gone.
 - `src/data.js` — adapter over the classic-script bundle `public/data.js`.
   `index.html` loads `/data.js` as a classic script BEFORE the module entry
   (classic blocks, modules defer — order is guaranteed). Script-level `const`
@@ -126,6 +133,26 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   buildEntry → putReviewArtifacts (pack + stream) → finalizeSim → 200.
   Bucket failure at putReviewArtifacts → 500; the row stays pending +
   !sim_ready; a resubmit retries.
+  Worker pool (`pool.js`, repo root): simulates and area exports run their
+  subprocesses in bounded async slots (spawn, NOT spawnSync — the event
+  loop stays free; the old promise-chain mutex is gone). `SIMO_WORKER_COUNT`
+  slots (default cpus−1), `SIMO_WORKER_QUEUE_MAX` FIFO queue (default 32);
+  a full queue → `503 { error: 'server busy — try again shortly' }`
+  (`PoolBusyError`, `err.code === 'POOL_BUSY'`). Server close drains the
+  pool; `opts.pool` / `opts.workerCount` / `opts.queueMax` are test seams
+  (locked by test/pool.test.js + the endpoint concurrency case).
+  `POST /api/export-net` (auth-first like simulate; NO db/bucket) —
+  `{ bbox: [minLat,minLng,maxLat,maxLng], name?, zoom? }`: validateBbox →
+  fetchOsm seam (default: OSM /api/0.6/map, simo-player UA, 60 s abort;
+  OSM 400 → 400 smaller-box hint, 429/509 → 503 rate-limited, other → 502)
+  → netconvert via `opts.netconvertResolver` (`findNetconvert`, same
+  candidate list as findSumo; null → 500) in a pool slot with the retired
+  convert.sh flags (incl. `--junctions.corner-detail 5`) and
+  `SIMO_CONVERT_TIMEOUT_MS` (default 120 s → 504; nonzero → 422 stderr
+  tail) → 200 `text/xml` attachment `<name>.net.xml` with
+  `<!-- simo:zoom=N -->` on line 2. Tempdir removed on every path. Seams:
+  `fetchOsm` / `netconvertResolver` / `convertTimeoutMs`
+  (test/endpoint_export.test.js, fixture test/fixtures/mini.osm.xml).
   Review flow (Postgres + bucket; no filesystem writes): submissions stay
   `pending` until an admin activates them — the public catalog is the base
   bundle PLUS `GET /api/catalog` (active entry_json rows, replace-by-id in
@@ -152,9 +179,9 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   → public (SimPanel keeps working unauthenticated); pending/rejected/
   inactive rows are owner-or-admin only (401 anon / 403 foreign) — that is
   also how the resubmit prefill re-downloads stored XMLs.
-  pg/S3 handlers are async; the promise-chain mutex keeps concurrent
-  simulates serialized (review/catalog routes are pure async DB/bucket and
-  need no mutex). Startup constructs the pool + bucket client from env and
+  pg/S3 handlers are async; heavy subprocess work is bounded by the worker
+  pool above (review/catalog routes are pure async DB/bucket and need no
+  pool). Startup constructs the DB pool + bucket client from env and
   fails fast listing missing vars; SIMO_ADMIN_EMAILS unset logs a warning.
   `test/endpoint.test.js` + `test/endpoint_review.test.js` run it with
   REAL SUMO (where the pipeline is exercised) against a temp player dir

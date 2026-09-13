@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { approveDraft, defaultSimMeta } from '../src/lib/draft.js';
+import { defaultZonePoly } from '../src/lib/geo.js';
 import { classifyUploadFile } from '../src/lib/netxml.js';
 import { readDataConsts, PLAYER_ROOT } from './helpers/dataConsts.js';
 
@@ -229,4 +230,49 @@ it('default sim meta sub labels preview', () => {
   expect(ph.scenarios.today.sub,
     'placeholder branch keeps its fallback text, got: ' + ph.scenarios.today.sub)
     .toBe('submitted bundle · placeholder geometry');
+});
+
+/* Wizard cleanup: the manual anchor/rotation steps are gone — the map
+ * auto-anchors geo-locked nets from the parsed bounds. A hand net (no
+ * provenance) publishes with a harmless fallback placement instead of
+ * crashing on a null anchor (defaultZonePoly(null)). */
+it('hand-net draft without a pin falls back to the map default centre', () => {
+  const todayGeo = {
+    lanes: [{ p: [[0, 0], [100, 200]], w: 3.2 }],
+    arms: {}, phases: [], stops: {}, links: {},
+  };
+  const draft = {
+    username: 'hand.tester', title: 'Hand Net', desc: '',
+    latlng: null, rotation: 0,
+    geo: { today: todayGeo, proposed: null },
+    demandCount: 7,
+    simMeta: {
+      demand: 7, peakServed: 3, nFrames: 900, zonePoly: null,
+      scenarios: { today: { title: 'TODAY', lanes: todayGeo.lanes, phases: [] } },
+    },
+  };
+  const e = approveDraft({ catalog: [] }, draft).catalog[0];
+  expect(e.anchor, 'hand nets anchor at the map default centre')
+    .toEqual([12.94, 77.72]);
+  expect(e.zonePoly, 'fallback 40 m square zone around the fallback anchor')
+    .toEqual(defaultZonePoly([12.94, 77.72]));
+  expect(e.rotation).toBe(0);
+});
+
+/* Data-source provenance rides from the draft onto the published entry. */
+it('approveDraft rides the data source provenance onto the entry', () => {
+  const draft = {
+    username: 'prov.tester', title: 'Provenance', desc: '',
+    latlng: [12.96, 77.74], rotation: 0,
+    dataSource: 'manual_survey',
+    sourceUrl: 'https://docs.example.com/counts',
+    geo: { today: null, proposed: null }, demandCount: 5,
+    simMeta: {
+      demand: 5, peakServed: 2, nFrames: 900, zonePoly: null,
+      scenarios: { today: { title: 'TODAY', lanes: [], phases: [] } },
+    },
+  };
+  const e = approveDraft({ catalog: [] }, draft).catalog[0];
+  expect(e.dataSource).toBe('manual_survey');
+  expect(e.sourceUrl).toBe('https://docs.example.com/counts');
 });

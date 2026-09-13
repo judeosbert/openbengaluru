@@ -16,6 +16,7 @@ import {
   ListObjectsV2Command,
   DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
+import { createDiskBucketFromEnv } from './bucket_disk.js';
 
 /* Same slug contract as server.js validateBody — the one source of truth
  * for what a legal entry id is. */
@@ -75,6 +76,14 @@ export function createS3FromEnv(env = process.env) {
   };
 }
 
+/* createBucketFromEnv: backend dispatch for the server. SIMO_BUCKET_DISK_DIR
+ * set -> disk-backed dev storage (bucket_disk.js, no SIMO_S3_* needed);
+ * otherwise the S3 client (fail fast listing missing SIMO_S3_*). */
+export function createBucketFromEnv(env = process.env) {
+  if (env.SIMO_BUCKET_DISK_DIR) return createDiskBucketFromEnv(env);
+  return createS3FromEnv(env);
+}
+
 /* putObjects: one PutObject per file; resolves to the refs (name +
  * object_key + object_url + size_bytes) that feed db.js putUploadRefs. */
 export async function putObjects(client, id, files) {
@@ -129,4 +138,53 @@ export async function getObjectBytes(client, key) {
   const chunks = [];
   for await (const chunk of body) chunks.push(Buffer.from(chunk));
   return Buffer.concat(chunks);
+}
+
+/* --------------------------------------------------------- review artifacts */
+
+/* Review pipeline artifacts (plan: review flow + dashboards): the packed
+ * run provenance (review/pack.json — write-only in v1) and the playable
+ * stream payload (review/stream.json — the raw payload object as JSON,
+ * ~2 MB, NOT the JSONP wrapper). Internal artifacts: deliberately NOT
+ * sim_files rows (that table's name CHECK is the public file contract);
+ * deleteObjects' prefix delete covers uploads/<id>/review/ already. */
+const REVIEW_KINDS = ['pack', 'stream'];
+
+/* Key builder — same fixed-constant + ID_RE guard style as objectKey. */
+export function reviewKey(id, kind) {
+  validId(id);
+  if (!REVIEW_KINDS.includes(kind)) {
+    throw new Error('invalid kind');
+  }
+  return 'uploads/' + id + '/review/' + kind + '.json';
+}
+
+/* putReviewArtifacts: store the pipeline artifacts (pack + stream) for one
+ * sim. pack is write-only provenance in v1 — the stream is the review
+ * preview's playable payload. JSON.stringify per object; omit pack for a
+ * stream-only write (e.g. the legacy migration tool). */
+export async function putReviewArtifacts(client, id, { pack, stream }) {
+  validId(id);
+  for (const [kind, obj] of [['pack', pack], ['stream', stream]]) {
+    if (obj == null) continue;
+    await client.send(new PutObjectCommand({
+      Bucket: client.bucket,
+      Key: reviewKey(id, kind),
+      Body: JSON.stringify(obj),
+    }));
+  }
+}
+
+/* getReviewStream: parse review/stream.json back into the payload object;
+ * null when the object is missing (NoSuchKey — a pending sim that failed
+ * its pipeline has no stream yet). Any other error propagates. */
+export async function getReviewStream(client, id) {
+  try {
+    const buf = await getObjectBytes(client, reviewKey(id, 'stream'));
+    if (!buf.length) return null;
+    return JSON.parse(buf.toString('utf8'));
+  } catch (e) {
+    if (e && e.name === 'NoSuchKey') return null;
+    throw e;
+  }
 }

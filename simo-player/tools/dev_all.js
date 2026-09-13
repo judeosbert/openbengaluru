@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadDotEnvFile } from './dotenv.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -31,14 +32,19 @@ function probePort(start, tries) {
 
 const port = await probePort(8787, 10);
 
+/* .env (repo root) feeds BOTH children; real shell env still wins so a
+ * sourced terminal keeps overriding the file. Missing .env is fine — the
+ * server's fail-fast then reports the missing vars itself. */
+const env = loadDotEnvFile(path.join(ROOT, '.env'));
+
 const sim = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
-  env: { ...process.env, PORT: String(port) },
+  env: { ...env, PORT: String(port) },
   stdio: ['ignore', 'inherit', 'inherit'],
 });
 
 const vite = spawn(process.execPath,
   [path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js')], {
-    env: { ...process.env, SIMO_API_PORT: String(port) },
+    env: { ...env, SIMO_API_PORT: String(port) },
     stdio: 'inherit',
   });
 

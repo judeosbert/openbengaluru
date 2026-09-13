@@ -16,12 +16,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { findSumo, geoLock, geom } from '../tools/sumo_geom.js';
+import { findSumo, findNetconvert, geoLock, geom } from '../tools/sumo_geom.js';
 import {
   TYPES, VCLASS_TO_IDX, readDemand, buildTypeMap, buildHeader, packFcd, packStats,
 } from '../tools/blgr_pack.js';
 import { SUMO_FLAGS, parseScenarioSpecs, buildPack } from '../tools/pack_run.js';
-import { readCatalog, writeCatalog, slug, statsDerive, injectPack, parseArgs as parseInjectArgs }
+import { readCatalog, writeCatalog, slug, statsDerive, injectPack, buildEntry, parseArgs as parseInjectArgs }
   from '../tools/dev_inject.js';
 import { TrafficSimEngine } from '../src/lib/engine.js';
 import { PLAYER_ROOT } from './helpers/dataConsts.js';
@@ -128,6 +128,22 @@ it('find sumo returns path', () => {
   // when SUMO is not installed in the test env).
   if (result) {
     expect(fs.existsSync(result) || fs.statSync(result).isFile(), result).toBe(true);
+  }
+});
+
+it('find netconvert mirrors the sumo discovery (same candidate list)', () => {
+  const nc = findNetconvert();
+  if (nc) {
+    expect(fs.existsSync(nc) || fs.statSync(nc).isFile(), nc).toBe(true);
+    expect(nc).toMatch(/netconvert$/);
+  }
+  /* netconvert ships next to sumo in every discovery location — when sumo
+   * is present, netconvert must be too, from the same directory. */
+  const sumo = findSumo();
+  if (sumo) {
+    expect(nc, 'netconvert must be discoverable wherever sumo is')
+      .toBeTruthy();
+    expect(path.dirname(nc)).toBe(path.dirname(sumo));
   }
 });
 
@@ -700,4 +716,102 @@ it('dev inject parseArgs defaults metadata flags', () => {
   expect(opts.anchor).toBeUndefined();
   expect(opts.rotation).toBeUndefined();
   expect(opts.suggestedZoom).toBeUndefined();
+});
+
+/* buildEntry extraction -----------------------------------------------------
+ * Pure (no fs) entry + stream-payload builder the SERVER imports: the
+ * scenario-building block (scenarios loop, statsDerive, anchor/zone/bounds
+ * derivation, demand/peakServed fallback) extracted from injectPack.
+ * injectPack = buildEntry + the file writes, byte-identical output. */
+
+function extractionPack() {
+  return {
+    nFrames: 2,
+    bounds: [0, 0, 100, 200],
+    scenarios: {
+      today: {
+        lanes: [{ p: [[0, 0], [100, 0]], w: 3.2 }],
+        frames: Buffer.from(packFcd([[[1, 100, 200, 45, 40, 0]], []]))
+          .toString('base64'),
+        stats: Buffer.from(packStats([[0, 1, 0, 0, 0], [5, 1, 0, 2, 0]]))
+          .toString('base64'),
+      },
+    },
+  };
+}
+
+it('buildEntry is pure: matches the entry injectPack writes for the same pack', () => {
+  const td = fs.mkdtempSync(path.join(os.tmpdir(), 'simo-buildentry-'));
+  const dataPath = path.join(td, 'data.js');
+  fs.writeFileSync(dataPath, 'const CATALOG = [];\n');
+  const packPath = path.join(td, 'pack.simo.json');
+  const pack = metaPack(null);
+  fs.writeFileSync(packPath, JSON.stringify(pack));
+  const opts = {
+    playerDir: td, packPath, title: 'Extract Run', author: 'qa',
+    id: 'extract-run', desc: 'wizard description', anchor: [13.5, 77.6],
+    rotation: 9, suggestedZoom: 17,
+  };
+  injectPack(opts);
+  const written = readCatalog(fs.readFileSync(dataPath, 'utf8'))
+    .find((e) => e.id === 'extract-run');
+
+  const { entry, streamPayload } = buildEntry(pack, {
+    title: 'Extract Run', author: 'qa', id: 'extract-run',
+    desc: 'wizard description', anchor: [13.5, 77.6], rotation: 9,
+    suggestedZoom: 17, netGeo: { latlngMap: null, utm: null },
+  });
+  expect(entry).toEqual(written);
+  // stream payload contract: frames only (stats ride inline in the entry)
+  const streamSrc = fs.readFileSync(path.join(td, 'streams',
+    'extract-run.js'), 'utf8');
+  const m = streamSrc.match(/^window\.__simoStreamCallback\('[^']+',\s*(\{.*\})\);\s*$/s);
+  expect(JSON.parse(m[1])).toEqual(streamPayload);
+});
+
+it('buildEntry derives geo-locked placement and demand fallback like injectPack', () => {
+  const pack = {
+    nFrames: 3,
+    bounds: [0, 0, 100, 200],
+    scenarios: {
+      today: {
+        lanes: [{ p: [[0, 0], [100, 0]], w: 3.2 }],
+        frames: Buffer.from(packFcd([[[1, 10, 20, 0, 40, 0]], [], []]))
+          .toString('base64'),
+        stats: Buffer.from(packStats([[0, 0, 0, 0, 0], [150, 3, 2, 40, 0],
+          [230, 5, 1, 60, 0]])).toString('base64'),
+        latlngMap: { conv: [5.47, 0.0, 651.33, 706.4],
+          orig: [12.933828, 77.714521, 12.942221, 77.72148] },
+        utm: { offX: -794602.11, offY: -1431388.13, zone: 43, south: false },
+      },
+    },
+  };
+  const { entry, streamPayload } = buildEntry(pack, {
+    title: 'Geo Run', author: 'qa', id: 'geo-run',
+    desc: 'd', anchor: [1, 2], rotation: 9, netGeo: null,
+  });
+  expect(entry.anchor[0]).toBeCloseTo(12.9380245, 6);
+  expect(entry.rotation).toBe(0);            // geo-locked pins rotation
+  expect(entry.bounds.length).toBe(2);
+  expect(entry.demand).toBe(290);            // peakServed 230 + qmax 60 fallback
+  expect(entry.peakServed).toBe(230);
+  expect(entry.scenarios.today.geoLocked).toBe(true);
+  expect(streamPayload.nFrames).toBe(3);
+  expect(streamPayload.scenarios.today.frames).toBeTruthy();
+});
+
+it('buildEntry rides the data source provenance onto the entry', () => {
+  const pack = extractionPack();
+  const { entry } = buildEntry(pack, {
+    title: 'DS Run', author: 'qa', id: 'ds-run',
+    dataSource: 'manual_survey', sourceUrl: 'https://example.test/n',
+    netGeo: { latlngMap: null, utm: null },
+  });
+  expect(entry.dataSource).toBe('manual_survey');
+  expect(entry.sourceUrl).toBe('https://example.test/n');
+  const { entry: bare } = buildEntry(pack, {
+    title: 'DS Bare', id: 'ds-bare', netGeo: { latlngMap: null, utm: null },
+  });
+  expect(bare.dataSource).toBeUndefined();
+  expect(bare.sourceUrl).toBeUndefined();
 });

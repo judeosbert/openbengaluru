@@ -1,12 +1,21 @@
-/* App shell. Ported verbatim from app.js. */
+/* App shell. Ported verbatim from app.js; review-flow additions: the lazy
+ * stream loader branches on entry.apiStream (API-catalog entries fetch
+ * /api/catalog/:id/stream; base entries keep the JSONP streams/<id>.js),
+ * and the dashboard views render over the map. */
 import React from 'react';
 import { useTrafficStore, MapProvider, MapOverlayProvider } from '../state/store.js';
 import { TopBar } from './TopBar.js';
 import { TrafficMap } from '../map/TrafficMap.js';
 import { SimPanel } from './SimPanel.js';
 import { SubmitFlow } from './SubmitFlow.js';
+import { SignInGate } from './SignInGate.js';
 import { ExportFlow } from './ExportFlow.js';
+import { DashboardView } from './DashboardView.js';
+import { AdminView } from './AdminView.js';
+import { ContributeView } from './ContributeView.js';
+import { TutorialsView } from './TutorialsView.js';
 import { loadSimStream } from '../map/overlay.js';
+import { fetchCatalogStream } from '../api.js';
 
 const h = React.createElement;
 
@@ -64,18 +73,31 @@ export function App() {
     return () => clearTimeout(id);
   }, [store.toast, store.dismissToast]);
 
-  /* Lazy stream load: opening an entry whose scenarios lack frames pulls
-   * streams/<id>.js via script injection and merges the payload into the
-   * catalog (mergeStream). Synthetic entries never ship a stream file —
-   * the onerror path is a no-op. */
+  /* Lazy stream load: opening an entry whose scenarios lack frames pulls the
+   * frames and merges them into the catalog (mergeStream). Two sources:
+   * - entry.apiStream -> GET /api/catalog/:id/stream (active submissions);
+   * - else the base bundle's JSONP streams/<id>.js via script injection.
+   * Synthetic entries never ship a stream file — the onerror path is a
+   * no-op. Preview entries arrive with frames already merged in the same
+   * batched update, so this effect never fires for them. */
   React.useEffect(() => {
     if (!entry) return;
     const needsFrames = Object.values(entry.scenarios || {})
       .some((s) => !s.frames);
-    if (!needsFrames) return;
+    if (!needsFrames) return undefined;
+    if (entry.apiStream) {
+      let live = true;
+      fetchCatalogStream(entry.id)
+        .then((payload) => {
+          if (payload && live) store.mergeStream(entry.id, payload);
+        })
+        .catch(() => { /* frames stay absent; stats still ride inline */ });
+      return () => { live = false; };
+    }
     loadSimStream(entry.id, (payload) => {
       if (payload) store.mergeStream(entry.id, payload);
     });
+    return undefined;
   }, [entry && entry.id]);
 
   const onScrub = (v) => { store.stopAll(); store.setSimT(v); };
@@ -83,7 +105,8 @@ export function App() {
   return h(React.Fragment, null,
     h(TopBar, {
       view: store.view, onView: store.setView,
-      username: store.username, onUsername: store.setUsername,
+      user: store.user, me: store.me,
+      onSignIn: store.signIn, onSignOut: store.signOut,
       onNewSim: store.startDraft,
       onExport: () => setExportOpen(true),
     }),
@@ -96,7 +119,8 @@ export function App() {
           }),
           !mapReady ? h('div', { className: 'loader' },
             h('div', { className: 'mark' },
-              h('i', null), h('span', null, 'SIMO — BENGALURU TRAFFIC LAB')),
+              h('i', null), h('span', null,
+                'OpenBengaluru — What would you change?')),
             h('div', { className: 'spin' }),
             h('div', { className: 'msg' }, 'Loading map and simulations…'),
           ) : null,
@@ -108,6 +132,11 @@ export function App() {
             onClose: store.closeSim,
           }) : null,
           store.draftSub ? h(SubmitFlow, { store }) : null,
+          store.signGate ? h(SignInGate, { store }) : null,
+          store.view === 'dashboard' ? h(DashboardView, { store }) : null,
+          store.view === 'admin' ? h(AdminView, { store }) : null,
+          store.view === 'contribute' ? h(ContributeView, { store }) : null,
+          store.view === 'tutorials' ? h(TutorialsView, { store }) : null,
           exportOpen && map ? h(ExportFlow, {
             map, onClose: () => setExportOpen(false),
           }) : null,

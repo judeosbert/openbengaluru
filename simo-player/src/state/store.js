@@ -1,8 +1,16 @@
-/* Store hook + context seams. Ported verbatim from the app.js pure head. */
+/* Store hook + context seams. Ported verbatim from the app.js pure head;
+ * auth wiring added by the Firebase Google sign-in plan; review-flow wiring
+ * (me, boot catalog merge, preview, resubmit, no-reload submit) added by
+ * the review-flow plan. */
 import React from 'react';
 import { CATALOG } from '../data.js';
 import { approveDraft, defaultSimMeta, entryIdFor } from '../lib/draft.js';
 import { buildSimulateRequest, serverAvailable } from '../lib/submit.js';
+import { authorFromProfile } from '../lib/profile.js';
+import { mergeApiEntries } from '../lib/catalogMerge.js';
+import { ingestSlot } from '../lib/ingestSlot.js';
+import { signInWithGoogle, signOutUser, listenAuth, currentToken } from '../auth/firebase.js';
+import * as api from '../api.js';
 
 /* Seam for a future Google Maps implementation (plan: design decisions). */
 export const MapProvider = React.createContext(null);
@@ -12,7 +20,7 @@ export const MapOverlayProvider = React.createContext(null);
 
 /* ------------------------------------------------------------ store hook */
 export function useTrafficStore() {
-  const { useState, useCallback } = React;
+  const { useState, useCallback, useEffect } = React;
 
   const [view, setView] = useState('discover');
   const [catalog, setCatalog] = useState(() => CATALOG || []);
@@ -24,18 +32,48 @@ export function useTrafficStore() {
   const [draftSub, setDraftSub] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
-  const [username, setUsernameState] = useState(() => {
-    if (typeof localStorage !== 'undefined') {
-      try { return localStorage.getItem('simo.username') || ''; } catch (e) { /* ignore */ }
-    }
-    return '';
-  });
+  /* Google profile (null when signed out): uid/displayName/email — the
+   * author identity for new sims (the old free-text username is gone). */
+  const [user, setUser] = useState(null);
+  /* Role discovery from the player server: { author, email, uid, isAdmin }
+   * — gates the dashboard buttons. null when signed out OR when the server
+   * is unavailable / the call fails (admin UI never appears). */
+  const [me, setMe] = useState(null);
+  /* Submit sign-in gate: an unauthenticated "Submit a sim" click opens the
+   * explanatory modal (SignInGate) instead of popping Firebase directly —
+   * the modal's Google CTA (signInFromGate) starts the flow. */
+  const [signGate, setSignGate] = useState(false);
 
-  const setUsername = useCallback((name) => {
-    setUsernameState(name);
-    if (typeof localStorage !== 'undefined') {
-      try { localStorage.setItem('simo.username', name); } catch (e) { /* ignore */ }
+  useEffect(() => listenAuth(setUser), []);
+
+  /* Role fetch on user change; failure -> me=null (honest degradation). */
+  useEffect(() => {
+    let live = true;
+    if (!user) {
+      setMe(null);
+      return undefined;
     }
+    api.fetchMe()
+      .then((info) => { if (live) setMe(info); })
+      .catch(() => { if (live) setMe(null); });
+    return () => { live = false; };
+  }, [user]);
+
+  /* Boot: merge the server's active submissions over the base catalog
+   * (replace-by-id, apiStream stamp). file:// keeps the base bundle only —
+   * serverAvailable gates exactly like the submit path. Failure -> base
+   * only (never an error UI at boot). */
+  useEffect(() => {
+    const loc = typeof location !== 'undefined' ? location : null;
+    if (!serverAvailable(loc)) return undefined;
+    let live = true;
+    api.fetchCatalog()
+      .then((entries) => {
+        if (!live || !Array.isArray(entries)) return;
+        setCatalog((cat) => mergeApiEntries(cat, entries));
+      })
+      .catch(() => { /* base bundle stays */ });
+    return () => { live = false; };
   }, []);
 
   const viewSim = useCallback((id) => {
@@ -81,18 +119,58 @@ export function useTrafficStore() {
     setActiveSimId(null);
   }, []);
 
-  const startDraft = useCallback(() => {
+  /* Auth actions for the TopBar. Sign-in failure → honest toast, no
+   * partial state. */
+  const signIn = useCallback(() => {
+    signInWithGoogle().catch((e) => {
+      setToast('sign-in failed: ' + ((e && e.message) || e));
+    });
+  }, []);
+
+  const signOut = useCallback(() => { signOutUser(); }, []);
+
+  /* Fresh-submit wizard payload for a signed-in profile — shared by the
+   * direct path (startDraft) and the sign-in-gate CTA (signInFromGate).
+   * draft.username is derived from the verified profile, never typed. */
+  const openDraftFor = useCallback((u) => {
     setDraftSub({
-      username,
+      username: authorFromProfile(u),
       /* three upload slots: demand (.rou.xml, required), today net
        * (.net.xml, required), proposed net (.net.xml, optional) */
       files: {}, geo: { today: null, proposed: null }, demandCount: null,
       latlng: null, rotation: 0,
+      dataSource: '', sourceUrl: '',
       title: '', desc: '', simMeta: null,
     });
-  }, [username]);
+  }, []);
+
+  /* Submit wizard gate (plan: sim submission only — browsing stays open).
+   * Signed in: straight into the wizard. Signed out: the sign-in gate modal
+   * explains the requirement; its Google CTA (signInFromGate) starts the
+   * Google flow and the wizard only appears after a successful sign-in. */
+  const startDraft = useCallback(() => {
+    if (user) {
+      openDraftFor(user);
+      return;
+    }
+    setSignGate(true);
+  }, [user, openDraftFor]);
 
   const cancelDraft = useCallback(() => { setDraftSub(null); }, []);
+
+  /* The gate modal's Google CTA: run the sign-in flow, then continue into
+   * the wizard via the same opener startDraft uses. Failure keeps the gate
+   * open (retryable) + honest toast. */
+  const signInFromGate = useCallback(() => {
+    signInWithGoogle().then((u) => {
+      setSignGate(false);
+      openDraftFor(u);
+    }).catch((e) => {
+      setToast('sign-in failed: ' + ((e && e.message) || e));
+    });
+  }, [openDraftFor]);
+
+  const closeSignGate = useCallback(() => { setSignGate(false); }, []);
 
   /* Parsed .net.xml geometry per slot ('today' | 'proposed') for the live
    * draft preview overlay. Re-uploading a slot replaces it. */
@@ -102,9 +180,8 @@ export function useTrafficStore() {
   }, []);
 
   const updateDraft = useCallback((patch) => {
-    if (patch && typeof patch.username === 'string') setUsername(patch.username);
     setDraftSub((d) => (d ? { ...d, ...patch } : d));
-  }, [setUsername]);
+  }, []);
 
   const placeDraft = useCallback((latlng) => {
     setDraftSub((d) => (d ? { ...d, latlng } : d));
@@ -134,23 +211,40 @@ export function useTrafficStore() {
       publishLocally(draft);
       return;
     }
-    /* server present: run the REAL SUMO pipeline, then reload into it —
-     * data.js holds the persisted entry after the reload. On any failure
-     * show the error and fall back to the geometry-only publish. */
+    /* server present: run the REAL SUMO pipeline. Submissions NEVER go
+     * live directly — the row lands `pending` for admin review, so there
+     * is NO reload: a toast + the dashboard view. The id is the draft's
+     * pinned id when resubmitting (same id, thread preserved), else the
+     * entryIdFor(title) slug. The ID token rides along; the server derives
+     * the author from the verified claims. Signed out mid-wizard (no
+     * token) or any failure -> honest toast + geometry-only fallback. */
     setSubmitting(true);
-    fetch('/api/simulate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildSimulateRequest(draft, entryIdFor(draft.title))),
-    }).then(async (res) => {
-      if (res.ok) {
-        location.reload();
-        return;
+    currentToken().then((token) => {
+      if (!token) {
+        publishLocally(draft);
+        setToast('not signed in — published preview only');
+        return null;
       }
-      const body = await res.json().catch(() => ({}));
-      publishLocally(draft);
-      setToast('server simulation failed — published preview only: '
-        + (body.error || 'HTTP ' + res.status));
+      return fetch('/api/simulate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+        },
+        body: JSON.stringify(buildSimulateRequest(
+          draft, draft.id || entryIdFor(draft.title))),
+      }).then(async (res) => {
+        if (res.ok) {
+          setDraftSub(null);
+          setToast('submitted — pending review');
+          setView('dashboard');
+          return;
+        }
+        const body = await res.json().catch(() => ({}));
+        publishLocally(draft);
+        setToast('server simulation failed — published preview only: '
+          + (body.error || 'HTTP ' + res.status));
+      });
     }).catch((e) => {
       publishLocally(draft);
       setToast('server simulation failed — published preview only: ' + e);
@@ -158,6 +252,117 @@ export function useTrafficStore() {
   }, [draftSub, catalog, submitting, publishLocally]);
 
   const dismissToast = useCallback(() => { setToast(null); }, []);
+
+  /* ---------------------------------------------------- review flow */
+
+  /* previewSubmission: play a pending/rejected/inactive submission on the
+   * map (owner or admin). Transient catalog entry — replace-by-id, stamped
+   * entry.review = status so SimPanel shows the REVIEW chip — with frames
+   * merged in the SAME batched update (React 18 batches promise
+   * continuations, so the lazy-stream effect never fires a JSONP/404 for
+   * preview entries). Gone on reload. */
+  const previewSubmission = useCallback(async (id, status) => {
+    try {
+      const { entry, stream } = await api.fetchPreview(id);
+      const stamped = { ...entry, review: status || 'pending' };
+      setCatalog((cat) => mergeApiEntries(cat, [stamped]));
+      if (stream) mergeStream(id, stream);
+      viewSim(id);
+      setView('discover');
+    } catch (e) {
+      setToast('preview failed: ' + ((e && e.message) || e));
+    }
+  }, [mergeStream, viewSim]);
+
+  /* startResubmit: reopen the wizard prefilled from a stored submission —
+   * title/desc/data source + the stored XMLs re-downloaded into the
+   * draft slots (the id is PINNED: a successful re-pipeline replaces the
+   * same row). Geo-locked today nets re-pin the anchor from the parsed
+   * geometry, matching the wizard's upload path. */
+  const startResubmit = useCallback(async (sub) => {
+    if (!sub) return;
+    const go = (u) => {
+      setDraftSub({
+        username: authorFromProfile(u),
+        files: {}, geo: { today: null, proposed: null }, demandCount: null,
+        latlng: (typeof sub.anchor_lat === 'number'
+          && typeof sub.anchor_lng === 'number')
+          ? [sub.anchor_lat, sub.anchor_lng] : null,
+        rotation: sub.rotation || 0,
+        dataSource: sub.data_source || '',
+        sourceUrl: sub.source_url || '',
+        title: sub.title || '',
+        desc: sub.description || '',
+        simMeta: null,
+        id: sub.id,               // pinned id — resubmission reuses it
+      });
+    };
+    if (user) {
+      go(user);
+    } else {
+      try {
+        go(await signInWithGoogle());
+      } catch (e) {
+        setToast('sign-in failed: ' + ((e && e.message) || e));
+        return;
+      }
+    }
+    try {
+      const names = await api.fetchFileList(sub.id);
+      for (const name of names) {
+        const slot = name === 'demand.rou.xml' ? 'demand'
+          : name === 'today.net.xml' ? 'today'
+          : name === 'proposed.net.xml' ? 'proposed' : null;
+        if (!slot) continue;
+        const text = await api.fetchFileText(sub.id, name);
+        const r = ingestSlot(slot, name, text);
+        if (r.reject || !r.fileRecord) continue;
+        setDraftSub((d) => (d ? {
+          ...d,
+          files: { ...d.files, [slot]: r.fileRecord },
+          ...(slot === 'demand' ? { demandCount: r.demandCount } : {}),
+          ...(slot !== 'demand' && r.geo
+            ? { geo: { ...d.geo, [slot]: r.geo } } : {}),
+        } : d));
+        if (slot === 'today' && r.geo && r.geo.geoLocked) {
+          placeDraft(r.geo.anchor);
+        }
+      }
+    } catch (e) {
+      setToast('could not load the stored sources: '
+        + ((e && e.message) || e));
+    }
+  }, [user]);
+
+  /* Local activate success: the transient preview entry is now legitimately
+   * active in this session — drop the REVIEW chip. */
+  const activateSim = useCallback(async (id, supersedes) => {
+    const r = await api.activate(id, supersedes);
+    setCatalog((cat) => cat.map((e) => (e.id === id && e.review != null
+      ? Object.fromEntries(Object.entries(e).filter(
+        ([k]) => k !== 'review'))
+      : e)));
+    return r;
+  }, []);
+
+  /* Local deactivate: the entry leaves the public catalog immediately —
+   * drop the local copy too (other viewers keep theirs until reload). */
+  const deactivateSim = useCallback(async (id) => {
+    const r = await api.deactivate(id);
+    setCatalog((cat) => {
+      const next = cat.filter((e) => e.id !== id);
+      if (next.length !== cat.length) {
+        setActiveSimId((cur) => (cur === id ? null : cur));
+      }
+      return next;
+    });
+    return r;
+  }, []);
+
+  const rejectSim = useCallback(
+    (id, comment) => api.reject(id, comment), []);
+  const postComment = useCallback(
+    (id, body) => api.postComment(id, body), []);
 
   /* RAF tick: advance simT by speed x dt (frames are 1 Hz samples), stop at
    * the last frame. */
@@ -173,9 +378,12 @@ export function useTrafficStore() {
 
   return {
     view, catalog, activeSimId, activeScenario, running, simT, speed,
-    draftSub, submitting, toast, username,
-    setView, setUsername, viewSim, runOnMap, stopAll, setScenario, closeSim,
-    startDraft, cancelDraft, updateDraft, placeDraft, submitDraft, setDraftGeo,
-    dismissToast, setSimT, setSpeed, tick, mergeStream,
+    draftSub, submitting, toast, user, me,
+    signGate, closeSignGate, signInFromGate,
+    setView, signIn, signOut, viewSim, runOnMap, stopAll, setScenario,
+    closeSim, startDraft, cancelDraft, updateDraft, placeDraft, submitDraft,
+    setDraftGeo, dismissToast, setSimT, setSpeed, tick, mergeStream,
+    previewSubmission, startResubmit, activateSim, deactivateSim,
+    rejectSim, postComment,
   };
 }

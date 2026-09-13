@@ -67,9 +67,10 @@ export function parseNetXml(xmlText) {
     return (v.length === 2 && v.every((x) => isFinite(x))) ? v : null;
   };
 
-  /* Zoom channel: the export stamps a <!-- simo:zoom=NN --> comment and
-   * convert.sh copies it into the net. Comments are plain text, so one regex
-   * over the raw XML covers the DOMParser and regex-fallback paths alike. */
+  /* Zoom channel: the export stamps a <!-- simo:zoom=NN --> comment into
+   * the net (server-side export inserts it as line 2 of the .net.xml).
+   * Comments are plain text, so one regex over the raw XML covers the
+   * DOMParser and regex-fallback paths alike. */
   const zoomM = /simo:zoom=(\d+)/.exec(xmlText);
   const suggestedZoom = zoomM ? parseInt(zoomM[1], 10) : null;
 

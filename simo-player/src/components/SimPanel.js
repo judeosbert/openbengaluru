@@ -1,7 +1,7 @@
 /* Sim panel + A/B scenario toggle. Ported verbatim from app.js. */
 import React from 'react';
 import { engineFor, scenarioGeoOf, fmtStat } from '../map/overlay.js';
-import { serverAvailable } from '../lib/submit.js';
+import { serverAvailable, DATA_SOURCE_LABELS } from '../lib/submit.js';
 
 const h = React.createElement;
 
@@ -64,11 +64,22 @@ export function SimPanel({ entry, scenKey, simT, running, speed,
 
   return h('div', { className: 'sheet' },
     h('button', { className: 'ghost closex', onClick: onClose }, '✕'),
+    entry.review
+      ? h('div', { className: 'status-chip reviewchip ' + entry.review },
+        'REVIEW · ' + String(entry.review).toUpperCase())
+      : null,
     h('h2', null, entry.title),
     h('div', { className: 'by' },
       'by ', h('b', null, entry.author), ' · added ', entry.addedAt,
       geo && geo.sub ? h('span', null, ' · ', geo.sub) : null),
     entry.desc ? h('div', { className: 'by' }, entry.desc) : null,
+    entry.dataSource ? h('div', { className: 'by' },
+      'DATA SOURCE · ',
+      h('b', null, DATA_SOURCE_LABELS[entry.dataSource] || entry.dataSource),
+      entry.sourceUrl ? h('a', {
+        className: 'filelink', href: entry.sourceUrl,
+        target: '_blank', rel: 'noreferrer',
+      }, ' · source link') : null) : null,
     srcFiles && srcFiles.length ? h('div', { className: 'fld files' },
       h('label', null, 'FILES'),
       h('div', { className: 'filelist' },

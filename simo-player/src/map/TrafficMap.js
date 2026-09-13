@@ -5,7 +5,7 @@
 import React from 'react';
 import L from 'leaflet';
 import { makeSimOverlay } from './overlay.js';
-import { ZonesAndPins } from './ZonesAndPins.js';
+import { ActivePins } from './ActivePins.js';
 
 const h = React.createElement;
 
@@ -93,7 +93,7 @@ export function TrafficMap({ store, onMap, onReady, onOverlay }) {
 
   return h(React.Fragment, null,
     h('div', { className: 'map-el', ref: elRef }),
-    map ? h(ZonesAndPins, {
+    map ? h(ActivePins, {
       map, catalog: store.catalog,
       activeSimId: store.activeSimId, onViewSim: store.viewSim,
     }) : null);

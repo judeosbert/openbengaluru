@@ -1,5 +1,5 @@
 {
-  "name": "simo-player",
+  "name": "openbengaluru",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -19,6 +19,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",
+    "firebase": "^12.19.0",
+    "firebase-admin": "^13.10.0",
     "leaflet": "^1.9.4",
     "pg": "^8.23.0",
     "react": "^18.3.1",

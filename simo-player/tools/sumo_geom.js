@@ -28,6 +28,20 @@ export function findSumo() {
   return null;
 }
 
+/* netconvert ships next to sumo in every discovery location — identical
+ * candidate list with the binary name swapped (server-side area export). */
+export function findNetconvert() {
+  const candidates = [
+    (process.env.SUMO_HOME || '') + '/bin/netconvert',
+    '/Library/Frameworks/EclipseSUMO.framework/Versions/Current/EclipseSUMO/share/sumo/bin/netconvert',
+    'netconvert',
+  ];
+  for (const c of candidates) {
+    if (c && isExecutableFile(c)) return c;
+  }
+  return null;
+}
+
 /* <location> -> {latlngMap, utm}, mirroring src/lib/netxml.js parseNetXml.
  *
  * latlngMap: {conv: convBoundary metres, orig: origBoundary reordered to

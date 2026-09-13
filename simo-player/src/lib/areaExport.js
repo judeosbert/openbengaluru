@@ -1,43 +1,43 @@
-/* Area export helpers. Ported verbatim from the app.js pure head. */
+/* Area export helpers. The pure head shared by the client and the server:
+ * osmApiUrl builds the OSM /api/0.6/map request the SERVER now performs
+ * (POST /api/export-net fetches OSM, runs netconvert, returns a finished
+ * .net.xml); validateBbox + sanitizeAreaName gate that request. */
 
-/* ------------------------------------------------------ area export helpers
- * Contributors download the real OSM road network for a bbox, then run the
- * generated convert.sh (which auto-finds netconvert) to get a SUMO .net.xml.
- * bbox = [minLat, minLng, maxLat, maxLng]; both helpers are pure head so the
- * vm harness can test them. */
+/* bbox = [minLat, minLng, maxLat, maxLng] ->
+ * OSM bbox=minLng,minLat,maxLng,maxLat */
 export function osmApiUrl(bbox) {
   const b = bbox.map((v) => +(+v).toFixed(6));
   return 'https://www.openstreetmap.org/api/0.6/map?bbox='
-    + b[1] + ',' + b[0] + ',' + b[3] + ',' + b[2];   // minLng,minLat,maxLng,maxLat
+    + b[1] + ',' + b[0] + ',' + b[3] + ',' + b[2];
 }
 
-/* Bash script the contributor runs: netconvert from EclipseSUMO / $SUMO_HOME /
- * PATH. Produces <name>.net.xml next to the downloaded .osm.xml. */
-export function convertScript(bbox, name) {
-  const nm = (name || 'area').replace(/[^a-z0-9-]+/g, '-');
-  const B = bbox.map((v) => +(+v).toFixed(6));
-  return '#!/bin/bash\n'
-    + '# Export area [' + B.join(', ') + '] to a SUMO net. Run next to the\n'
-    + '# downloaded ' + nm + '.osm.xml. netconvert auto-detects.\n'
-    + '# netconvert keeps <location origBoundary> — the app uses it to auto-position.\n'
-    + 'set -e\n'
-    + 'NC=""\n'
-    + 'for c in "$SUMO_HOME/bin/netconvert" \\\n'
-    + '  "/Library/Frameworks/EclipseSUMO.framework/Versions/Current/EclipseSUMO/share/sumo/bin/netconvert" \\\n'
-    + '  "$(command -v netconvert)"; do\n'
-    + '  [ -x "$c" ] && NC="$c" && break\n'
-    + 'done\n'
-    + '[ -z "$NC" ] && { echo "netconvert not found — set SUMO_HOME"; exit 1; }\n'
-    + 'OSM="' + nm + '.osm.xml"\n'
-    + '[ -f "$OSM" ] || { echo "$OSM missing — download it from the app first"; exit 1; }\n'
-    + '"$NC" --osm-files "$OSM" --output-file ' + nm + '.net.xml \\\n'
-    + '  --geometry.remove --junctions.join --roundabouts.guess \\\n'
-    + '  --tls.guess --tls.join --junctions.corner-detail 5\n'
-    + '# carry the export zoom into the net (line 2) so the app can auto-snap\n'
-    + 'ZOOM=$(grep -o \'simo:zoom=[0-9]*\' "$OSM" | head -1 | cut -d= -f2)\n'
-    + 'if [ -n "$ZOOM" ]; then\n'
-    + '  awk -v z="$ZOOM" \'NR==1{print; print "<!-- simo:zoom=" z " -->"; next}1\' '
-    + nm + '.net.xml > ' + nm + '.net.xml.tmp && mv ' + nm + '.net.xml.tmp ' + nm + '.net.xml\n'
-    + 'fi\n'
-    + 'echo "wrote ' + nm + '.net.xml — upload it in the Submit wizard"\n';
+/* Server-side bbox gate (error string | null): shape, finite numbers, lat
+ * [-90,90] / lng [-180,180], min < max on both axes, and each side <=
+ * 0.25° — the OSM /api/0.6/map hard cap (a bigger box always 400s
+ * upstream; rejecting here keeps that from surfacing as a generic 502).
+ * 1e-9 slack absorbs float drift at exactly-0.25 boxes. */
+export function validateBbox(bbox) {
+  if (!Array.isArray(bbox) || bbox.length !== 4) {
+    return 'bbox must be [minLat, minLng, maxLat, maxLng]';
+  }
+  if (!bbox.every((v) => typeof v === 'number' && Number.isFinite(v))) {
+    return 'bbox entries must all be finite numbers';
+  }
+  const [minLat, minLng, maxLat, maxLng] = bbox;
+  if (minLat < -90 || maxLat > 90) return 'lat must be within [-90, 90]';
+  if (minLng < -180 || maxLng > 180) return 'lng must be within [-180, 180]';
+  if (minLat >= maxLat || minLng >= maxLng) {
+    return 'bbox must satisfy min < max on both axes';
+  }
+  if (maxLat - minLat > 0.25 + 1e-9 || maxLng - minLng > 0.25 + 1e-9) {
+    return 'each bbox side must be <= 0.25 degrees (the OSM /api/0.6/map '
+      + 'hard cap) — draw a smaller area';
+  }
+  return null;
+}
+
+/* The convert.sh slug regex: every run of characters outside
+ * [a-z0-9-] becomes one dash; empty/missing -> 'area'. */
+export function sanitizeAreaName(name) {
+  return (name || 'area').replace(/[^a-z0-9-]+/g, '-');
 }
