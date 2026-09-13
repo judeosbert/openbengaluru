@@ -53,7 +53,10 @@ export function ExportFlow({ store, map, onClose }) {
       [c.lat - dLat, c.lng - dLng, c.lat + dLat, c.lng + dLng]);
 
     const rect = L.rectangle(boundsAround(map.getCenter()), {
-      color: '#E50914', weight: 1.5, dashArray: '6 5', fillOpacity: 0.08,
+      /* token-styled via .export-bbox (EXTRA_CSS); dashArray is a
+       * non-color presentation option and stays here */
+      className: 'export-bbox', weight: 1.5, dashArray: '6 5',
+      fillOpacity: 0.08,
     });
     rect.addTo(map);
     publish(map.getCenter());

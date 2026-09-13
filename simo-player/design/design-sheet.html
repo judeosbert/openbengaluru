@@ -1,0 +1,1628 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIMO — warm redesign · design sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --serif:"Fraunces","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:"Inter",-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --r-xs:6px;--r-sm:10px;--r-md:14px;--r-lg:16px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#EDE4D3;color:#3A2E22;font-family:var(--sans);
+  font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.page{max-width:1280px;margin:0 auto;padding:34px 26px 80px}
+
+.ds-header{padding:8px 0 6px}
+.ds-header h1{font-family:var(--serif);font-weight:600;font-size:34px;
+  letter-spacing:-.01em;margin:0 0 6px}
+.ds-header .intent{margin:0 0 22px;font-size:14.5px;color:#6B5A48;max-width:74ch}
+.pals{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pal-card{background:#F8F2E6;border:1px solid rgba(74,55,40,.16);border-radius:16px;
+  padding:14px 16px}
+.pal-card h3{margin:0 0 10px;font-family:var(--mono);font-size:10px;
+  letter-spacing:.18em;font-weight:600}
+.pal-card.paper h3{color:#A03F22}
+.pal-card.dusk h3{color:#8A5A22}
+.sw{display:inline-flex;flex-direction:column;gap:4px;width:76px;margin:0 10px 8px 0}
+.sw i{height:34px;border-radius:8px;border:1px solid rgba(74,55,40,.18);display:block}
+.sw span{font-family:var(--mono);font-size:9px;color:#6B5A48;white-space:nowrap}
+
+.sec{margin:38px 0 6px;scroll-margin-top:20px}
+.sec-head{display:flex;align-items:baseline;gap:14px;margin:0 0 6px;flex-wrap:wrap}
+.sec-head .n{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:#A03F22}
+.sec-head h2{font-family:var(--serif);font-weight:600;font-size:25px;margin:0;letter-spacing:-.01em}
+.sec-note{margin:0 0 14px;font-size:12.5px;color:#6B5A48}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media (max-width:1080px){.duo{grid-template-columns:1fr}.pals{grid-template-columns:1fr}}
+
+.theme-paper{
+  --ground:#F7F1E7;--surface:#FFFDF8;--surface2:#F2E9DB;
+  --hair:rgba(74,55,40,.14);--hair-strong:rgba(74,55,40,.26);
+  --ink:#2E241C;--ink2:#5C4C3E;--ink3:#8A7A66;
+  --accent:#C2502E;--accent-ink:#A03F22;--accent-soft:rgba(194,80,46,.10);
+  --on-accent:#FFFDF8;
+  --green:#3E7C4F;--amber:#B8771F;--red:#BE4436;--today:#4E6E8E;
+  --veil:rgba(58,42,28,.45);
+  --map-fallback:linear-gradient(155deg,#EFE6D2 0%,#F7F1E7 45%,#EAE0CB 100%);
+  --tag-bg:rgba(46,36,28,.88);--tag-ink:#F7F1E7;
+  --shadow-lg:0 18px 44px rgba(74,55,40,.16),0 4px 14px rgba(74,55,40,.10);
+  --shadow-sm:0 6px 16px rgba(74,55,40,.10);
+}
+.theme-dusk{
+  --ground:#1D1610;--surface:#28201A;--surface2:#342A21;
+  --hair:rgba(240,222,200,.13);--hair-strong:rgba(240,222,200,.24);
+  --ink:#F5EADC;--ink2:#CDBAA6;--ink3:#99876F;
+  --accent:#E89B4C;--accent-ink:#F2B978;--accent-soft:rgba(232,155,76,.13);
+  --on-accent:#241A10;
+  --green:#7CBF8A;--amber:#E8B04C;--red:#E0755F;--today:#7FA3C7;
+  --veil:rgba(12,8,4,.66);
+  --map-fallback:linear-gradient(155deg,#2A2018 0%,#1D1610 45%,#19120C 100%);
+  --tag-bg:rgba(18,13,9,.90);--tag-ink:#F5EADC;
+  --shadow-lg:0 18px 44px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.30);
+  --shadow-sm:0 6px 16px rgba(0,0,0,.30);
+}
+
+.pane{background:var(--ground);border:1px solid var(--hair);border-radius:18px;
+  padding:16px 18px 20px}
+.pane-tag{display:flex;align-items:center;gap:8px;font-family:var(--mono);
+  font-size:10px;letter-spacing:.18em;font-weight:600;color:var(--accent-ink);
+  margin-bottom:14px}
+.pane-tag i{width:8px;height:8px;border-radius:50%;background:var(--accent);display:block}
+.mock{display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+.mock-tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;
+  color:var(--ink3);margin-bottom:-10px}
+
+button,.btn{font:inherit;cursor:pointer}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--accent);color:var(--on-accent);border:1px solid transparent;
+  border-radius:var(--r-sm);font-size:13px;font-weight:600;padding:9px 16px;
+  box-shadow:var(--shadow-sm);min-width:110px}
+.btn.ghost{background:transparent;color:var(--ink2);border-color:var(--hair-strong);
+  box-shadow:none;min-width:0}
+.btn.ghost:hover{color:var(--ink);border-color:var(--ink3)}
+.btn.danger{background:transparent;color:var(--red);border-color:var(--red);
+  box-shadow:none}
+.btn[disabled]{opacity:.45;cursor:not-allowed;box-shadow:none}
+.btn:focus-visible,.ghost:focus-visible{outline:2px solid var(--accent-ink);
+  outline-offset:2px}
+input,textarea,select{font:inherit}
+input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent-ink);
+  outline-offset:1px}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  width:100%;background:var(--surface);border:1px solid var(--hair);
+  border-bottom:1px solid var(--hair);border-radius:var(--r-md);
+  padding:10px 16px;box-shadow:var(--shadow-sm)}
+.mark{display:flex;align-items:center;gap:10px}
+.mark i{width:5px;height:20px;background:var(--accent);border-radius:3px;display:block}
+.mark .nm{font-family:var(--serif);font-weight:700;font-size:17px;color:var(--ink)}
+.mark small{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;
+  color:var(--ink3);font-weight:600}
+.viewtoggle{display:flex;border:1px solid var(--hair-strong);border-radius:10px;
+  overflow:hidden}
+.viewtoggle button{min-width:0;border:0;border-radius:0;background:transparent;
+  color:var(--ink2);font-size:12px;font-weight:500;padding:8px 14px}
+.viewtoggle button.on{background:var(--accent);color:var(--on-accent)}
+.userbox{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink3)}
+.userbox .lab{font-family:var(--mono);font-size:9px;letter-spacing:.14em}
+.userbox .un{color:var(--ink2);font-weight:600}
+
+.map-mock{position:relative;width:100%;border-radius:var(--r-md);overflow:hidden;
+  border:1px solid var(--hair);
+  background-image:var(--map-img),var(--map-fallback);
+  background-size:cover;background-position:center;box-shadow:var(--shadow-sm)}
+.map-mock.tall{height:430px}
+.map-mock.mid{height:300px}
+.map-mock.short{height:250px}
+.zoomctrl{position:absolute;left:14px;top:14px;display:flex;flex-direction:column;
+  border-radius:9px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.zoomctrl span{width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  background:var(--surface);color:var(--ink2);font-size:16px;border:0}
+.zoomctrl span+span{border-top:1px solid var(--hair)}
+.leaflet-attr{position:absolute;right:10px;bottom:8px;font-family:var(--mono);
+  font-size:8.5px;color:var(--tag-ink);opacity:.75;background:var(--tag-bg);
+  border-radius:5px;padding:2px 7px}
+.sim-pin{position:absolute;background:transparent;border:none}
+.sim-pin .dot{display:flex;align-items:center;gap:7px;transform:translate(-50%,-50%);
+  white-space:nowrap}
+.sim-pin .pip{width:12px;height:12px;border-radius:50%;background:var(--accent);
+  border:2px solid var(--ground);box-shadow:0 0 0 1px var(--hair-strong),
+  0 3px 8px rgba(0,0,0,.25);flex:none}
+.sim-pin.today .pip{background:var(--today)}
+.sim-pin.proposed .pip{background:var(--green)}
+.sim-pin .tag{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  color:var(--tag-ink);background:var(--tag-bg);border:1px solid var(--hair);
+  border-radius:6px;padding:3px 8px}
+.sim-pin.active .pip{box-shadow:0 0 0 1px var(--hair-strong),0 0 0 5px var(--accent-soft)}
+.sim-pin.active .tag{border-color:var(--accent);color:var(--tag-ink)}
+.zone-badge{position:absolute}
+.zone-badge span{display:block;transform:translate(-50%,-50%);font-family:var(--mono);
+  font-size:9.5px;letter-spacing:.12em;color:var(--tag-ink);background:var(--tag-bg);
+  border:1px solid var(--hair);border-radius:6px;padding:3px 8px;white-space:nowrap}
+
+.loader{width:100%;height:330px;background:var(--ground);display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:18px}
+.loader .mark{gap:12px}
+.loader .mark i{width:6px;height:24px}
+.loader .mark .nm{font-size:21px}
+.loader .spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--hair-strong);
+  border-top-color:var(--accent);animation:simospin .9s linear infinite}
+@keyframes simospin{to{transform:rotate(360deg)}}
+.loader .msg{font-size:13px;color:var(--ink3);letter-spacing:.04em}
+
+.sheet{position:relative;width:380px;max-width:100%;background:var(--surface);
+  border:1px solid var(--hair);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);
+  display:flex;flex-direction:column;overflow:hidden}
+.sheet .closex{position:absolute;top:10px;right:12px;min-width:0;padding:5px 11px;
+  border-radius:8px}
+.sheet .reviewchip{position:absolute;top:14px;right:52px}
+.sheet h2{margin:0;padding:18px 20px 4px;font-family:var(--serif);font-weight:600;
+  font-size:21px;letter-spacing:-.01em;color:var(--ink)}
+.sheet .by{padding:0 20px 10px;font-size:12.5px;color:var(--ink3)}
+.sheet .by b{color:var(--ink2);font-weight:600}
+.sheet .by a{color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px}
+.statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--hair);
+  border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.statgrid div{background:var(--surface);padding:10px 14px}
+.statgrid b{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.13em;
+  color:var(--ink3);font-weight:600;margin-bottom:2px}
+.statgrid span{font-family:var(--mono);font-size:17px;font-variant-numeric:tabular-nums;
+  color:var(--ink)}
+.scen-toggle{display:flex;gap:8px;padding:12px 16px 2px}
+.scen-toggle .btn{flex:1;min-width:0;box-shadow:none}
+.scen-toggle .btn.on{background:var(--accent);color:var(--on-accent)}
+.scen-toggle .btn.ghost{background:var(--surface2)}
+.fld{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink3);
+  padding:9px 18px}
+.fld label{font-family:var(--mono);letter-spacing:.1em;font-weight:600;font-size:9.5px;
+  min-width:56px;color:var(--ink3)}
+.fld .val{font-family:var(--mono);font-size:12.5px;color:var(--ink);min-width:52px;
+  text-align:right;font-variant-numeric:tabular-nums}
+.fld.files{align-items:flex-start;padding:10px 18px}
+.fld.files label{padding-top:3px}
+.filelist{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
+.filerow{display:flex;align-items:baseline;gap:10px;justify-content:space-between}
+.filerow b{font-family:var(--mono);letter-spacing:.08em;font-weight:600;font-size:10px;
+  color:var(--ink3);white-space:nowrap}
+.filelink{font-family:var(--mono);font-size:12px;color:var(--ink2);
+  text-decoration:none}
+.filelink:hover{color:var(--ink);text-decoration:underline}
+.filelink.disabled{color:var(--ink3);opacity:.55;cursor:not-allowed}
+.actions{padding:14px 18px 16px;border-top:1px solid var(--hair);margin-top:auto}
+.rng{position:relative;height:26px;flex:1}
+.rng i{position:absolute;display:block}
+.rng i.t{left:0;right:0;top:50%;height:5px;transform:translateY(-50%);
+  border-radius:3px;background:var(--surface2);border:1px solid var(--hair)}
+.rng i.f{left:0;top:50%;height:5px;transform:translateY(-50%);border-radius:3px;
+  background:var(--accent)}
+.rng i.k{top:50%;width:16px;height:16px;border-radius:50%;background:var(--surface);
+  border:2px solid var(--accent);transform:translate(-50%,-50%);
+  box-shadow:var(--shadow-sm)}
+
+.status-chip{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
+  padding:3px 9px;border-radius:var(--r-xs);border:1px solid var(--hair-strong);
+  color:var(--ink3);white-space:nowrap}
+.status-chip.pending{color:var(--amber);border-color:var(--amber);
+  background:color-mix(in srgb,var(--amber) 10%,transparent)}
+.status-chip.active{color:var(--green);border-color:var(--green);
+  background:color-mix(in srgb,var(--green) 10%,transparent)}
+.status-chip.rejected,.status-chip.failed{color:var(--red);border-color:var(--red);
+  background:color-mix(in srgb,var(--red) 9%,transparent)}
+.status-chip.inactive{color:var(--ink3);border-color:var(--hair-strong)}
+.status-chip.reviewchip{color:var(--accent-ink);border-color:var(--accent);
+  background:var(--accent-soft)}
+
+.modal{position:relative;width:520px;max-width:100%;background:var(--surface);
+  border:1px solid var(--hair);border-radius:var(--r-lg);padding:22px 24px;
+  box-shadow:var(--shadow-lg)}
+.modal h3{margin:0 0 4px;font-family:var(--serif);font-weight:600;font-size:19px;
+  letter-spacing:-.01em;color:var(--ink)}
+.modal .step{font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+  color:var(--ink3);margin-bottom:12px;font-weight:600}
+.hint{font-size:12.5px;color:var(--ink3);margin:8px 0}
+.reject{font-size:12px;color:var(--red);margin:6px 0}
+.modal input[type=text],.modal input[type=url],.modal textarea{width:100%;
+  background:var(--surface2);border:1px solid var(--hair-strong);border-radius:10px;
+  color:var(--ink);font-size:13px;padding:10px 12px;margin:6px 0;resize:vertical}
+.modal input::placeholder,.modal textarea::placeholder{color:var(--ink3)}
+.modal input.bad{border-color:var(--red)}
+.modal .row{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;flex-wrap:wrap}
+.slot{margin:10px 0;padding:12px 14px;border:1.5px dashed var(--hair-strong);
+  border-radius:12px}
+.slot.over{border-color:var(--accent);background:var(--accent-soft)}
+.slot-label{display:flex;gap:10px;align-items:baseline;margin-bottom:7px;flex-wrap:wrap}
+.slot-label b{letter-spacing:.06em;font-size:11.5px;color:var(--ink)}
+.slot-label .hint{margin:0}
+.file-fake{display:inline-block;font-family:var(--mono);font-size:11.5px;color:var(--ink3);
+  border:1px dashed var(--hair-strong);border-radius:8px;padding:5px 11px}
+.dropzone{margin:10px 0 0;padding:24px;border:1.5px dashed var(--accent);border-radius:10px;
+  text-align:center;color:var(--ink);font-size:12.5px;background:var(--accent-soft)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.chip{display:flex;align-items:center;gap:7px;background:var(--surface2);
+  border:1px solid var(--hair-strong);border-radius:8px;padding:6px 10px;
+  font-size:11.5px;color:var(--ink2)}
+.chip b{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--ink3)}
+.review{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:12.5px;
+  color:var(--ink2);margin:10px 0}
+.review b{color:var(--ink3);font-weight:600;letter-spacing:.1em;font-size:9.5px;
+  font-family:var(--mono);align-self:center}
+.sel{display:inline-flex;align-items:center;gap:10px;background:var(--surface2);
+  border:1px solid var(--hair-strong);border-radius:10px;padding:9px 12px;
+  font-size:12.5px;color:var(--ink)}
+.sel:after{content:"▾";color:var(--ink3);font-size:11px}
+
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+  background:#fff;color:#1F1F1F;border:1px solid #747775;border-radius:10px;
+  font:inherit;font-size:14px;font-weight:500;padding:11px 16px;min-width:0;
+  margin:12px 0 2px}
+.gbtn:hover{background:#f6f2ea}
+
+.map-inner{position:relative;width:100%;height:100%}
+.crosshair{position:absolute;left:50%;top:50%;width:0;height:0}
+.crosshair i{position:absolute;display:block;background:var(--accent)}
+.crosshair .ch{left:-11px;top:-.75px;width:22px;height:1.5px}
+.crosshair .cv{top:-11px;left:-.75px;width:1.5px;height:22px}
+.bbox{position:absolute;left:50%;top:50%;width:56%;height:52%;transform:translate(-50%,-50%);
+  border:1.5px dashed var(--accent);background:var(--accent-soft);border-radius:4px}
+.anchor-bar{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);
+  display:flex;align-items:center;gap:14px;background:var(--surface);
+  border:1px solid var(--hair);border-radius:12px;padding:10px 14px;
+  box-shadow:var(--shadow-lg);max-width:min(680px,94%)}
+.anchor-bar .ab-step{font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+  color:var(--ink3);white-space:nowrap;font-weight:600}
+.anchor-bar .ab-body{flex:1;font-size:12.5px;color:var(--ink2);min-width:170px}
+.anchor-bar .ab-body .num{font-family:var(--mono);color:var(--ink);
+  font-variant-numeric:tabular-nums;font-size:12px}
+.anchor-bar .ab-row{display:flex;gap:8px}
+.anchor-bar .btn{min-width:0;padding:8px 13px}
+
+.dash{width:100%;max-width:880px;background:var(--surface);border:1px solid var(--hair);
+  border-radius:var(--r-lg);padding:18px 22px 20px;box-shadow:var(--shadow-lg)}
+.dash-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-bottom:8px}
+.dash-head h3{margin:2px 0;font-family:var(--mono);font-size:12px;letter-spacing:.18em;
+  color:var(--ink2);font-weight:700}
+.filter{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.filter .pill{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  background:transparent;color:var(--ink3);border:1px solid var(--hair-strong);
+  border-radius:999px;padding:5px 12px}
+.filter .pill.on{color:var(--accent-ink);border-color:var(--accent);
+  background:var(--accent-soft)}
+.row-item{border:1px solid var(--hair);border-radius:12px;padding:12px 14px;margin:10px 0}
+.row-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.row-title{border:0;background:none;color:var(--ink);font:inherit;font-weight:600;
+  font-size:14px;cursor:pointer;padding:0;text-align:left}
+.row-title:hover{text-decoration:underline}
+.row-detail{margin-top:10px;border-top:1px dashed var(--hair);padding-top:10px}
+.row-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.row-actions .btn,.replybox .btn,.rejectrow .btn{min-width:0;padding:8px 13px}
+.meta{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--ink3);margin:8px 0}
+.meta b,.meta-inline b{color:var(--ink2);font-weight:600}
+.meta-inline{font-size:11.5px;color:var(--ink3)}
+.meta-inline a{color:var(--accent-ink);text-decoration:none}
+.meta-inline a:hover{text-decoration:underline}
+.thread{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.comment{border:1px solid var(--hair);border-radius:10px;padding:8px 11px;font-size:12px}
+.comment.admin{border-left:3px solid var(--accent)}
+.comment .who{font-weight:600;color:var(--ink2);font-size:11.5px;margin-right:8px}
+.comment .when{color:var(--ink3);font-size:10.5px}
+.comment .body{color:var(--ink2);margin-top:3px;white-space:pre-wrap}
+.replybox,.rejectrow{display:flex;gap:8px;margin-top:8px}
+.replybox input,.rejectrow input{flex:1;min-width:180px;background:var(--surface2);
+  border:1px solid var(--hair-strong);border-radius:10px;color:var(--ink);
+  font-size:12.5px;padding:8px 10px}
+.replybox input::placeholder,.rejectrow input::placeholder{color:var(--ink3)}
+.empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 0 8px;
+  text-align:center}
+.empty .art{width:230px;height:150px;border-radius:12px;border:1px solid var(--hair);
+  box-shadow:var(--shadow-sm);
+  background-image:var(--empty-img);background-size:cover;background-position:center;
+  background-repeat:no-repeat}
+.empty .msg{font-family:var(--serif);font-size:16.5px;color:var(--ink2)}
+.empty .sub{font-size:12px;color:var(--ink3)}
+.thread-hint{font-size:11.5px;color:var(--ink3)}
+
+.toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);
+  background:var(--surface);border:1px solid var(--accent);border-radius:12px;
+  padding:12px 20px;font-size:13px;color:var(--ink);box-shadow:var(--shadow-lg)}
+
+.flow{display:flex;align-items:stretch;gap:8px;width:100%;flex-wrap:wrap}
+.thumb{display:flex;flex-direction:column;gap:6px;flex:1;min-width:104px}
+.tbox{position:relative;height:112px;background:var(--surface);border:1px solid var(--hair);
+  border-radius:12px;box-shadow:var(--shadow-sm);overflow:hidden}
+.tbox.tmap{background-image:var(--map-img);background-size:cover;background-position:center}
+.tcard{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64%;
+  background:var(--surface);border:1px solid var(--hair-strong);border-radius:8px;
+  padding:8px;display:flex;flex-direction:column;gap:5px;box-shadow:var(--shadow-sm)}
+.tsheet{position:absolute;right:6%;top:9%;bottom:9%;width:32%;background:var(--surface);
+  border:1px solid var(--hair-strong);border-radius:8px;padding:7px;display:flex;
+  flex-direction:column;gap:5px;box-shadow:var(--shadow-sm)}
+.tb{height:5px;border-radius:3px;background:var(--surface2)}
+.tb.a{background:var(--accent);opacity:.75}
+.tb.h{height:7px}
+.tb.w{width:62%}
+.tchip{font-family:var(--mono);font-size:7.5px;letter-spacing:.06em;padding:2px 5px;
+  border:1px solid;border-radius:4px;align-self:flex-start;color:var(--amber);
+  border-color:var(--amber)}
+.tchip.green{color:var(--green);border-color:var(--green)}
+.tchip.accent{color:var(--accent-ink);border-color:var(--accent)}
+.tbtn{height:11px;width:38%;border-radius:5px;background:var(--accent)}
+.tbtn.ghost{background:transparent;border:1px solid var(--hair-strong)}
+.tbtn.block{width:100%}
+.tpip{width:9px;height:9px;border-radius:50%;background:var(--accent);
+  border:2px solid var(--ground);box-shadow:0 0 0 1px var(--hair-strong);flex:none}
+.tpin{display:flex;align-items:center;gap:5px;position:absolute;left:34%;top:42%;
+  transform:translate(-50%,-50%)}
+.tpin .ttag{font-family:var(--mono);font-size:7px;letter-spacing:.06em;color:var(--tag-ink);
+  background:var(--tag-bg);border:1px solid var(--hair);border-radius:4px;padding:1px 5px}
+.tbadge{position:absolute;left:22%;top:74%;transform:translate(-50%,-50%);
+  font-family:var(--mono);font-size:7px;letter-spacing:.08em;color:var(--tag-ink);
+  background:var(--tag-bg);border:1px solid var(--hair);border-radius:4px;padding:1px 5px}
+.tzoom{position:absolute;left:7%;top:10%;display:flex;flex-direction:column;border-radius:5px;
+  overflow:hidden;box-shadow:var(--shadow-sm)}
+.tzoom span{width:14px;height:14px;background:var(--surface);color:var(--ink3);
+  font-size:9px;display:flex;align-items:center;justify-content:center}
+.tzoom span+span{border-top:1px solid var(--hair)}
+.farr{align-self:center;color:var(--ink3);font-size:16px;padding:0 1px}
+.tlabel{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--ink3);
+  text-align:center}
+.footer{margin-top:44px;font-size:12px;color:#6B5A48}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="ds-header">
+  <h1>SIMO — a warm redesign</h1>
+  <p class="intent">Every screen and state of the Bengaluru Traffic Lab player, re-drawn in
+  two warm themes — <b>Paper</b> (light) and <b>Dusk</b> (dark) — side by side so one can be
+  picked. The app itself is untouched; this sheet is a static preview.</p>
+  <div class="pals">
+    <div class="pal-card paper">
+      <h3>PAPER · LIGHT WARM</h3>
+      <span class="sw"><i style="background:#F7F1E7"></i><span>ground #F7F1E7</span></span>
+      <span class="sw"><i style="background:#FFFDF8"></i><span>surface #FFFDF8</span></span>
+      <span class="sw"><i style="background:#F2E9DB"></i><span>surface2 #F2E9DB</span></span>
+      <span class="sw"><i style="background:#2E241C"></i><span>ink #2E241C</span></span>
+      <span class="sw"><i style="background:#5C4C3E"></i><span>ink2 #5C4C3E</span></span>
+      <span class="sw"><i style="background:#8A7A66"></i><span>ink3 #8A7A66</span></span>
+      <span class="sw"><i style="background:#C2502E"></i><span>accent #C2502E</span></span>
+      <span class="sw"><i style="background:#A03F22"></i><span>accent-ink #A03F22</span></span>
+      <span class="sw"><i style="background:#3E7C4F"></i><span>green #3E7C4F</span></span>
+      <span class="sw"><i style="background:#B8771F"></i><span>amber #B8771F</span></span>
+      <span class="sw"><i style="background:#BE4436"></i><span>red #BE4436</span></span>
+      <span class="sw"><i style="background:#4E6E8E"></i><span>today #4E6E8E</span></span>
+    </div>
+    <div class="pal-card dusk">
+      <h3>DUSK · DARK WARM</h3>
+      <span class="sw"><i style="background:#1D1610"></i><span>ground #1D1610</span></span>
+      <span class="sw"><i style="background:#28201A"></i><span>surface #28201A</span></span>
+      <span class="sw"><i style="background:#342A21"></i><span>surface2 #342A21</span></span>
+      <span class="sw"><i style="background:#F5EADC"></i><span>ink #F5EADC</span></span>
+      <span class="sw"><i style="background:#CDBAA6"></i><span>ink2 #CDBAA6</span></span>
+      <span class="sw"><i style="background:#99876F"></i><span>ink3 #99876F</span></span>
+      <span class="sw"><i style="background:#E89B4C"></i><span>accent #E89B4C</span></span>
+      <span class="sw"><i style="background:#F2B978"></i><span>accent-ink #F2B978</span></span>
+      <span class="sw"><i style="background:#7CBF8A"></i><span>green #7CBF8A</span></span>
+      <span class="sw"><i style="background:#E8B04C"></i><span>amber #E8B04C</span></span>
+      <span class="sw"><i style="background:#E0755F"></i><span>red #E0755F</span></span>
+      <span class="sw"><i style="background:#7FA3C7"></i><span>today #7FA3C7</span></span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section class="sec" id="s01">
+  <div class="sec-head"><span class="n">01</span><h2>Loader</h2></div>
+  <p class="sec-note">First paint until the first map tile loads — brand mark, warm spinner, honest message.</p>
+  <div class="duo">
+    <div class="pane theme-paper">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="loader">
+          <div class="mark"><i></i><span class="nm">SIMO</span><small>— BENGALURU TRAFFIC LAB</small></div>
+          <div class="spin"></div>
+          <div class="msg">Loading map and simulations…</div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="loader">
+          <div class="mark"><i></i><span class="nm">SIMO</span><small>— BENGALURU TRAFFIC LAB</small></div>
+          <div class="spin"></div>
+          <div class="msg">Loading map and simulations…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s02">
+  <div class="sec-head"><span class="n">02</span><h2>Discover</h2></div>
+  <p class="sec-note">Signed-out topbar over the map: view toggle, sim pins (today · proposed · active), zone badge, zoom control.</p>
+  <div class="duo">
+    <div class="pane theme-paper" style="--map-img:url('assets/map-paper.png')">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="topbar">
+          <div class="mark"><i></i><span class="nm">SIMO</span><small>BENGALURU TRAFFIC LAB</small></div>
+          <div class="viewtoggle">
+            <button class="on">Discover</button><button>Contribute</button><button>Tutorials</button>
+          </div>
+          <div class="userbox">
+            <button class="btn ghost">Sign in with Google</button>
+            <button class="btn ghost">Export area</button>
+            <button class="btn">Submit a sim</button>
+          </div>
+        </div>
+        <div class="map-mock tall">
+          <div class="map-inner">
+            <div class="sim-pin today" style="left:22%;top:38%"><div class="dot"><i class="pip"></i><span class="tag">MARATHAHALLI BUS BAY</span></div></div>
+            <div class="sim-pin proposed" style="left:63%;top:26%"><div class="dot"><i class="pip"></i><span class="tag">SILK BOARD FLYOVER MERGE</span></div></div>
+            <div class="sim-pin today active" style="left:47%;top:60%"><div class="dot"><i class="pip"></i><span class="tag">AGBBS LAYOUT LOOP</span></div></div>
+            <div class="sim-pin proposed" style="left:78%;top:66%"><div class="dot"><i class="pip"></i><span class="tag">OLD AIRPORT RD SIGNAL RETUNE</span></div></div>
+            <div class="zone-badge" style="left:30%;top:74%"><span>HSR LAYOUT</span></div>
+            <div class="zoomctrl"><span>+</span><span>−</span></div>
+            <div class="leaflet-attr">© OpenStreetMap contributors</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk" style="--map-img:url('assets/map-dusk.png')">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="topbar">
+          <div class="mark"><i></i><span class="nm">SIMO</span><small>BENGALURU TRAFFIC LAB</small></div>
+          <div class="viewtoggle">
+            <button class="on">Discover</button><button>Contribute</button><button>Tutorials</button>
+          </div>
+          <div class="userbox">
+            <button class="btn ghost">Sign in with Google</button>
+            <button class="btn ghost">Export area</button>
+            <button class="btn">Submit a sim</button>
+          </div>
+        </div>
+        <div class="map-mock tall">
+          <div class="map-inner">
+            <div class="sim-pin today" style="left:22%;top:38%"><div class="dot"><i class="pip"></i><span class="tag">MARATHAHALLI BUS BAY</span></div></div>
+            <div class="sim-pin proposed" style="left:63%;top:26%"><div class="dot"><i class="pip"></i><span class="tag">SILK BOARD FLYOVER MERGE</span></div></div>
+            <div class="sim-pin today active" style="left:47%;top:60%"><div class="dot"><i class="pip"></i><span class="tag">AGBBS LAYOUT LOOP</span></div></div>
+            <div class="sim-pin proposed" style="left:76%;top:70%"><div class="dot"><i class="pip"></i><span class="tag">OLD AIRPORT RD SIGNAL RETUNE</span></div></div>
+            <div class="zone-badge" style="left:30%;top:74%"><span>HSR LAYOUT</span></div>
+            <div class="zoomctrl"><span>+</span><span>−</span></div>
+            <div class="leaflet-attr">© OpenStreetMap contributors</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s03">
+  <div class="sec-head"><span class="n">03</span><h2>Topbar variants</h2></div>
+  <p class="sec-note">Signed-in user (Dashboard appears) and signed-in admin (Dashboard + Admin).</p>
+  <div class="duo">
+    <div class="pane theme-paper">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <span class="mock-tag">SIGNED-IN USER</span>
+        <div class="topbar">
+          <div class="mark"><i></i><span class="nm">SIMO</span><small>BENGALURU TRAFFIC LAB</small></div>
+          <div class="viewtoggle">
+            <button class="on">Discover</button><button>Contribute</button><button>Tutorials</button><button>Dashboard</button>
+          </div>
+          <div class="userbox"><span class="lab">SIGNED IN AS</span><span class="un">Jude Osby</span>
+            <button class="btn ghost">Sign out</button>
+            <button class="btn ghost">Export area</button>
+            <button class="btn">Submit a sim</button>
+          </div>
+        </div>
+        <span class="mock-tag">SIGNED-IN ADMIN</span>
+        <div class="topbar">
+          <div class="mark"><i></i><span class="nm">SIMO</span><small>BENGALURU TRAFFIC LAB</small></div>
+          <div class="viewtoggle">
+            <button>Discover</button><button>Contribute</button><button>Tutorials</button><button>Dashboard</button><button class="on">Admin</button>
+          </div>
+          <div class="userbox"><span class="lab">SIGNED IN AS</span><span class="un">Jude Osby</span>
+            <button class="btn ghost">Sign out</button>
+            <button class="btn ghost">Export area</button>
+            <button class="btn">Submit a sim</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <span class="mock-tag">SIGNED-IN USER</span>
+        <div class="topbar">
+          <div class="mark"><i></i><span class="nm">SIMO</span><small>BENGALURU TRAFFIC LAB</small></div>
+          <div class="viewtoggle">
+            <button class="on">Discover</button><button>Contribute</button><button>Tutorials</button><button>Dashboard</button>
+          </div>
+          <div class="userbox"><span class="lab">SIGNED IN AS</span><span class="un">Jude Osby</span>
+            <button class="btn ghost">Sign out</button>
+            <button class="btn ghost">Export area</button>
+            <button class="btn">Submit a sim</button>
+          </div>
+        </div>
+        <span class="mock-tag">SIGNED-IN ADMIN</span>
+        <div class="topbar">
+          <div class="mark"><i></i><span class="nm">SIMO</span><small>BENGALURU TRAFFIC LAB</small></div>
+          <div class="viewtoggle">
+            <button>Discover</button><button>Contribute</button><button>Tutorials</button><button>Dashboard</button><button class="on">Admin</button>
+          </div>
+          <div class="userbox"><span class="lab">SIGNED IN AS</span><span class="un">Jude Osby</span>
+            <button class="btn ghost">Sign out</button>
+            <button class="btn ghost">Export area</button>
+            <button class="btn">Submit a sim</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s04">
+  <div class="sec-head"><span class="n">04</span><h2>SimPanel</h2></div>
+  <p class="sec-note">Default TODAY with FILES (proposed net disabled until an approved submission); running PROPOSED with Stop, mid-scrub and the REVIEW chip.</p>
+  <div class="duo">
+    <div class="pane theme-paper">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <span class="mock-tag">DEFAULT — TODAY</span>
+        <div class="sheet">
+          <button class="btn ghost closex">✕</button>
+          <h2>Silk Board flyover merge</h2>
+          <div class="by">by <b>Jude Osby</b> · added 2026-09-13 · 12.94, 77.72</div>
+          <div class="by">Peak-hour U-turn ban at the Silk Board merge; proposed counter-flow lane on the service road.</div>
+          <div class="by">DATA SOURCE · <b>Manual survey</b> · <a class="filelink" style="color:var(--accent-ink)" href="#">· source link</a></div>
+          <div class="fld files">
+            <label>FILES</label>
+            <div class="filelist">
+              <div class="filerow"><b>Demand File</b><a class="filelink" href="#">demand.rou.xml</a></div>
+              <div class="filerow"><b>Current Network</b><a class="filelink" href="#">today.net.xml</a></div>
+              <div class="filerow"><b>Proposed Network</b><span class="filelink disabled" title="No approved submissions yet">proposed.net.xml</span></div>
+            </div>
+          </div>
+          <div class="statgrid">
+            <div><b>DEMAND /HR</b><span>4,200</span></div>
+            <div><b>PEAK SERVED</b><span>3,860</span></div>
+          </div>
+          <div class="scen-toggle">
+            <button class="btn on">TODAY</button>
+            <button class="btn ghost">PROPOSED</button>
+          </div>
+          <div class="statgrid">
+            <div><b>THROUGH</b><span style="color:var(--green)">1,204</span></div>
+            <div><b>MOVING</b><span>968</span></div>
+            <div><b>STOPPED</b><span style="color:var(--amber)">142</span></div>
+            <div><b>QUEUED OUTSIDE</b><span style="color:var(--red)">76</span></div>
+            <div><b>GRIDLOCKS</b><span style="color:var(--ink3)">0</span></div>
+            <div><b>SIM TIME</b><span>12:34</span></div>
+          </div>
+          <div class="fld"><label>SCRUB</label>
+            <div class="rng"><i class="t"></i><i class="f" style="width:52%"></i><i class="k" style="left:52%"></i></div>
+            <span class="val">12:34</span></div>
+          <div class="fld"><label>SPEED</label>
+            <div class="rng"><i class="t"></i><i class="f" style="width:16%"></i><i class="k" style="left:16%"></i></div>
+            <span class="val">12×</span></div>
+          <div class="actions"><button class="btn">Run on Map</button></div>
+        </div>
+        <span class="mock-tag">RUNNING · PROPOSED — WITH REVIEW CHIP</span>
+        <div class="sheet">
+          <button class="btn ghost closex">✕</button>
+          <span class="status-chip reviewchip">REVIEW · PENDING</span>
+          <h2>Silk Board flyover merge</h2>
+          <div class="by">by <b>Jude Osby</b> · added 2026-09-13 · 12.94, 77.72</div>
+          <div class="statgrid">
+            <div><b>DEMAND /HR</b><span>4,200</span></div>
+            <div><b>PEAK SERVED</b><span>3,940</span></div>
+          </div>
+          <div class="scen-toggle">
+            <button class="btn ghost">TODAY</button>
+            <button class="btn on">PROPOSED</button>
+          </div>
+          <div class="statgrid">
+            <div><b>THROUGH</b><span style="color:var(--green)">1,118</span></div>
+            <div><b>MOVING</b><span>902</span></div>
+            <div><b>STOPPED</b><span style="color:var(--amber)">118</span></div>
+            <div><b>QUEUED OUTSIDE</b><span style="color:var(--red)">54</span></div>
+            <div><b>GRIDLOCKS</b><span style="color:var(--ink3)">0</span></div>
+            <div><b>SIM TIME</b><span>09:12</span></div>
+          </div>
+          <div class="fld"><label>SCRUB</label>
+            <div class="rng"><i class="t"></i><i class="f" style="width:52%"></i><i class="k" style="left:52%"></i></div>
+            <span class="val">09:12</span></div>
+          <div class="fld"><label>SPEED</label>
+            <div class="rng"><i class="t"></i><i class="f" style="width:22%"></i><i class="k" style="left:22%"></i></div>
+            <span class="val">18×</span></div>
+          <div class="actions"><button class="btn ghost">Stop</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <span class="mock-tag">DEFAULT — TODAY</span>
+        <div class="sheet">
+          <button class="btn ghost closex">✕</button>
+          <h2>Silk Board flyover merge</h2>
+          <div class="by">by <b>Jude Osby</b> · added 2026-09-13 · 12.94, 77.72</div>
+          <div class="by">Peak-hour U-turn ban at the Silk Board merge; proposed counter-flow lane on the service road.</div>
+          <div class="by">DATA SOURCE · <b>Manual survey</b> · <a class="filelink" style="color:var(--accent-ink)" href="#">· source link</a></div>
+          <div class="fld files">
+            <label>FILES</label>
+            <div class="filelist">
+              <div class="filerow"><b>Demand File</b><a class="filelink" href="#">demand.rou.xml</a></div>
+              <div class="filerow"><b>Current Network</b><a class="filelink" href="#">today.net.xml</a></div>
+              <div class="filerow"><b>Proposed Network</b><span class="filelink disabled" title="No approved submissions yet">proposed.net.xml</span></div>
+            </div>
+          </div>
+          <div class="statgrid">
+            <div><b>DEMAND /HR</b><span>4,200</span></div>
+            <div><b>PEAK SERVED</b><span>3,860</span></div>
+          </div>
+          <div class="scen-toggle">
+            <button class="btn on">TODAY</button>
+            <button class="btn ghost">PROPOSED</button>
+          </div>
+          <div class="statgrid">
+            <div><b>THROUGH</b><span style="color:var(--green)">1,204</span></div>
+            <div><b>MOVING</b><span>968</span></div>
+            <div><b>STOPPED</b><span style="color:var(--amber)">142</span></div>
+            <div><b>QUEUED OUTSIDE</b><span style="color:var(--red)">76</span></div>
+            <div><b>GRIDLOCKS</b><span style="color:var(--ink3)">0</span></div>
+            <div><b>SIM TIME</b><span>12:34</span></div>
+          </div>
+          <div class="fld"><label>SCRUB</label>
+            <div class="rng"><i class="t"></i><i class="f" style="width:52%"></i><i class="k" style="left:52%"></i></div>
+            <span class="val">12:34</span></div>
+          <div class="fld"><label>SPEED</label>
+            <div class="rng"><i class="t"></i><i class="f" style="width:16%"></i><i class="k" style="left:16%"></i></div>
+            <span class="val">12×</span></div>
+          <div class="actions"><button class="btn">Run on Map</button></div>
+        </div>
+        <span class="mock-tag">RUNNING · PROPOSED — WITH REVIEW CHIP</span>
+        <div class="sheet">
+          <button class="btn ghost closex">✕</button>
+          <span class="status-chip reviewchip">REVIEW · PENDING</span>
+          <h2>Silk Board flyover merge</h2>
+          <div class="by">by <b>Jude Osby</b> · added 2026-09-13 · 12.94, 77.72</div>
+          <div class="statgrid">
+            <div><b>DEMAND /HR</b><span>4,200</span></div>
+            <div><b>PEAK SERVED</b><span>3,940</span></div>
+          </div>
+          <div class="scen-toggle">
+            <button class="btn ghost">TODAY</button>
+            <button class="btn on">PROPOSED</button>
+          </div>
+          <div class="statgrid">
+            <div><b>THROUGH</b><span style="color:var(--green)">1,118</span></div>
+            <div><b>MOVING</b><span>902</span></div>
+            <div><b>STOPPED</b><span style="color:var(--amber)">118</span></div>
+            <div><b>QUEUED OUTSIDE</b><span style="color:var(--red)">76</span></div>
+            <div><b>GRIDLOCKS</b><span style="color:var(--ink3)">0</span></div>
+            <div><b>SIM TIME</b><span>09:12</span></div>
+          </div>
+          <div class="fld"><label>SCRUB</label>
+            <div class="rng"><i class="t"></i><i class="f" style="width:52%"></i><i class="k" style="left:52%"></i></div>
+            <span class="val">09:12</span></div>
+          <div class="fld"><label>SPEED</label>
+            <div class="rng"><i class="t"></i><i class="f" style="width:22%"></i><i class="k" style="left:22%"></i></div>
+            <span class="val">18×</span></div>
+          <div class="actions"><button class="btn ghost">Stop</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s05">
+  <div class="sec-head"><span class="n">05</span><h2>Submit wizard</h2></div>
+  <p class="sec-note">Step 1 (demand filled, empty slots, dropzone-over, slot reject), step 2 (source-link validation), step 3 (review grid + Simulating…).</p>
+  <div class="duo">
+    <div class="pane theme-paper">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="modal">
+          <div class="step">SUBMIT A SIMULATION · STEP 1/3</div>
+          <h3>Upload the SUMO input set</h3>
+          <div class="hint">One demand (.rou.xml) plus the today net (.net.xml); a proposed net (.net.xml) is optional. Demand + net(s) is a complete SUMO input set — no .sumocfg needed.</div>
+          <div class="slot">
+            <div class="slot-label"><b>DEMAND</b><span class="hint">.rou.xml — trips/vehicles/flows, required, shared by both scenarios</span></div>
+            <span class="file-fake">Choose file…</span>
+          </div>
+          <div class="slot">
+            <div class="slot-label"><b>TODAY NET</b><span class="hint">.net.xml — required, sets the map placement</span></div>
+            <span class="file-fake">Choose file…</span>
+          </div>
+          <div class="slot over">
+            <div class="slot-label"><b>PROPOSED NET</b><span class="hint">.net.xml — optional, skip to contribute without improving</span></div>
+            <span class="file-fake">Choose file…</span>
+            <div class="dropzone">drop proposed net here</div>
+          </div>
+          <div class="chips">
+            <span class="chip"><b>DEMAND</b> kundalahalli.rou.xml · 48.2 KB</span>
+            <span class="chip"><b>TODAY NET</b> — empty</span>
+            <span class="chip"><b>PROPOSED NET</b> — empty</span>
+          </div>
+          <div class="hint">Parsed demand: 512 vehicles (from kundalahalli.rou.xml)</div>
+          <div class="reject">DEMAND/TODAY NET/PROPOSED NET slot "DEMAND": routes-junk.txt — needs a .rou.xml file</div>
+          <div class="row">
+            <button class="btn ghost">Cancel</button>
+            <button class="btn" disabled>Next</button>
+          </div>
+        </div>
+        <div class="modal">
+          <div class="step">SUBMIT A SIMULATION · STEP 2/3</div>
+          <h3>Name it</h3>
+          <input type="text" value="Kundalahalli peak U-turn ban" placeholder="e.g. Kundalahalli peak U-turn ban">
+          <textarea rows="3">What does this simulation show?</textarea>
+          <div class="fld" style="padding:6px 0"><label>DATA SOURCE</label><span class="sel">Manual survey</span></div>
+          <input type="url" class="bad" value="kundalahalli-survey" placeholder="https:// link to your survey / source data">
+          <div class="reject">the source link must be an http(s) URL</div>
+          <div class="row">
+            <button class="btn ghost">Cancel</button>
+            <button class="btn ghost">Back</button>
+            <button class="btn" disabled>Next</button>
+          </div>
+        </div>
+        <div class="modal">
+          <div class="step">SUBMIT A SIMULATION · STEP 3/3</div>
+          <h3>Review</h3>
+          <div class="review">
+            <b>AUTHOR</b><span>Jude Osby</span>
+            <b>DEMAND</b><span>kundalahalli.rou.xml · 512 veh</span>
+            <b>TODAY NET</b><span>kundalahalli-today.net.xml</span>
+            <b>PROPOSED NET</b><span>kundalahalli-proposed.net.xml</span>
+            <b>TITLE</b><span>Kundalahalli peak U-turn ban</span>
+            <b>DATA SOURCE</b><span>Manual survey</span>
+            <b>SOURCE LINK</b><span>https://survey.example/kundalahalli-peak</span>
+          </div>
+          <div class="hint">Submitting runs the real simulation, then your sim goes to the review queue — an admin activates it onto the public map.</div>
+          <div class="row">
+            <button class="btn ghost">Cancel</button>
+            <button class="btn ghost">Back</button>
+            <button class="btn" disabled>Simulating…</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="modal">
+          <div class="step">SUBMIT A SIMULATION · STEP 1/3</div>
+          <h3>Upload the SUMO input set</h3>
+          <div class="hint">One demand (.rou.xml) plus the today net (.net.xml); a proposed net (.net.xml) is optional. Demand + net(s) is a complete SUMO input set — no .sumocfg needed.</div>
+          <div class="slot">
+            <div class="slot-label"><b>DEMAND</b><span class="hint">.rou.xml — trips/vehicles/flows, required, shared by both scenarios</span></div>
+            <span class="file-fake">Choose file…</span>
+          </div>
+          <div class="slot">
+            <div class="slot-label"><b>TODAY NET</b><span class="hint">.net.xml — required, sets the map placement</span></div>
+            <span class="file-fake">Choose file…</span>
+          </div>
+          <div class="slot over">
+            <div class="slot-label"><b>PROPOSED NET</b><span class="hint">.net.xml — optional, skip to contribute without improving</span></div>
+            <span class="file-fake">Choose file…</span>
+            <div class="dropzone">drop proposed net here</div>
+          </div>
+          <div class="chips">
+            <span class="chip"><b>DEMAND</b> kundalahalli.rou.xml · 48.2 KB</span>
+            <span class="chip"><b>TODAY NET</b> — empty</span>
+            <span class="chip"><b>PROPOSED NET</b> — empty</span>
+          </div>
+          <div class="hint">Parsed demand: 512 vehicles (from kundalahalli.rou.xml)</div>
+          <div class="reject">DEMAND/TODAY NET/PROPOSED NET slot "DEMAND": routes-junk.txt — needs a .rou.xml file</div>
+          <div class="row">
+            <button class="btn ghost">Cancel</button>
+            <button class="btn" disabled>Next</button>
+          </div>
+        </div>
+        <div class="modal">
+          <div class="step">SUBMIT A SIMULATION · STEP 2/3</div>
+          <h3>Name it</h3>
+          <input type="text" value="Kundalahalli peak U-turn ban" placeholder="e.g. Kundalahalli peak U-turn ban">
+          <textarea rows="3">What does this simulation show?</textarea>
+          <div class="fld" style="padding:6px 0"><label>DATA SOURCE</label><span class="sel">Manual survey</span></div>
+          <input type="url" class="bad" value="kundalahalli-survey" placeholder="https:// link to your survey / source data">
+          <div class="reject">the source link must be an http(s) URL</div>
+          <div class="row">
+            <button class="btn ghost">Cancel</button>
+            <button class="btn ghost">Back</button>
+            <button class="btn" disabled>Next</button>
+          </div>
+        </div>
+        <div class="modal">
+          <div class="step">SUBMIT A SIMULATION · STEP 3/3</div>
+          <h3>Review</h3>
+          <div class="review">
+            <b>AUTHOR</b><span>Jude Osby</span>
+            <b>DEMAND</b><span>kundalahalli.rou.xml · 512 veh</span>
+            <b>TODAY NET</b><span>kundalahalli-today.net.xml</span>
+            <b>PROPOSED NET</b><span>kundalahalli-proposed.net.xml</span>
+            <b>TITLE</b><span>Kundalahalli peak U-turn ban</span>
+            <b>DATA SOURCE</b><span>Manual survey</span>
+            <b>SOURCE LINK</b><span>https://survey.example/kundalahalli-peak</span>
+          </div>
+          <div class="hint">Submitting runs the real simulation, then your sim goes to the review queue — an admin activates it onto the public map.</div>
+          <div class="row">
+            <button class="btn ghost">Cancel</button>
+            <button class="btn ghost">Back</button>
+            <button class="btn" disabled>Simulating…</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s06">
+  <div class="sec-head"><span class="n">06</span><h2>Sign-in gate</h2></div>
+  <p class="sec-note">An unauthenticated “Submit a sim” click lands here before the wizard; the Google CTA keeps its brand-white field in both themes.</p>
+  <div class="duo">
+    <div class="pane theme-paper">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="modal" style="width:440px">
+          <div class="step">SUBMIT A SIMULATION</div>
+          <h3>Sign in to submit a sim</h3>
+          <p class="hint">You need to sign in with Google to submit a simulation. Your Google account becomes the recorded author.</p>
+          <button class="gbtn">
+            <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            <span>Sign in with Google</span>
+          </button>
+          <div class="row"><button class="btn ghost">Cancel</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="modal" style="width:440px">
+          <div class="step">SUBMIT A SIMULATION</div>
+          <h3>Sign in to submit a sim</h3>
+          <p class="hint">You need to sign in with Google to submit a simulation. Your Google account becomes the recorded author.</p>
+          <button class="gbtn">
+            <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            <span>Sign in with Google</span>
+          </button>
+          <div class="row"><button class="btn ghost">Cancel</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s07">
+  <div class="sec-head"><span class="n">07</span><h2>Export</h2></div>
+  <p class="sec-note">bbox → OSM modal, plus the minimized draw bar: crosshair + dashed box pinned to the map center while panning.</p>
+  <div class="duo">
+    <div class="pane theme-paper" style="--map-img:url('assets/map-paper.png')">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="modal">
+          <div class="step">EXPORT AREA FOR SUMO</div>
+          <h3>Get the real road network</h3>
+          <div class="hint">Download the OpenStreetMap roads for a box, then run convert.sh (auto-finds netconvert) to make a SUMO .net.xml you upload here.</div>
+          <input type="text" value="kundalahalli" placeholder="area name">
+          <div class="fld" style="padding:6px 0"><label>BOX</label><span class="val" style="text-align:left">12.92071, 77.70306, 12.94826, 77.72711</span></div>
+          <div class="row" style="justify-content:flex-start">
+            <button class="btn ghost">Use current view</button>
+            <button class="btn ghost">Draw a box</button>
+          </div>
+          <div class="row">
+            <button class="btn ghost">Cancel</button>
+            <button class="btn ghost">convert.sh</button>
+            <button class="btn">Download .osm.xml</button>
+          </div>
+          <div class="hint">box = current view</div>
+        </div>
+        <div class="map-mock mid">
+          <div class="map-inner">
+            <div class="crosshair"><i class="ch"></i><i class="cv"></i></div>
+            <div class="bbox"></div>
+            <div class="anchor-bar">
+              <div class="ab-step">EXPORT AREA</div>
+              <div class="ab-body">
+                <span class="num">12.92071, 77.70306, 12.94826, 77.72711</span>
+                <div class="hint" style="margin:4px 0 0">Pan the map — the box stays on the crosshair. Drag the box to fine-position.</div>
+              </div>
+              <div class="ab-row">
+                <button class="btn ghost">Show form</button>
+                <button class="btn ghost">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk" style="--map-img:url('assets/map-dusk.png')">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="modal">
+          <div class="step">EXPORT AREA FOR SUMO</div>
+          <h3>Get the real road network</h3>
+          <div class="hint">Download the OpenStreetMap roads for a box, then run convert.sh (auto-finds netconvert) to make a SUMO .net.xml you upload here.</div>
+          <input type="text" value="kundalahalli" placeholder="area name">
+          <div class="fld" style="padding:6px 0"><label>BOX</label><span class="val" style="text-align:left">12.92071, 77.70306, 12.94826, 77.72711</span></div>
+          <div class="row" style="justify-content:flex-start">
+            <button class="btn ghost">Use current view</button>
+            <button class="btn ghost">Draw a box</button>
+          </div>
+          <div class="row">
+            <button class="btn ghost">Cancel</button>
+            <button class="btn ghost">convert.sh</button>
+            <button class="btn">Download .osm.xml</button>
+          </div>
+          <div class="hint">box = current view</div>
+        </div>
+        <div class="map-mock mid">
+          <div class="map-inner">
+            <div class="crosshair"><i class="ch"></i><i class="cv"></i></div>
+            <div class="bbox"></div>
+            <div class="anchor-bar">
+              <div class="ab-step">EXPORT AREA</div>
+              <div class="ab-body">
+                <span class="num">12.92071, 77.70306, 12.94826, 77.72711</span>
+                <div class="hint" style="margin:4px 0 0">Pan the map — the box stays on the crosshair. Drag the box to fine-position.</div>
+              </div>
+              <div class="ab-row">
+                <button class="btn ghost">Show form</button>
+                <button class="btn ghost">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s08">
+  <div class="sec-head"><span class="n">08</span><h2>Dashboard</h2></div>
+  <p class="sec-note">Loading / error / empty (illustrated) states, one row per status chip, and the expanded pending row — meta, files, admin comment thread, reply box.</p>
+  <div class="duo">
+    <div class="pane theme-paper" style="--empty-img:url('assets/empty-state.png')">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="dash">
+          <div class="dash-head"><h3>MY SUBMISSIONS</h3><button class="btn ghost">Close</button></div>
+          <div class="hint">Loading…</div>
+        </div>
+        <div class="dash">
+          <div class="dash-head"><h3>MY SUBMISSIONS</h3><button class="btn ghost">Close</button></div>
+          <div class="reject">TypeError: Failed to fetch</div>
+        </div>
+        <div class="dash">
+          <div class="dash-head"><h3>MY SUBMISSIONS</h3><button class="btn ghost">Close</button></div>
+          <div class="empty">
+            <div class="art"></div>
+            <div class="msg">No submissions yet — “Submit a sim” starts the wizard.</div>
+          </div>
+        </div>
+        <div class="dash">
+          <div class="dash-head"><h3>MY SUBMISSIONS</h3><button class="btn ghost">Close</button></div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Silk Board flyover merge</button>
+              <span class="status-chip active">ACTIVE</span>
+            </div>
+            <div class="row-actions"><button class="btn">View on map</button></div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Kundalahalli peak U-turn ban</button>
+              <span class="status-chip pending">PENDING REVIEW</span>
+              <span class="meta-inline">comments: 2</span>
+            </div>
+            <div class="row-detail">
+              <div class="hint">Banning the peak-hour U-turn across the Kundalahalli signal; proposed net re-routes it via the service road.</div>
+              <div class="meta">
+                <span>by <b>Jude Osby</b></span>
+                <span>submitted <b>2026-09-11</b></span>
+                <span>demand <b>512</b></span>
+                <span>peak served <b>486</b></span>
+                <span>proposed net <b>yes</b></span>
+                <span>data source <b>Manual survey</b></span>
+                <span><a href="#">source link</a></span>
+              </div>
+              <div class="fld files" style="padding:4px 0">
+                <label>FILES</label>
+                <div class="filelist">
+                  <div class="filerow"><span class="filelink">demand.rou.xml</span></div>
+                  <div class="filerow"><span class="filelink">today.net.xml</span></div>
+                  <div class="filerow"><span class="filelink">proposed.net.xml</span></div>
+                </div>
+              </div>
+              <div class="thread">
+                <div class="comment admin">
+                  <span class="who">Zuul · admin</span><span class="when">2026-09-12</span>
+                  <div class="body">Demand looks about half of the observed counts at the junction — can you re-check the survey sheet? Everything else reads clean.</div>
+                </div>
+                <div class="replybox">
+                  <input type="text" placeholder="Reply to the reviewers…">
+                  <button class="btn">Send</button>
+                </div>
+              </div>
+            </div>
+            <div class="row-actions">
+              <button class="btn ghost">Preview</button>
+              <button class="btn ghost">Resubmit</button>
+            </div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Old Airport Rd signal retune</button>
+              <span class="status-chip rejected">REJECTED</span>
+            </div>
+            <div class="row-actions"><button class="btn ghost">Preview</button><button class="btn ghost">Resubmit</button></div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">AGBBS layout loop</button>
+              <span class="status-chip inactive">INACTIVE · superseded by Silk Board flyover merge</span>
+            </div>
+            <div class="row-actions"><button class="btn ghost">Preview</button><button class="btn ghost">Resubmit</button></div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Marathahalli bus bay</button>
+              <span class="status-chip failed">SIMULATION FAILED — resubmit to retry</span>
+            </div>
+            <div class="row-actions"><button class="btn ghost">Resubmit</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk" style="--empty-img:url('assets/empty-state.png')">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="dash">
+          <div class="dash-head"><h3>MY SUBMISSIONS</h3><button class="btn ghost">Close</button></div>
+          <div class="hint">Loading…</div>
+        </div>
+        <div class="dash">
+          <div class="dash-head"><h3>MY SUBMISSIONS</h3><button class="btn ghost">Close</button></div>
+          <div class="reject">TypeError: Failed to fetch</div>
+        </div>
+        <div class="dash">
+          <div class="dash-head"><h3>MY SUBMISSIONS</h3><button class="btn ghost">Close</button></div>
+          <div class="empty">
+            <div class="art"></div>
+            <div class="msg">No submissions yet — “Submit a sim” starts the wizard.</div>
+          </div>
+        </div>
+        <div class="dash">
+          <div class="dash-head"><h3>MY SUBMISSIONS</h3><button class="btn ghost">Close</button></div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Silk Board flyover merge</button>
+              <span class="status-chip active">ACTIVE</span>
+            </div>
+            <div class="row-actions"><button class="btn">View on map</button></div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Kundalahalli peak U-turn ban</button>
+              <span class="status-chip pending">PENDING REVIEW</span>
+              <span class="meta-inline">comments: 2</span>
+            </div>
+            <div class="row-detail">
+              <div class="hint">Banning the peak-hour U-turn across the Kundalahalli junction; proposed net re-routes it via the service road.</div>
+              <div class="meta">
+                <span>by <b>Jude Osby</b></span>
+                <span>submitted <b>2026-09-11</b></span>
+                <span>demand <b>512</b></span>
+                <span>peak served <b>486</b></span>
+                <span>proposed net <b>yes</b></span>
+                <span>data source <b>Manual survey</b></span>
+                <span><a href="#">source link</a></span>
+              </div>
+              <div class="fld files" style="padding:4px 0">
+                <label>FILES</label>
+                <div class="filelist">
+                  <div class="filerow"><span class="filelink">demand.rou.xml</span></div>
+                  <div class="filerow"><span class="filelink">today.net.xml</span></div>
+                  <div class="filerow"><span class="filelink">proposed.net.xml</span></div>
+                </div>
+              </div>
+              <div class="thread">
+                <div class="comment admin">
+                  <span class="who">Zuul · admin</span><span class="when">2026-09-12</span>
+                  <div class="body">Demand looks about half of the observed counts at the junction — can you re-check the survey sheet? Everything else reads clean.</div>
+                </div>
+                <div class="replybox">
+                  <input type="text" placeholder="Reply to the reviewers…">
+                  <button class="btn">Send</button>
+                </div>
+              </div>
+            </div>
+            <div class="row-actions"><button class="btn ghost">Preview</button><button class="btn ghost">Resubmit</button></div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Old Airport Rd signal retune</button>
+              <span class="status-chip rejected">REJECTED</span>
+            </div>
+            <div class="row-actions"><button class="btn ghost">Preview</button><button class="btn ghost">Resubmit</button></div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">AGBBS layout loop</button>
+              <span class="status-chip inactive">INACTIVE · superseded by Silk Board flyover merge</span>
+            </div>
+            <div class="row-actions"><button class="btn ghost">Preview</button><button class="btn ghost">Resubmit</button></div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Marathahalli bus bay</button>
+              <span class="status-chip failed">SIMULATION FAILED — resubmit to retry</span>
+            </div>
+            <div class="row-actions"><button class="btn ghost">Resubmit</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s09">
+  <div class="sec-head"><span class="n">09</span><h2>Admin queue</h2></div>
+  <p class="sec-note">Filter pills and meta-inline rows; the expanded pending row carries the supersede picker, Activate, the reject row with its danger button — and Deactivate sits on the active row.</p>
+  <div class="duo">
+    <div class="pane theme-paper">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="dash">
+          <div class="dash-head">
+            <h3>REVIEW QUEUE</h3>
+            <div class="filter">
+              <button class="pill on">ALL</button><button class="pill">PENDING</button><button class="pill">ACTIVE</button><button class="pill">REJECTED</button><button class="pill">INACTIVE</button>
+              <button class="btn ghost">Close</button>
+            </div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Kundalahalli peak U-turn ban</button>
+              <span class="status-chip pending">PENDING REVIEW</span>
+              <span class="meta-inline">demand <b>512</b> · peak <b>486</b> · proposed <b>yes</b> · comments <b>2</b></span>
+            </div>
+            <div class="row-detail">
+              <div class="hint">Banning the peak-hour U-turn across the Kundalahalli junction; proposed net re-routes it via the service road.</div>
+              <div class="meta">
+                <span>by <b>Jude Osby</b></span>
+                <span>uid <b>u-7f3a2c</b></span>
+                <span>submitted <b>2026-09-11</b></span>
+                <span>data source <b>Manual survey</b></span>
+                <span><a href="#">source link</a></span>
+              </div>
+              <div class="fld files" style="padding:4px 0">
+                <label>FILES</label>
+                <div class="filelist">
+                  <div class="filerow"><span class="filelink">demand.rou.xml</span></div>
+                  <div class="filerow"><span class="filelink">today.net.xml</span></div>
+                  <div class="filerow"><span class="filelink">proposed.net.xml</span></div>
+                </div>
+              </div>
+              <div class="thread">
+                <div class="comment admin">
+                  <span class="who">Zuul · admin</span><span class="when">2026-09-12</span>
+                  <div class="body">Demand looks about half of the observed counts at the junction — can you re-check the survey sheet? Everything else reads clean.</div>
+                </div>
+                <div class="replybox">
+                  <input type="text" placeholder="Add a review comment…">
+                  <button class="btn">Send</button>
+                </div>
+              </div>
+              <div class="row-actions">
+                <button class="btn ghost">Play on map</button>
+                <span class="sel">supersede: none (add alongside)</span>
+                <button class="btn">Activate</button>
+                <div class="rejectrow" style="margin:0;flex:1">
+                  <input type="text" placeholder="Reject reason (required)…">
+                  <button class="btn danger" disabled>Reject</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Old Airport Rd signal retune</button>
+              <span class="status-chip pending">PENDING REVIEW</span>
+              <span class="status-chip failed">PIPELINE FAILED — resubmit to retry</span>
+            </div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Silk Board flyover merge</button>
+              <span class="status-chip active">ACTIVE</span>
+              <span class="meta-inline">demand <b>4,200</b> · peak <b>3,860</b> · proposed <b>yes</b> · comments <b>0</b></span>
+            </div>
+            <div class="row-actions"><button class="btn ghost">Play on map</button><button class="btn ghost">Deactivate</button></div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Marathahalli bus bay</button>
+              <span class="status-chip pending">PENDING REVIEW</span>
+              <span class="meta-inline">demand <b>1,040</b> · peak <b>—</b> · proposed <b>no</b> · comments <b>0</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="dash">
+          <div class="dash-head">
+            <h3>REVIEW QUEUE</h3>
+            <div class="filter">
+              <button class="pill on">ALL</button><button class="pill">PENDING</button><button class="pill">ACTIVE</button><button class="pill">REJECTED</button><button class="pill">INACTIVE</button>
+              <button class="btn ghost">Close</button>
+            </div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Kundalahalli peak U-turn ban</button>
+              <span class="status-chip pending">PENDING REVIEW</span>
+              <span class="meta-inline">demand <b>512</b> · peak <b>486</b> · proposed <b>yes</b> · comments <b>2</b></span>
+            </div>
+            <div class="row-detail">
+              <div class="hint">Banning the peak-hour U-turn across the Kundalahalli junction; proposed net re-routes it via the service road.</div>
+              <div class="meta">
+                <span>by <b>Jude Osby</b></span>
+                <span>uid <b>u-7f3a2c</b></span>
+                <span>submitted <b>2026-09-11</b></span>
+                <span>data source <b>Manual survey</b></span>
+                <span><a href="#">source link</a></span>
+              </div>
+              <div class="fld files" style="padding:4px 0">
+                <label>FILES</label>
+                <div class="filelist">
+                  <div class="filerow"><span class="filelink">demand.rou.xml</span></div>
+                  <div class="filerow"><span class="filelink">today.net.xml</span></div>
+                  <div class="filerow"><span class="filelink">proposed.net.xml</span></div>
+                </div>
+              </div>
+              <div class="thread">
+                <div class="comment admin">
+                  <span class="who">Zuul · admin</span><span class="when">2026-09-12</span>
+                  <div class="body">Demand looks about half of the observed counts at the junction — can you re-check the survey sheet? Everything else reads clean.</div>
+                </div>
+                <div class="replybox">
+                  <input type="text" placeholder="Add a review comment…">
+                  <button class="btn">Send</button>
+                </div>
+              </div>
+              <div class="row-actions">
+                <button class="btn ghost">Play on map</button>
+                <span class="sel">supersede: none (add alongside)</span>
+                <button class="btn">Activate</button>
+                <div class="rejectrow" style="margin:0;flex:1">
+                  <input type="text" placeholder="Reject reason (required)…">
+                  <button class="btn danger" disabled>Reject</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Old Airport Rd signal retune</button>
+              <span class="status-chip pending">PENDING REVIEW</span>
+              <span class="status-chip failed">PIPELINE FAILED — resubmit to retry</span>
+            </div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Silk Board flyover merge</button>
+              <span class="status-chip active">ACTIVE</span>
+              <span class="meta-inline">demand <b>4,200</b> · peak <b>3,860</b> · proposed <b>yes</b> · comments <b>0</b></span>
+            </div>
+            <div class="row-actions"><button class="btn ghost">Play on map</button><button class="btn ghost">Deactivate</button></div>
+          </div>
+          <div class="row-item">
+            <div class="row-line">
+              <button class="row-title">Marathahalli bus bay</button>
+              <span class="status-chip pending">PENDING REVIEW</span>
+              <span class="meta-inline">demand <b>1,040</b> · peak <b>—</b> · proposed <b>no</b> · comments <b>0</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s10">
+  <div class="sec-head"><span class="n">10</span><h2>Contribute</h2></div>
+  <p class="sec-note">The leveling-up strip plus two of the sixteen role cards (copy truncated) — public page, no API calls.</p>
+  <div class="duo">
+    <div class="pane theme-paper">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="dash">
+          <div class="dash-head"><h3>CONTRIBUTE</h3><button class="btn ghost">Close</button></div>
+          <div class="row-item">
+            <div class="row-line"><b>LEVELING UP</b></div>
+            <div class="hint">The natural path: start as Dora (first baseline for an uncovered area), grow into Fix-It Felix (sharper baselines), and become Yoda (whole areas, end to end). Later, guard the gate — Zuul unlocks once 5 of your own submissions reach status 'active' (approved by an admin).</div>
+          </div>
+          <h4 style="font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--ink3);margin:14px 0 4px">1 · MODEL THE CITY</h4>
+          <div class="row-item">
+            <div class="row-line"><b style="color:var(--ink)">Dora</b><span class="meta-inline">Data contributor</span></div>
+            <div class="hint">Opens Submit a sim for an area the catalog does not cover yet — draws the export box on the map and supplies the baseline network and demand files.</div>
+            <div class="meta-inline"><b>START HERE · </b> Open Discover, pick a place, Submit a sim.</div>
+          </div>
+          <h4 style="font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--ink3);margin:14px 0 4px">2 · BUILD THE PLATFORM</h4>
+          <div class="row-item">
+            <div class="row-line"><b style="color:var(--ink)">Bob the Builder</b><span class="meta-inline">Engineer</span></div>
+            <div class="hint">Builds the platform itself — the player UI, server.js and its review API, the db/bucket persistence, and the packer pipeline.</div>
+            <div class="meta-inline"><b>START HERE · </b> Clone the repo, read CLAUDE.md, npm run dev, fix something real.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="dash">
+          <div class="dash-head"><h3>CONTRIBUTE</h3><button class="btn ghost">Close</button></div>
+          <div class="row-item">
+            <div class="row-line"><b>LEVELING UP</b></div>
+            <div class="hint">The natural path: start as Dora (first baseline for an uncovered area), grow into Fix-It Felix (sharper baselines), and become Yoda (whole areas, end to end). Later, guard the gate — Zuul unlocks once 5 of your own submissions reach status 'active' (approved by an admin).</div>
+          </div>
+          <h4 style="font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--ink3);margin:14px 0 4px">1 · MODEL THE CITY</h4>
+          <div class="row-item">
+            <div class="row-line"><b style="color:var(--ink)">Dora</b><span class="meta-inline">Data contributor</span></div>
+            <div class="hint">Opens Submit a sim for an area the catalog does not cover yet — draws the export box on the map and supplies the baseline network and demand files.</div>
+            <div class="meta-inline"><b>START HERE · </b> Open Discover, pick a place, Submit a sim.</div>
+          </div>
+          <h4 style="font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--ink3);margin:14px 0 4px">2 · BUILD THE PLATFORM</h4>
+          <div class="row-item">
+            <div class="row-line"><b style="color:var(--ink)">Bob the Builder</b><span class="meta-inline">Engineer</span></div>
+            <div class="hint">Builds the platform itself — the player UI, server.js and its review API, the db/bucket persistence, and the packer pipeline.</div>
+            <div class="meta-inline"><b>START HERE · </b> Clone the repo, read CLAUDE.md, npm run dev, fix something real.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s11">
+  <div class="sec-head"><span class="n">11</span><h2>Tutorials</h2></div>
+  <p class="sec-note">Playlist row plus one 16:9 video card placeholder (links are placeholder dummies until the real playlist lands).</p>
+  <div class="duo">
+    <div class="pane theme-paper">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="dash">
+          <div class="dash-head"><h3>TUTORIALS</h3><button class="btn ghost">Close</button></div>
+          <div class="row-item">
+            <div class="row-line"><b style="color:var(--ink)">LEARN SUMO</b></div>
+            <div class="hint">Curated video tutorials for SUMO — from installing the toolchain to building the network and demand files a submission needs. Watch here, or follow the full playlist in order.</div>
+          </div>
+          <div class="row-item">
+            <div class="row-line"><b style="color:var(--ink)">FULL PLAYLIST</b>
+              <span class="meta-inline">every tutorial in order · <a href="#" style="color:var(--accent-ink)">open on YouTube</a></span></div>
+          </div>
+          <div class="row-item">
+            <div style="aspect-ratio:16/9;border-radius:12px;background:var(--surface2);border:1px solid var(--hair);display:flex;align-items:center;justify-content:center">
+              <span style="width:52px;height:52px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm)"><i style="display:block;width:0;height:0;border-left:14px solid var(--on-accent);border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:4px"></i></span>
+            </div>
+            <div class="row-line" style="margin-top:8px"><b style="color:var(--ink)">Getting started — install SUMO and run your first simulation</b></div>
+            <div class="hint">Install the SUMO toolchain, open netedit, and run a first tiny simulation end to end — the base every submission builds on.</div>
+            <div class="meta-inline"><b>WATCH ON YOUTUBE · </b> <a href="#" style="color:var(--accent-ink)">open on YouTube</a></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="dash">
+          <div class="dash-head"><h3>TUTORIALS</h3><button class="btn ghost">Close</button></div>
+          <div class="row-item">
+            <div class="row-line"><b style="color:var(--ink)">LEARN SUMO</b></div>
+            <div class="hint">Curated video tutorials for SUMO — from installing the toolchain to building the network and demand files a submission needs. Watch here, or follow the full playlist in order.</div>
+          </div>
+          <div class="row-item">
+            <div class="row-line"><b style="color:var(--ink)">FULL PLAYLIST</b>
+              <span class="meta-inline">every tutorial in order · <a href="#" style="color:var(--accent-ink)">open on YouTube</a></span></div>
+          </div>
+          <div class="row-item">
+            <div style="aspect-ratio:16/9;border-radius:12px;background:var(--surface2);border:1px solid var(--hair);display:flex;align-items:center;justify-content:center">
+              <span style="width:52px;height:52px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm)"><i style="display:block;width:0;height:0;border-left:12px solid var(--on-accent);border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:4px"></i></span>
+            </div>
+            <div class="row-line" style="margin-top:8px"><b style="color:var(--ink)">Getting started — install SUMO and run your first simulation</b></div>
+            <div class="hint">Install the SUMO toolchain, open netedit, and run a first tiny simulation end to end — the base every submission builds on.</div>
+            <div class="meta-inline"><b>WATCH ON YOUTUBE · </b> <a href="#" style="color:var(--accent-ink)">open on YouTube</a></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s12">
+  <div class="sec-head"><span class="n">12</span><h2>Toast</h2></div>
+  <p class="sec-note">Auto-dismissing confirmation after a wizard submit.</p>
+  <div class="duo">
+    <div class="pane theme-paper" style="--map-img:url('assets/map-paper.png')">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <div class="map-mock short">
+          <div class="map-inner">
+            <div class="toast">submitted — pending review</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk" style="--map-img:url('assets/map-dusk.png')">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <div class="map-mock short">
+          <div class="map-inner">
+            <div class="toast">submitted — pending review</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s13">
+  <div class="sec-head"><span class="n">13</span><h2>Flow strips</h2></div>
+  <p class="sec-note">(a) submit journey — gate → wizard 1 → 2 → 3 → dashboard PENDING · (b) review journey — admin queue → preview w/ REVIEW chip → Activate → discover ACTIVE.</p>
+  <div class="duo">
+    <div class="pane theme-paper" style="--map-img:url('assets/map-paper.png')">
+      <div class="pane-tag"><i></i>PAPER</div>
+      <div class="mock">
+        <span class="mock-tag">SUBMIT JOURNEY</span>
+        <div class="flow">
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb h w"></i><i class="tb"></i><span class="tbtn block"></span></div></div>
+            <span class="tlabel">gate</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb a h"></i><i class="tb"></i><i class="tb"></i><i class="tb w"></i></div></div>
+            <span class="tlabel">wizard 1</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb h w"></i><i class="tb"></i><span class="tbtn block"></span></div></div>
+            <span class="tlabel">wizard 2</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb a w"></i><i class="tb"></i><i class="tb w"></i><span class="tbtn block"></span></div></div>
+            <span class="tlabel">wizard 3</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><span class="tchip">PENDING REVIEW</span><i class="tb h"></i><i class="tb w"></i></div></div>
+            <span class="tlabel">dashboard</span>
+          </div>
+        </div>
+        <span class="mock-tag">REVIEW JOURNEY</span>
+        <div class="flow">
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><span class="tchip">PENDING</span><i class="tb h"></i><span class="tbtn block"></span></div></div>
+            <span class="tlabel">admin queue</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox tmap">
+              <div class="tpin"><span class="tpip"></span></div>
+              <div class="tsheet"><span class="tchip accent">REVIEW · PENDING</span><i class="tb h"></i><i class="tb w"></i><span class="tbtn block"></span></div>
+            </div>
+            <span class="tlabel">preview</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb w"></i><i class="tb h"></i><span class="tchip green" style="margin-top:2px">ACTIVE</span><span class="tbtn block"></span></div></div>
+            <span class="tlabel">activate</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox tmap">
+              <div class="tzoom"><span>+</span><span>−</span></div>
+              <div class="tpin"><span class="tpip"></span><span class="ttag">SILK BOARD</span></div>
+              <span class="tbadge">HSR LAYOUT</span>
+            </div>
+            <span class="tlabel">discover · ACTIVE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane theme-dusk" style="--map-img:url('assets/map-dusk.png')">
+      <div class="pane-tag"><i></i>DUSK</div>
+      <div class="mock">
+        <span class="mock-tag">SUBMIT JOURNEY</span>
+        <div class="flow">
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb h w"></i><i class="tb"></i><span class="tbtn block"></span></div></div>
+            <span class="tlabel">gate</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb a h"></i><i class="tb"></i><i class="tb"></i><i class="tb w"></i></div></div>
+            <span class="tlabel">wizard 1</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb h w"></i><i class="tb"></i><span class="tbtn block"></span></div></div>
+            <span class="tlabel">wizard 2</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb a w"></i><i class="tb"></i><i class="tb w"></i><span class="tbtn block"></span></div></div>
+            <span class="tlabel">wizard 3</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><span class="tchip">PENDING REVIEW</span><i class="tb h"></i><i class="tb w"></i></div></div>
+            <span class="tlabel">dashboard</span>
+          </div>
+        </div>
+        <span class="mock-tag">REVIEW JOURNEY</span>
+        <div class="flow">
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><span class="tchip">PENDING</span><i class="tb h"></i><span class="tbtn block"></span></div></div>
+            <span class="tlabel">admin queue</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox tmap">
+              <div class="tpin"><span class="tpip"></span></div>
+              <div class="tsheet"><span class="tchip accent">REVIEW · PENDING</span><i class="tb h"></i><i class="tb w"></i><span class="tbtn block"></span></div>
+            </div>
+            <span class="tlabel">preview</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox"><div class="tcard"><i class="tb w"></i><i class="tb h"></i><span class="tchip green" style="margin-top:2px">ACTIVE</span><span class="tbtn block"></span></div></div>
+            <span class="tlabel">activate</span>
+          </div>
+          <span class="farr">→</span>
+          <div class="thumb">
+            <div class="tbox tmap">
+              <div class="tzoom"><span>+</span><span>−</span></div>
+              <div class="tpin"><span class="tpip"></span><span class="ttag">SILK BOARD</span></div>
+              <span class="tbadge">HSR LAYOUT</span>
+            </div>
+            <span class="tlabel">discover · ACTIVE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  Static preview only — no app source was modified. Tokens live in
+  <code>.theme-paper</code> / <code>.theme-dusk</code>; applying the picked theme to the app
+  is a separate task (the live theme is generated into <code>public/data.js</code> by
+  <code>build_player.py</code>). Fonts: Fraunces + Inter via Google Fonts, with system
+  fallbacks so this sheet renders fine offline.
+</footer>
+
+</div>
+</body>
+</html>

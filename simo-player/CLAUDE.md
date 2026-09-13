@@ -9,12 +9,16 @@ generated data + JSONP streams are served from `public/`.
 - `npm run dev` — combined launcher (`tools/dev_all.js`): vite dev server
   (http://localhost:5173) + player server (first free port from 8787;
   vite proxies `/api` to it), so wizard submits on the 5173 origin run the
-  real simulation.
+  real simulation. Loads repo-root `.env` into both children
+  (`tools/dotenv.js`; shell env wins, missing file tolerated — server.js
+  still fail-fasts listing missing vars).
 - `npm run build` / `npm run preview` — production build / serve `dist/`
 - `npm start` — player server only (binds 0.0.0.0, `PORT` env overrides 8787;
   LAN-reachable at `http://<your-ip>:8787`):
   static hosting (player dir over dist/) + `POST /api/simulate`.
-  **Needs env first** (Postgres + bucket; fails fast listing missing vars):
+  **Needs env first** (Postgres + a bucket backend — `SIMO_BUCKET_DISK_DIR`
+  for dev disk storage OR the SIMO_S3_* creds — plus
+  `GOOGLE_APPLICATION_CREDENTIALS`; fails fast listing missing vars):
   `cp .env.example .env` then `set -a; . ./.env; set +a; npm start`.
   **Real wizard simulations need either `npm run dev` (proxy wired) or
   opening the player via this server URL** — on `file://` (or vite-only
@@ -28,6 +32,10 @@ generated data + JSONP streams are served from `public/`.
 - `node tools/pack_run.js --net n.xml --rou r.xml --scenario today -o out.simo.json`
 - `node tools/dev_inject.js pack.simo.json --title "My run" [--net n.xml]`
   `  [--player-dir DIR] [--desc D] [--anchor LAT,LNG] [--rotation N] [--suggested-zoom N]`
+- `node tools/migrate_file_entries.js [--dry-run]` — one-time migration of
+  legacy file-baked catalog entries (needs PG* + SIMO_S3_* env): copies
+  entry_json + the JSONP stream payload into the DB/bucket for CATALOG
+  entries WITH a sims row; entries without rows are dev scratch (skipped).
 - Opt-in determinism check: `SIMO_REGEN=1 npx vitest run test/data-regen.test.js`
 - Opt-in real-bucket check: `SIMO_TEST_S3_REAL=1` + `SIMO_S3_*` env, then
   `npx vitest run test/bucket.test.js`
@@ -37,16 +45,39 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
 ## Layout
 
 - `src/lib/` — pure logic (engine, netxml, geo, draft, submit, areaExport,
-  util). **Must stay DOM-free and react/leaflet-free** — enforced by
-  `test/lib-purity.test.js`. New pure logic goes here so vitest's node
-  environment can run it directly.
+  util, profile, catalogMerge, ingestSlot). **Must stay DOM-free and
+  react/leaflet-free** — enforced by `test/lib-purity.test.js`. New pure
+  logic goes here so vitest's node environment can run it directly.
+  `catalogMerge.js` is the two-source merge (base bundle + /api/catalog:
+  replace-by-id, API wins, `apiStream` stamp); `ingestSlot.js` is the
+  shared upload-ingest core used by SubmitFlow's FileReader path AND the
+  resubmit prefill.
 - `src/data.js` — adapter over the classic-script bundle `public/data.js`.
   `index.html` loads `/data.js` as a classic script BEFORE the module entry
   (classic blocks, modules defer — order is guaranteed). Script-level `const`
   bindings are global *lexical* bindings, NOT `globalThis` properties; the
   adapter reads them via aliased bare identifiers to dodge TDZ.
 - `src/state/store.js` — useTrafficStore + MapProvider/MapOverlayProvider
-  (localStorage-guarded username; mergeStream swaps the entry OBJECT).
+  (Google-auth `user` state via listenAuth; `startDraft` opens the Google
+  popup when signed out — the wizard gate; `draft.username` is derived from
+  the profile via `authorFromProfile`; mergeStream swaps the entry OBJECT).
+  Review-flow wiring: boot merges `GET /api/catalog` over the base bundle
+  (`mergeApiEntries`; failure → base only, file:// keeps base only); `me`
+  comes from `GET /api/me` (failure → null, admin UI never appears);
+  `previewSubmission(id, status)` plays a non-active sim via a transient
+  replace-by-id catalog entry stamped `entry.review` (frames merged in the
+  same batched update — the lazy-stream effect never fires for previews);
+  `startResubmit(sub)` reopens the wizard prefilled with the id PINNED
+  (`draft.id`) and the stored XMLs re-ingested via `ingestSlot`; submit
+  success does NOT reload — toast 'submitted — pending review' + view
+  `dashboard` (a re-pipeline resets the row to pending, thread preserved);
+  `activateSim` drops the local `entry.review` stamp; `deactivateSim`
+  drops the local entry.
+- `src/auth/firebase.js` — Firebase Google sign-in adapter (NOT under
+  src/lib): hardcoded public web config, singleton init at module import
+  (same pattern as src/data.js). Thin API for the store:
+  `signInWithGoogle`, `signOutUser`, `listenAuth`, `currentToken`. No
+  analytics. Firebase never appears in src/lib.
 - `src/map/overlay.js` — Leaflet layer + canvas overlay (react/leaflet live
   here and in components, never in src/lib). `loadSimStream` keeps the JSONP
   script-injection contract; `streams/<id>.js` is a relative URL that
@@ -55,42 +86,114 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   BALAGERE_CSS_STYLE + EXTRA_CSS then `ReactDOM.createRoot`. SimPanel runs
   a self-contained fetch of `/api/files/<id>` and renders a FILES download
   block only when the list is non-empty (fetch failure / file:// / route
-  missing → section stays hidden, no error UI).
+  missing → section stays hidden, no error UI). SimPanel also renders a
+  REVIEW status chip when `entry.review` is stamped (transient previews).
+  `DashboardView` (user) + `AdminView` (review queue) are full-screen
+  overlay panels over the map, fed by `src/api.js` wrappers; TopBar shows
+  Dashboard/Admin only when signed in AND `me` resolved (`me.isAdmin`).
+  `ContributeView` is a static full-screen overlay panel (public, no API
+  calls) rendering the 6-track/16-role guide copy from the pure
+  `src/lib/contribute.js` (`TRACKS` + `LEVELING_UP`; shape locked by
+  test/contribute.test.js).
+  App's lazy-stream loader branches on `entry.apiStream`:
+  `/api/catalog/:id/stream` for API entries, JSONP `streams/<id>.js` for
+  the base bundle.
 - `tools/*.js` — packer/injector, ports of the retired Python tools:
   `sumo_geom.js` (geom/geoLock/findSumo), `blgr_pack.js` (BLGR packing,
   readline XML parsing), `pack_run.js` (exact SUMO_FLAGS — seed 42,
   step-length 1; argparse-parity CLI), `dev_inject.js` (idempotent CATALOG
   patch + stream writer; wizard metadata flags fill the non-geo-locked
-  fallback placement).
+  fallback placement; the pure `buildEntry(pack, opts)` extraction is
+  shared with the server's simulate flow — netGeo is pre-resolved by the
+  caller, so buildEntry is fs-free), `migrate_file_entries.js` (one-time
+  legacy ride-along migration: entry_json + review stream for CATALOG
+  entries with a sims row; --dry-run reports without writing).
 - `server.js` — player server: static hosting (public/ over dist/) +
-  `POST /api/simulate`, which shells the real pipeline (`pack_run.js` →
-  `dev_inject.js`) in a per-request tempdir. After `validateBody` the
-  posted XMLs go to the bucket + DB refs (failure → 500 'file storage
-  failed: …' with no catalog mutation; uploads survive even a 422), then
-  serves `GET /api/files/:id` (name list, `[]` for unknown-but-valid ids)
-  and `GET /api/files/:id/:name` (proxy download; 400 invalid id/name, 404
-  missing). pg/S3 handlers are async; a promise-chain mutex keeps
-  concurrent simulates serialized. Startup constructs the pool + S3 client
-  from env and fails fast listing missing vars.
-  `test/endpoint.test.js` runs it with REAL SUMO against a temp player dir
+  `POST /api/simulate`, which shells pack_run in a per-request tempdir and
+  builds the catalog entry IN-PROCESS via `buildEntry` (NO dev_inject
+  subprocess, NO player-dir writes, NO client reload — the server never
+  writes public/data.js or public/streams). Auth gate: the request's
+  `Authorization: Bearer <Firebase ID token>` is verified via the
+  `opts.verifyToken` seam (default `verifyToken.js`: firebase-admin from
+  `GOOGLE_APPLICATION_CREDENTIALS`, fail-fast when missing) BEFORE body
+  parsing/validation; missing/invalid → `401 { error: 'authentication
+  failed' }`, and the catalog/DB author comes from the verified claims via
+  `authorFromProfile` (src/lib/profile.js) — the body `author` field is
+  ignored. Simulate order: auth → validateBody → OWNERSHIP CHECK (existing
+  sims row with a different author_uid and not admin → 403 BEFORE any
+  bucket mutation) → resolveSumo → bucket delete (best-effort) + putObjects
+  + putUploadRefs (review state untouched) → pack_run (422/504) →
+  buildEntry → putReviewArtifacts (pack + stream) → finalizeSim → 200.
+  Bucket failure at putReviewArtifacts → 500; the row stays pending +
+  !sim_ready; a resubmit retries.
+  Review flow (Postgres + bucket; no filesystem writes): submissions stay
+  `pending` until an admin activates them — the public catalog is the base
+  bundle PLUS `GET /api/catalog` (active entry_json rows, replace-by-id in
+  the client merge). Admin identity: SIMO_ADMIN_EMAILS (comma-separated,
+  case-insensitive) vs the verified claims.email; unset → no admins
+  (startup warning), an account without an email claim is never admin.
+  Routes: `GET /api/me` (auth), `GET /api/catalog` (public), `GET
+  /api/catalog/:id/stream` (public, active + bucket artifact), `GET
+  /api/submissions` (admin all / user own), `GET /api/submissions/:id`
+  (row + files + comments), `GET /api/submissions/:id/preview` (owner-or-
+  admin → { entry, stream }; 404 when !sim_ready or no stream), `POST
+  /api/submissions/:id/comments` (owner-or-admin; body trimmed non-empty
+  ≤ 4 KB; is_admin stamped server-side), `POST .../activate {supersedes?}`
+  (admin; requires sim_ready + entry_json + a stream artifact; pending/
+  inactive → active; active without supersedes = idempotent 200; active
+  with supersedes → 409; supersedes target must exist + be active + ≠ id;
+  target flips to inactive with superseded_by in the SAME transaction —
+  a non-active target rolls everything back), `POST .../reject {comment}`
+  (admin, pending-only, comment required → 400), `POST
+  .../deactivate` (admin, active-only). Bad input → 400, wrong state →
+  409. `GET /api/files/:id` (name list, `[]` for unknown-but-valid ids)
+  and `GET /api/files/:id/:name` (proxy download; 400 invalid id/name,
+  404 missing) gate on ONE status lookup: no sims row or `status=active`
+  → public (SimPanel keeps working unauthenticated); pending/rejected/
+  inactive rows are owner-or-admin only (401 anon / 403 foreign) — that is
+  also how the resubmit prefill re-downloads stored XMLs.
+  pg/S3 handlers are async; the promise-chain mutex keeps concurrent
+  simulates serialized (review/catalog routes are pure async DB/bucket and
+  need no mutex). Startup constructs the pool + bucket client from env and
+  fails fast listing missing vars; SIMO_ADMIN_EMAILS unset logs a warning.
+  `test/endpoint.test.js` + `test/endpoint_review.test.js` run it with
+  REAL SUMO (where the pipeline is exercised) against a temp player dir
   and the REAL `${PGDATABASE}_test` database; the bucket is an in-memory
-  fake seam and failure cases inject `opts.db` / `opts.bucket` (mirrors of
-  the retired `opts.storage` seam).
+  fake seam and failure cases inject `opts.db` / `opts.bucket` /
+  `opts.verifyToken` / `opts.adminEmails`.
 - `db.js` + `bucket.js` (repo root, NOT src/lib — src/lib must stay
   DOM-free) — upload persistence. Bytes live in an S3-compatible bucket
   (`bucket.js`: keys `uploads/<id>/<name>` built only from the fixed
-  `FILE_NAMES` constants + an `ID_RE`-validated id; `createS3FromEnv` fail
-  fast on `SIMO_S3_*`, `forcePathStyle` when `SIMO_S3_ENDPOINT` is set for
-  MinIO); Postgres holds refs + metadata only (`db.js`: `sims` row +
-  `sim_files` rows — object key/url/size, never bytes; all queries
-  parameterized; `putUploadRefs` is a single replace-on-resimulate
-  transaction). `test/bucket.test.js` locks key guards + the `{ bucket,
-  send }` client seam; `test/db_uploads.test.js` locks the DB API on real
-  Postgres.
+  `FILE_NAMES` constants + an `ID_RE`-validated id; review artifacts at
+  `uploads/<id>/review/{pack,stream}.json` via the same guard style —
+  stream.json holds the payload OBJECT as JSON, not the JSONP wrapper;
+  `createS3FromEnv` fail fast on `SIMO_S3_*`, `forcePathStyle` when
+  `SIMO_S3_ENDPOINT` is set for MinIO; `createBucketFromEnv` dispatches to
+  `bucket_disk.js` (a `{ bucket, send }` seam twin over a local directory
+  under `SIMO_BUCKET_DISK_DIR` — dev storage, no SIMO_S3_* needed; wins
+  over SIMO_S3_* when both set) when that var is set; the disk send
+  re-guards keys and maps missing reads to `NoSuchKey`); Postgres holds refs + metadata
+  only (`db.js`: `sims` row + `sim_files` rows — object key/url/size,
+  never bytes; all queries parameterized; `putUploadRefs` is a single
+  replace-on-resimulate transaction that touches metadata + author fields
+  ONLY — never the review state; review API: `finalizeSim` (entry_json +
+  sim_ready + review-state reset), `getSubmission`, `listSubmissions`
+  (pending-first, comment_count), `listActiveEntries`, `listComments`/
+  `addComment` (is_admin stamped by callers), `setStatus`,
+  `activateTx` (activation + supersede in ONE tx with a non-active-target
+  rollback guard)). `test/bucket.test.js` locks key guards + the
+  `{ bucket, send }` client seam; `test/bucket_disk.test.js` locks the
+  disk backend through the real bucket.js ops (refs shape, recursive
+  delete, NoSuchKey, escape guards, env dispatch); `test/db_uploads.test.js` +
+  `test/db_review.test.js` lock the DB API on real Postgres.
 - `db/schema.sql` — idempotent DDL applied by `tools/db_setup.js` (npm run
   db:setup) and by the test harness (`test/helpers/pgTest.js`: requires
   all five PG* vars, creates `${PGDATABASE}_test` if missing, applies the
-  schema). No migration framework — evolve the file in place.
+  schema). No migration framework — evolve the file in place: the
+  pre-review schema is upgraded by ALTER TABLE IF NOT EXISTS columns +
+  a `DO $$ … pg_constraint $$` block for the status CHECK (Postgres has
+  no ADD CONSTRAINT IF NOT EXISTS); legacy rows backfill status='active',
+  fresh rows default 'pending'.
 - `test/` — vitest suites + `helpers/{streamPayload,dataConsts,pgTest}.js`;
   fixtures in `test/fixtures/` (sample.net.xml has the -1e10 sentinel
   origBoundary; mini.net.xml/mini.rou.xml are a real SUMO-runnable pair
@@ -98,6 +201,11 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   (copy `.env.example`); `vite.config.js` sets `fileParallelism: false` so
   the truncating db suite and the row-holding endpoint suite never share
   the test database concurrently.
+- `design/` — standalone warm-redesign design sheet (`design-sheet.html`,
+  opens via file://, no build, no app source involved) + generated imagery
+  under `design/assets/`. The live theme is the Paper token block appended
+  to `EXTRA_CSS` in `src/main.js` (theme swap point, locked by
+  test/theme.test.js); the generated BALAGERE_CSS_STYLE stays untouched.
 
 ## Generated artifacts — do not hand-edit
 
@@ -107,7 +215,9 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   external generator's byte-stability depends on it).
 - `public/streams/<id>.js` — single line
   `window.__simoStreamCallback('<id>',<JSON>);`. JSONP is deliberate;
-  fetch() is not a drop-in (tests assert the format).
+  fetch() is not a drop-in (tests assert the format). Base-bundle entries
+  only: review-flow entries stream via `GET /api/catalog/:id/stream`
+  (payload JSON, no wrapper) instead.
 
 Blob formats (locked by round-trip tests in test/tools.test.js):
 frames = per frame u16LE n + n×9-byte records

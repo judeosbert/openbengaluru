@@ -4,17 +4,45 @@ import L from 'leaflet';
 import { TrafficSimEngine } from '../lib/engine.js';
 import { simToLatLng, placementScale } from '../lib/geo.js';
 
-const GREEN_C = [53, 196, 107], AMBER_C = [240, 160, 43], RED_C = [245, 72, 79];
+/* Canvas colors read the theme tokens (EXTRA_CSS :root) — canvas paints
+ * cannot use var(), so resolve them once. Never cached when there is no
+ * DOM (node tests): speedColor returns '' and nothing draws. */
+let THEME = null;
+function theme() {
+  if (THEME) return THEME;
+  if (typeof document === 'undefined'
+      || typeof getComputedStyle !== 'function') return {};
+  const s = getComputedStyle(document.documentElement);
+  const v = (n) => (s.getPropertyValue(n) || '').trim();
+  const rgb = (n) => {
+    const m = /^#([0-9a-f]{6})$/i.exec(v(n));
+    return m
+      ? [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16),
+        parseInt(m[1].slice(4, 6), 16)]
+      : null;
+  };
+  THEME = {
+    roadCore: v('--road-core'), roadCasing: v('--road-casing'),
+    draftCasing: v('--draft-casing'), accent: v('--accent'),
+    accentInk: v('--accent-ink'), accentDim: v('--accent-dim'),
+    green: v('--green'), greenDim: v('--green-dim'), amber: v('--amber'),
+    off: v('--ink3'), ground: v('--ground'), arm: v('--today'),
+    greenC: rgb('--green'), amberC: rgb('--amber'), redC: rgb('--red'),
+  };
+  return THEME;
+}
 export const VEH_TYPES = [[4.5, 1.8], [2.1, 0.8], [12, 2.5], [7.5, 2.4], [3.2, 1.5]];
 
 export function lerpC(a, b, t) {
   return 'rgb(' + a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',') + ')';
 }
 export function speedColor(v) {                    // red -> amber -> green by m/s
-  if (v <= 0.4) return lerpC(RED_C, RED_C, 0);
-  if (v < 3.5) return lerpC(RED_C, AMBER_C, (v - 0.4) / 3.1);
-  if (v < 8) return lerpC(AMBER_C, GREEN_C, (v - 3.5) / 4.5);
-  return lerpC(GREEN_C, GREEN_C, 0);
+  const C = theme();
+  if (!C.greenC || !C.amberC || !C.redC) return '';
+  if (v <= 0.4) return lerpC(C.redC, C.redC, 0);
+  if (v < 3.5) return lerpC(C.redC, C.amberC, (v - 0.4) / 3.1);
+  if (v < 8) return lerpC(C.amberC, C.greenC, (v - 3.5) / 4.5);
+  return lerpC(C.greenC, C.greenC, 0);
 }
 export function phaseAt(ph, t) {
   if (!ph || !ph.length) return null;
@@ -156,10 +184,11 @@ export function makeSimOverlay(map) {
         [cx0, cy0] = [ax, ay];
       }
       const lanes = draft.geo.lanes || [];
+      const T = theme();
       g.save();
       g.globalAlpha = 0.9;
       for (const pass of [0, 1]) {
-        g.strokeStyle = pass ? '#FF5A60' : 'rgba(11,11,12,.85)';
+        g.strokeStyle = pass ? T.accentInk : T.draftCasing;
         g.lineJoin = 'round';
         g.lineCap = 'round';
         for (const lane of lanes) {
@@ -174,7 +203,7 @@ export function makeSimOverlay(map) {
         }
       }
       /* anchor crosshair (at the net's own (0,0) when geo-locked) */
-      g.strokeStyle = '#E50914';
+      g.strokeStyle = T.accent;
       g.lineWidth = 1.5;
       g.beginPath();
       g.moveTo(cx0 - 9, cy0); g.lineTo(cx0 + 9, cy0);
@@ -193,7 +222,7 @@ export function makeSimOverlay(map) {
         const c = [toPx(x0 - pad, y0 - pad), toPx(x1 + pad, y0 - pad),
                    toPx(x1 + pad, y1 + pad), toPx(x0 - pad, y1 + pad)];
         g.setLineDash([6, 5]);
-        g.strokeStyle = 'rgba(229,9,20,.6)';
+        g.strokeStyle = T.accentDim;
         g.lineWidth = 1.2;
         g.beginPath();
         c.forEach((p, k) => { if (k) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); });
@@ -229,10 +258,11 @@ export function makeSimOverlay(map) {
       };
     }
 
-    // roads: dark casing pass, then core pass (build_player idiom)
+    // roads: casing pass, then core pass (build_player idiom)
     const lanes = geo.lanes || [];
+    const T = theme();
     for (const pass of [0, 1]) {
-      g.strokeStyle = pass ? '#3A3A40' : '#222227';
+      g.strokeStyle = pass ? T.roadCore : T.roadCasing;
       g.lineJoin = 'round';
       g.lineCap = 'round';
       for (const lane of lanes) {
@@ -251,7 +281,7 @@ export function makeSimOverlay(map) {
     const st = phaseAt(geo.phases || [], simT);
     if (st) {
       const rank = { G: 3, g: 2, y: 1, r: 0 };
-      const col = { 3: '#35C46B', 2: '#288C50', 1: '#F0A02B', 0: '#46464C' };
+      const col = { 3: T.green, 2: T.greenDim, 1: T.amber, 0: T.off };
       const stops = geo.stops || {}, links = geo.links || {};
       for (const frm of Object.keys(stops)) {
         const idx = links[frm] || [];
@@ -259,7 +289,7 @@ export function makeSimOverlay(map) {
         for (const k of idx) b = Math.max(b, rank[st[k]] != null ? rank[st[k]] : 0);
         const [X, Y] = toPx(stops[frm][0], stops[frm][1]);
         g.fillStyle = col[b];
-        g.strokeStyle = '#0B0B0C';
+        g.strokeStyle = T.ground;
         g.lineWidth = 2;
         g.beginPath();
         g.arc(X, Y, Math.max(3.5, 1.6 * s), 0, 6.2832);
@@ -288,8 +318,8 @@ export function makeSimOverlay(map) {
 
     // arm labels
     const arms = geo.arms || {};
-    g.font = '700 11px "Helvetica Neue", Helvetica, Arial, sans-serif';
-    g.fillStyle = '#9670C8';
+    g.font = '700 11px Inter, "Helvetica Neue", Helvetica, Arial, sans-serif';
+    g.fillStyle = T.arm;
     g.textAlign = 'center';
     for (const name of Object.keys(arms)) {
       const [X, Y] = toPx(arms[name][0], arms[name][1]);
