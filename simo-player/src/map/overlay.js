@@ -3,6 +3,7 @@
 import L from 'leaflet';
 import { TrafficSimEngine } from '../lib/engine.js';
 import { simToLatLng, placementScale } from '../lib/geo.js';
+import { zoomCanvasTransform } from './zoomTransform.js';
 
 /* Canvas colors read the theme tokens (EXTRA_CSS :root) — canvas paints
  * cannot use var(), so resolve them once. Never cached when there is no
@@ -97,7 +98,12 @@ export function loadSimStream(simId, callback) {
 }
 
 /* Canvas overlay on the Leaflet overlay pane. Owns one <canvas> sized to the
- * map; redraws on moveend/zoomend/resize and on setTime (RAF-coalesced).
+ * map; redraws on moveend/zoomend/resize/move and on setTime (RAF-coalesced).
+ * During Leaflet's 250ms animated zoom the canvas raster-scales to the
+ * zoomanim target (translate3d/scale via zoomCanvasTransform + DomUtil
+ * .setTransform, the L.Renderer technique — the canvas is a container child
+ * and gets no pane transform), and the next draw resets the transform and
+ * repaints crisp at the settled zoom.
  * Placement: sim dm -> m (/10), rotate by entry.rotation, metres -> px via
  * placementScale (2.5 px/m floor keeps roads visible at low zoom), origin at
  * latLngToLayerPoint(anchor) - getPixelOrigin(). */
@@ -105,6 +111,11 @@ export function makeSimOverlay(map) {
   let entry = null, scenKey = 'today', simT = 0;
   let draft = null;         // {geo, latlng, rotation} — live submit preview
   let eng = null, canvas = null, g = null, rafId = 0;
+  /* last-drawn view state for the zoomanim raster-scale (zoomTransform.js):
+   * what the canvas currently shows, not map.getZoom() — that already holds
+   * the TARGET zoom once a zoom animation starts. */
+  let paintedZoom = null, paintedOrigin = null;
+  let zoomScaled = false;   // a zoomanim raster-scale transform is applied
 
   /* debug handle: lets headless/manual QA read live overlay state */
   if (typeof window !== 'undefined') {
@@ -123,6 +134,13 @@ export function makeSimOverlay(map) {
 
   function draw() {
     if (!canvas || !g || !map) return;
+    if (zoomScaled) {
+      /* the zoom animation settled (first move/zoomend fired): drop the
+       * raster-scale and repaint crisp at the new view */
+      zoomScaled = false;
+      canvas.style.transition = '';
+      canvas.style.transform = '';
+    }
     const size = map.getSize();
     const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
     if (canvas.width !== Math.round(size.x * dpr)
@@ -139,6 +157,9 @@ export function makeSimOverlay(map) {
      * the preview offscreen. */
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, size.x, size.y);
+    /* the canvas now shows exactly this view — remember it for onZoomAnim */
+    paintedZoom = map.getZoom();
+    paintedOrigin = map.getPixelOrigin();
     if (!entry && !draft) return;
 
     const zoom = map.getZoom();
@@ -328,6 +349,22 @@ export function makeSimOverlay(map) {
     }
   }
 
+  /* Animated zoom: Leaflet fires zoomanim once with the target {center, zoom}
+   * and CSS-transitions the map pane over 250ms while suppressing move
+   * events. The canvas is a container child (no pane transform), so scale
+   * the last painted frame to the target here — the same raster-scale trick
+   * as L.Renderer — and let draw() reset it once the view settles. */
+  function onZoomAnim(e) {
+    if (!canvas || paintedZoom == null || !paintedOrigin) return;
+    const c = map.project(e.center, e.zoom);
+    const size = map.getSize();
+    const t = zoomCanvasTransform(size.x, size.y, paintedZoom,
+      paintedOrigin.x, paintedOrigin.y, c.x, c.y, e.zoom);
+    canvas.style.transition = 'transform 0.25s cubic-bezier(0,0,0.25,1)';
+    L.DomUtil.setTransform(canvas, { x: t.offsetX, y: t.offsetY }, t.scale);
+    zoomScaled = true;
+  }
+
   const SimLayer = L.Layer.extend({
     onAdd: function () {
       canvas = L.DomUtil.create('canvas', 'sim-canvas');
@@ -335,16 +372,22 @@ export function makeSimOverlay(map) {
       canvas.style.position = 'absolute';
       canvas.style.top = '0';
       canvas.style.left = '0';
+      /* transform origin 0 0 = what the leaflet-zoom-animated class does:
+       * zoomanim raster-scales around the viewport top-left (zoomTransform
+       * math is in container coords). */
+      canvas.style.transformOrigin = '0 0';
       /* append to the map CONTAINER (not a pane): the canvas covers the
        * viewport and never moves with pan, so latLngToContainerPoint()
        * (screen px) aligns with it exactly — no pane-offset compensation. */
       this._map.getContainer().appendChild(canvas);
       g = canvas.getContext('2d');
       this._map.on('moveend zoomend resize move', requestDraw);
+      this._map.on('zoomanim', onZoomAnim);
       requestDraw();
     },
     onRemove: function () {
       this._map.off('moveend zoomend resize move', requestDraw);
+      this._map.off('zoomanim', onZoomAnim);
       if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }   // RAF guard
       if (canvas && canvas.parentNode) canvas.parentNode.removeChild(canvas);
       canvas = null;
