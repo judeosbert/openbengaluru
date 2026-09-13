@@ -1,8 +1,39 @@
 /* Sim panel + A/B scenario toggle. Ported verbatim from app.js. */
 import React from 'react';
 import { engineFor, scenarioGeoOf, fmtStat } from '../map/overlay.js';
+import { serverAvailable } from '../lib/submit.js';
 
 const h = React.createElement;
+
+/* FILES section rows, keyed to the fixed stored names the player server
+ * persists (storage.js FILE_NAMES). Proposed Network needs an approved
+ * wizard submission carrying proposed.net.xml — until then its row is
+ * disabled with a tooltip. */
+const FILE_ROWS = [
+  { label: 'Demand File', file: 'demand.rou.xml' },
+  { label: 'Current Network', file: 'today.net.xml' },
+  { label: 'Proposed Network', file: 'proposed.net.xml' },
+];
+
+/* Source files stored by the player server for this entry (POST
+ * /api/simulate persists the wizard's raw XMLs; GET /api/files/:id lists
+ * them). Self-contained: fetch failure, a server without the route, or
+ * file:// all degrade to an empty list — the section just stays hidden. */
+function useSourceFiles(entry) {
+  const id = entry && entry.id;
+  const [files, setFiles] = React.useState(null);
+  React.useEffect(() => {
+    let live = true;
+    setFiles(null);
+    if (!id || !serverAvailable(window.location)) return undefined;
+    fetch('/api/files/' + encodeURIComponent(id))
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => { if (live) setFiles(Array.isArray(list) ? list : []); })
+      .catch(() => { if (live) setFiles([]); });
+    return () => { live = false; };
+  }, [id]);
+  return files;
+}
 
 export const HUD_LABELS = ['THROUGH', 'MOVING', 'STOPPED', 'QUEUED OUTSIDE', 'GRIDLOCKS'];
 
@@ -19,6 +50,7 @@ export function SimScenarioToggle({ value, onChange, scenarios }) {
 export function SimPanel({ entry, scenKey, simT, running, speed,
   onScenario, onRun, onStop, onScrub, onSpeed, onClose }) {
   const eng = React.useMemo(() => engineFor(entry), [entry]);
+  const srcFiles = useSourceFiles(entry);
   const stats = eng.getStatsAt(simT, scenKey);
   const geo = scenarioGeoOf(entry, scenKey);
   const nf = entry.nFrames || 900;
@@ -37,6 +69,25 @@ export function SimPanel({ entry, scenKey, simT, running, speed,
       'by ', h('b', null, entry.author), ' · added ', entry.addedAt,
       geo && geo.sub ? h('span', null, ' · ', geo.sub) : null),
     entry.desc ? h('div', { className: 'by' }, entry.desc) : null,
+    srcFiles && srcFiles.length ? h('div', { className: 'fld files' },
+      h('label', null, 'FILES'),
+      h('div', { className: 'filelist' },
+        FILE_ROWS.map((r) => {
+          const stored = srcFiles.includes(r.file);
+          return h('div', { key: r.file, className: 'filerow' },
+            h('b', null, r.label),
+            stored
+              ? h('a', {
+                className: 'filelink',
+                href: '/api/files/' + encodeURIComponent(entry.id) + '/'
+                  + encodeURIComponent(r.file),
+                download: r.file,
+              }, r.file)
+              : h('span', {
+                className: 'filelink disabled',
+                title: 'No approved submissions yet',
+              }, r.file));
+        }))) : null,
     h('div', { className: 'statgrid' },
       h('div', null, h('b', null, 'DEMAND /HR'),
         h('span', { className: 'num' }, fmtStat(entry.demand))),

@@ -1,30 +1,97 @@
-/* POST /api/simulate endpoint test — REAL HTTP, REAL SUMO, REAL files on
- * disk (no mocks). Port of the plan's validation contract:
+/* POST /api/simulate endpoint test — REAL HTTP, REAL SUMO, REAL Postgres
+ * (the ${PGDATABASE}_test database via test/helpers/pgTest.js) and an
+ * in-memory fake for the bucket seam (per plan: no MinIO docker default;
+ * opt-in real run in test/bucket.test.js). Port of the plan's validation
+ * contract:
  *
- *   POST a fixture net+rou -> 200, streams/<id>.js on disk, data.js contains
- *   the id, stream frames are real packed vehicles; garbage net -> 422;
- *   undiscoverable SUMO -> 500; oversize body -> 413; bad input -> 400.
+ *   POST a fixture net+rou -> 200, stream + catalog on disk, sims row +
+ *   sim_files refs in the test DB; garbage net -> 422; undiscoverable SUMO
+ *   -> 500; oversize body -> 413; bad input -> 400; failing db/bucket
+ *   backend -> 500 via the injected opts.db / opts.bucket seams.
  *
  * Skips the SUMO-running cases when the binary is undiscoverable (the rest
- * of the suite still runs). The server injects into a TEMP player dir, never
- * the real public/.
+ * of the suite still runs). The server injects into a TEMP player dir,
+ * never the real public/.
  */
-import { it, expect, afterAll } from 'vitest';
+import { it, expect, afterAll, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createSimServer } from '../server.js';
 import { findSumo } from '../tools/sumo_geom.js';
+import * as dbStore from '../db.js';
+import * as bucketStore from '../bucket.js';
 import { readDataConsts, PLAYER_ROOT } from './helpers/dataConsts.js';
+import { ensureTestDb, testPool, requirePgEnv } from './helpers/pgTest.js';
 
 const FIXDIR = path.join(PLAYER_ROOT, 'test', 'fixtures');
 const ROU_XML = fs.readFileSync(path.join(FIXDIR, 'mini.rou.xml'), 'utf8');
 const NET_XML = fs.readFileSync(path.join(FIXDIR, 'mini.net.xml'), 'utf8');
 const SUMO = findSumo();
 
+/* Fail fast listing missing PG* vars (no defaults, mirroring db.js). */
+requirePgEnv();
+
+let pool;
+
+beforeAll(async () => {
+  await ensureTestDb();
+  pool = testPool();
+});
+
 /* ------------------------------------------------------------- harness --- */
 
 const created = [];
+
+/* Real db.js API bound to the shared test-db pool. */
+function dbApi() {
+  return {
+    putUploadRefs: (id, body, refs) =>
+      dbStore.putUploadRefs(pool, id, body, refs),
+    listUploads: (id) => dbStore.listUploads(pool, id),
+    getUploadRef: (id, name) => dbStore.getUploadRef(pool, id, name),
+  };
+}
+
+/* In-memory bucket seam twin — putObjects returns the same ref shape as
+ * bucket.js (real key building + guards), bytes stay in a Map. */
+function fakeBucketApi() {
+  const objects = new Map();
+  return {
+    async putObjects(id, files) {
+      return files.map(({ name, text }) => {
+        const key = bucketStore.objectKey(id, name);
+        objects.set(key, Buffer.from(text));
+        return {
+          name,
+          object_key: key,
+          object_url: 's3://fake-bucket/' + key,
+          size_bytes: Buffer.byteLength(text),
+        };
+      });
+    },
+    async deleteObjects(id) {
+      const prefix = 'uploads/' + id + '/';
+      let n = 0;
+      for (const k of [...objects.keys()]) {
+        if (k.startsWith(prefix)) {
+          objects.delete(k);
+          n++;
+        }
+      }
+      return n;
+    },
+    async getObjectBytes(key) {
+      const v = objects.get(key);
+      if (!v) {
+        const e = new Error('The specified key does not exist.');
+        e.name = 'NoSuchKey';
+        throw e;
+      }
+      return v;
+    },
+  };
+}
 
 function startServer(opts = {}) {
   const td = fs.mkdtempSync(path.join(os.tmpdir(), 'simo-endp-'));
@@ -39,6 +106,8 @@ function startServer(opts = {}) {
     playerDir: td,
     distDir,
     rootDir: PLAYER_ROOT,                   // simo-player/ — the real tools
+    db: dbApi(),                            // real refs on the TEST database
+    bucket: fakeBucketApi(),                // bytes in memory, keys real
     ...(opts.sumoResolver ? {} : { sumoResolver: () => SUMO }),
     ...opts,
   });
@@ -51,11 +120,12 @@ function startServer(opts = {}) {
   });
 }
 
-afterAll(() => {
+afterAll(async () => {
   for (const { server, td } of created) {
     server.close();
     fs.rmSync(td, { recursive: true, force: true });
   }
+  if (pool) await pool.end();
 });
 
 function postBody(over = {}) {
@@ -232,4 +302,153 @@ it('serves the player: / from dist, /data.js from the player dir', async () => {
   const data = await fetch(base + '/data.js');
   expect(data.status).toBe(200);
   expect(await data.text()).toContain('const CATALOG');
+});
+
+/* ------------------------------------------------- /api/files routes --- */
+
+it('GET /api/files/:id -> 200 [] for unknown-but-valid ids', async () => {
+  const { base } = await startServer();
+  const res = await fetch(base + '/api/files/nofiles-' + Date.now());
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual([]);
+});
+
+it('GET /api/files with a path-like id -> 400', async () => {
+  const { base } = await startServer();
+  const res = await fetch(base + '/api/files/..%2Fevil');
+  expect(res.status).toBe(400);
+  expect((await res.json()).error).toBeTruthy();
+});
+
+it('GET /api/files/:id with a path-like name -> 400', async () => {
+  const { base } = await startServer();
+  const res = await fetch(base + '/api/files/stor-ok/..%2Fsecret');
+  expect(res.status).toBe(400);
+  expect((await res.json()).error).toBeTruthy();
+});
+
+it('GET /api/files/:id/:name -> 404 when nothing was stored', async () => {
+  const { base } = await startServer();
+  const res = await fetch(base
+    + '/api/files/nofiles-' + Date.now() + '/today.net.xml');
+  expect(res.status).toBe(404);
+});
+
+it('POST to the files API -> 405', async () => {
+  const { base } = await startServer();
+  const res = await fetch(base + '/api/files/some-id', { method: 'POST' });
+  expect(res.status).toBe(405);
+});
+
+/* ------------------------------------------- db/bucket failure injection --- */
+/* The opts.db / opts.bucket seams replace the retired opts.storage seam:
+ * a failing backend -> 500 'file storage failed: …' BEFORE any spawn, and
+ * the catalog stays untouched (dev_inject, the only catalog writer, is last
+ * and never runs). */
+
+it('db failure -> 500 and no catalog mutation', async () => {
+  const { base, td } = await startServer({
+    sumoResolver: () => '/bin/true',        // must fail before any spawn
+    db: { putUploadRefs: () => Promise.reject(new Error('db down')) },
+  });
+  const res = await post(base, postBody({ id: 'endp-dbfail' }));
+  expect(res.status).toBe(500);
+  expect((await res.json()).error).toMatch(/db down/);
+  const catalog = readDataConsts(path.join(td, 'data.js')).CATALOG;
+  expect(catalog.find((x) => x.id === 'endp-dbfail')).toBeUndefined();
+});
+
+it('bucket failure -> 500 and no catalog mutation', async () => {
+  const { base, td } = await startServer({
+    sumoResolver: () => '/bin/true',
+    bucket: { putObjects: () => Promise.reject(new Error('bucket down')) },
+  });
+  const res = await post(base, postBody({ id: 'endp-bktfail' }));
+  expect(res.status).toBe(500);
+  expect((await res.json()).error).toMatch(/bucket down/);
+  const catalog = readDataConsts(path.join(td, 'data.js')).CATALOG;
+  expect(catalog.find((x) => x.id === 'endp-bktfail')).toBeUndefined();
+});
+
+it('db list failure -> 500 on GET /api/files/:id', async () => {
+  const { base } = await startServer({
+    db: { listUploads: () => Promise.reject(new Error('db down')) },
+  });
+  const res = await fetch(base + '/api/files/endp-dblst');
+  expect(res.status).toBe(500);
+  expect((await res.json()).error).toMatch(/db down/);
+});
+
+it.skipIf(!SUMO)('a simulated run persists its uploaded XMLs for /api/files', async () => {
+  const { base } = await startServer();
+  const res = await post(base, postBody({ id: 'endp-store' }));
+  expect(res.status).toBe(200);
+
+  /* Postgres: sims row + sim_files refs (key/url/size, never the bytes) */
+  const row = (await pool.query('select * from sims where id = $1',
+    ['endp-store'])).rows[0];
+  expect(row.title).toBe('Endpoint test run');
+  expect(row.author).toBe('qa');
+  expect(row.description).toBe('posted from endpoint test');
+  const dbRefs = (await pool.query(
+    'select name, object_key, size_bytes::int as size_bytes'
+    + ' from sim_files where sim_id = $1 order by name', ['endp-store']))
+    .rows;
+  expect(dbRefs.map((r) => r.name))
+    .toEqual(['demand.rou.xml', 'today.net.xml']);
+  expect(dbRefs[0].object_key).toBe('uploads/endp-store/demand.rou.xml');
+  expect(dbRefs[0].size_bytes).toBeGreaterThan(0);
+
+  /* listing over HTTP */
+  const list = await fetch(base + '/api/files/endp-store');
+  expect(list.status).toBe(200);
+  expect(await list.json()).toEqual(['demand.rou.xml', 'today.net.xml']);
+
+  /* downloads: exact fixture bytes, served as XML (proxied from the
+   * bucket seam) */
+  const today = await fetch(base + '/api/files/endp-store/today.net.xml');
+  expect(today.status).toBe(200);
+  expect(today.headers.get('content-type')).toMatch(/text\/xml/);
+  expect(await today.text()).toBe(NET_XML);
+  const rou = await fetch(base + '/api/files/endp-store/demand.rou.xml');
+  expect(rou.status).toBe(200);
+  expect(await rou.text()).toBe(ROU_XML);
+});
+
+it.skipIf(!SUMO)('a proposed net adds proposed.net.xml to the stored set', async () => {
+  const { base } = await startServer();
+  expect((await post(base, postBody({
+    id: 'endp-store-ab',
+    proposedNetXml: NET_XML,
+  }))).status).toBe(200);
+  const list = await fetch(base + '/api/files/endp-store-ab')
+    .then((r) => r.json());
+  expect(list).toEqual(['demand.rou.xml', 'proposed.net.xml', 'today.net.xml']);
+});
+
+it.skipIf(!SUMO)('re-simulating an id replaces its stored files', async () => {
+  const { base } = await startServer();
+  expect((await post(base, postBody({
+    id: 'endp-store-idem',
+    proposedNetXml: NET_XML,
+  }))).status).toBe(200);
+  expect((await fetch(base + '/api/files/endp-store-idem')
+    .then((r) => r.json())).length).toBe(3);
+  expect((await post(base, postBody({ id: 'endp-store-idem' }))).status)
+    .toBe(200);
+  const list = await fetch(base + '/api/files/endp-store-idem')
+    .then((r) => r.json());
+  expect(list).toEqual(['demand.rou.xml', 'today.net.xml']);
+});
+
+it.skipIf(!SUMO)('files are stored even when the simulation fails (422)', async () => {
+  const { base } = await startServer();
+  const res = await post(base, postBody({
+    id: 'endp-store-422',
+    todayNetXml: '<not-a-net>this is garbage</not-a-net>',
+  }));
+  expect(res.status).toBe(422);
+  const list = await fetch(base + '/api/files/endp-store-422')
+    .then((r) => r.json());
+  expect(list).toEqual(['demand.rou.xml', 'today.net.xml']);
 });
