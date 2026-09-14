@@ -146,6 +146,46 @@ export function runSumo(sumo, net, rou, fcdOut, summOut, endTime, sumoHome) {
   return true;
 }
 
+/* Server-side recentering for hand nets (no geo provenance): parseNetXml
+ * recenters the wizard preview to the lane-bounds centroid, but raw net
+ * coords start at (0,0) — playback anchors sim (0,0) at the entry pin, so
+ * an unrecentered pack draws its network up-and-right from the pin
+ * (bottom-left min corner pinned instead of centre). Mirror the client
+ * recenter: shift lanes/stops/arms/frames by the lane centroid so sim
+ * (0,0) is the net centre. Geo-locked scenarios place geometry exactly
+ * through latlngMap/utm and must stay untouched. Mutates in place (frames
+ * can reach millions of records — no copies). */
+function recenterNonGeo(geometry, frames) {
+  if (!geometry || !Array.isArray(geometry.lanes) || !geometry.lanes.length) {
+    return;
+  }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const l of geometry.lanes) {
+    for (const p of l.p) {
+      if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
+      if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+    }
+  }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  for (const l of geometry.lanes) {
+    l.p = l.p.map((p) => [p[0] - cx, p[1] - cy]);
+  }
+  for (const k of Object.keys(geometry.stops || {})) {
+    const p = geometry.stops[k];
+    geometry.stops[k] = [p[0] - cx, p[1] - cy];
+  }
+  for (const k of Object.keys(geometry.arms || {})) {
+    const p = geometry.arms[k];
+    geometry.arms[k] = [p[0] - cx, p[1] - cy];
+  }
+  for (const frame of frames) {
+    for (const v of frame) {
+      v[1] -= cx;
+      v[2] -= cy;
+    }
+  }
+}
+
 /* Assemble the .simo.json dict.
  *
  * scenarios_data: {key: {frames, stats, geometry, geo, demand}} where geo is
@@ -172,6 +212,9 @@ export function buildPack(scenariosData, nFrames) {
     const geo = d.geo || null;
     const latlngMap = geo ? geo.latlngMap : null;
     const utm = geo ? geo.utm : null;
+    if (!latlngMap && !utm) {
+      recenterNonGeo(geometry, d.frames);
+    }
     const framesBlob = packFcd(d.frames);
     const statsBlob = packStats(d.stats);
     const sc = { title: key.toUpperCase(),
