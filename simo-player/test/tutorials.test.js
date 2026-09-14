@@ -1,6 +1,5 @@
 /* Tutorials page (plan: tutorials page) — data-shape + URL-parse assertions
- * for the pure module src/lib/tutorials.js (placeholder dummy YouTube links
- * until the curated playlist lands), plus wiring checks pinning the public
+ * for the pure module src/lib/tutorials.js (the curated RoadwayVR playlist), plus wiring checks pinning the public
  * TopBar Tutorials toggle (against the NAV_ITEMS config the pill nav
  * renders from), App's 'tutorials' overlay branch, and the static view
  * component. */
@@ -31,7 +30,7 @@ it('lists tutorials, each with title/blurb and a YouTube URL', () => {
 });
 
 /* every tutorial link must resolve to an 11-char video id so the view can
- * embed it (placeholder dummies included). */
+ * embed it (playlist videos included). */
 it('every tutorial URL parses to an 11-char video id', () => {
   for (const t of TUTORIALS) {
     expect(youtubeId(t.url), `${t.title}: must parse to a video id`)

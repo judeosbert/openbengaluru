@@ -4,10 +4,10 @@
  * embed plus title, blurb and watch link. Full-screen overlay panel over the
  * map (ContributeView shell pattern); no router, no API calls — all copy and
  * links come from the pure src/lib/tutorials.js module, so the page renders
- * for anonymous visitors too. Links are placeholder dummies until the real
- * curated playlist lands. */
+ * for anonymous visitors too. Links come from the curated RoadwayVR
+ * playlist in src/lib/tutorials.js. */
 import React from 'react';
-import { TUTORIALS, PLAYLIST_URL, embedUrl } from '../lib/tutorials.js';
+import { TUTORIALS, PLAYLIST_URL,DOC_URL, embedUrl } from '../lib/tutorials.js';
 
 const h = React.createElement;
 
@@ -27,6 +27,13 @@ function ytEmbed(src, title) {
   });
 }
 
+function externalLink(url,cta) {
+  return h('a', {
+    className: 'filelink', href: url,
+    target: '_blank', rel: 'noreferrer',
+  }, cta);
+}
+
 function ytLink(url) {
   return h('a', {
     className: 'filelink', href: url,
@@ -44,14 +51,20 @@ export function TutorialsView({ store }) {
       h('div', { className: 'row-item' },
         h('div', { className: 'row-line' }, h('b', null, 'LEARN SUMO')),
         h('div', { className: 'hint' },
-          'Curated video tutorials for SUMO — from installing the toolchain '
-          + 'to building the network and demand files a submission needs. '
-          + 'Watch here, or follow the full playlist in order.')),
+          'Curated video tutorials for SUMO — RoadwayVR\'s "SUMO Traffic '
+          + 'Simulator Tutorial" series: installing the toolchain, building '
+          + 'networks, TraCI scripting, AI traffic lights, 3D city views and '
+          + 'more. Watch here, or follow the full playlist in order.')),
+          h('div', { className: 'row-item' },
+        h('div', { className: 'row-line' },
+          h('b', null, 'SUMO Documentation'),
+          h('span', { className: 'meta-inline' },
+            'Official SUMO Documentation· ', externalLink(DOC_URL,"Open in new tab")))),
       h('div', { className: 'row-item' },
         h('div', { className: 'row-line' },
           h('b', null, 'FULL PLAYLIST'),
           h('span', { className: 'meta-inline' },
-            'every tutorial in order · ', ytLink(PLAYLIST_URL)))),
+            'RoadwayVR · every tutorial in order · ', ytLink(PLAYLIST_URL)))),
       TUTORIALS.map((t) => h('div', { key: t.title, className: 'row-item' },
         ytEmbed(embedUrl(t.url), t.title),
         h('div', { className: 'row-line' },
