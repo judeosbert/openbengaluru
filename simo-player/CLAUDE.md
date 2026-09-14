@@ -48,6 +48,29 @@ generated data + JSONP streams are served from `public/`.
 
 Node ≥18 required. npm 11 warns on node 20.11 — harmless.
 
+## Railway deploy (Railpack)
+
+- `railpack.json` (this dir): start command `node server.js` + deploy apt
+  package `sumo` (the same Debian package the retired Dockerfile installed —
+  ships both `sumo` and `netconvert` for simulate/export-net). The explicit
+  start command also keeps Railpack's Vite SPA detection from turning the
+  deploy into a static Caddy site. Node version resolves from
+  `engines.node` (>=18 → latest via mise); pin in the dashboard with
+  `RAILPACK_NODE_VERSION` if determinism matters. The git root is the parent
+  dir — set the service **Root Directory** to `simo-player`.
+- Service variables (server fail-fasts listing missing ones):
+  `DATABASE_URL=${{Postgres.DATABASE_URL}}` (or discrete `PG*`),
+  bucket backend (`SIMO_S3_*` creds, or `SIMO_BUCKET_DISK_DIR=/data/uploads`
+  backed by a Railway volume mounted at `/data`),
+  `GOOGLE_APPLICATION_CREDENTIALS` (base64 service-account JSON),
+  `SIMO_ADMIN_EMAILS`. Optional: `RAILPACK_PRUNE_DEPS=true` drops devDeps
+  (vite/vitest) from the runtime image; `SIMO_WORKER_COUNT` for 1-vCPU
+  instances.
+- One-time schema on the Railway Postgres:
+  `DATABASE_URL=<railway pg url> npm run db:setup -- --no-test-db` from this
+  dir.
+- `server.js` binds `0.0.0.0:$PORT` (Railway-injected `PORT`, default 8787).
+
 ## Layout
 
 - `src/lib/` — pure logic (engine, netxml, geo, draft, submit, areaExport,
