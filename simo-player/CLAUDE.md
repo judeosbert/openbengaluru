@@ -20,7 +20,8 @@ generated data + JSONP streams are served from `public/`.
   `POST /api/export-net`.
   **Needs env first** (Postgres + a bucket backend — `SIMO_BUCKET_DISK_DIR`
   for dev disk storage OR the SIMO_S3_* creds — plus
-  `GOOGLE_APPLICATION_CREDENTIALS`; fails fast listing missing vars):
+  `GOOGLE_APPLICATION_CREDENTIALS` (base64 of a service-account JSON,
+  not a file path); fails fast listing missing vars):
   `cp .env.example .env` then `set -a; . ./.env; set +a; npm start`.
   **Real wizard simulations need either `npm run dev` (proxy wired) or
   opening the player via this server URL** — on `file://` (or vite-only
@@ -122,7 +123,8 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   writes public/data.js or public/streams). Auth gate: the request's
   `Authorization: Bearer <Firebase ID token>` is verified via the
   `opts.verifyToken` seam (default `verifyToken.js`: firebase-admin from
-  `GOOGLE_APPLICATION_CREDENTIALS`, fail-fast when missing) BEFORE body
+  `GOOGLE_APPLICATION_CREDENTIALS` (base64 service-account JSON,
+  fail-fast when missing or non-decodable) BEFORE body
   parsing/validation; missing/invalid → `401 { error: 'authentication
   failed' }`, and the catalog/DB author comes from the verified claims via
   `authorFromProfile` (src/lib/profile.js) — the body `author` field is
