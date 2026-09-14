@@ -58,6 +58,7 @@ function startServer(opts = {}) {
     db: {},        // export-net never touches the DB — stub out the seams
     bucket: {},    // …and the bucket (construct-time fail-fast otherwise)
     verifyToken: opts.verifyToken || fakeVerifyToken,
+    mailer: { send: () => Promise.resolve() },   // no SMTP env in tests
     fetchOsm: opts.fetchOsm || (() => Promise.resolve(osmResponse(200, OSM_XML))),
     netconvertResolver: opts.netconvertResolver
       ?? (NETCONVERT ? () => NETCONVERT : () => null),

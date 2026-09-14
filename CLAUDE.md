@@ -21,7 +21,8 @@ generated data + JSONP streams are served from `public/`.
   **Needs env first** (Postgres + a bucket backend — `SIMO_BUCKET_DISK_DIR`
   for dev disk storage OR the SIMO_S3_* creds — plus
   `GOOGLE_APPLICATION_CREDENTIALS` (base64 of a service-account JSON,
-  not a file path); fails fast listing missing vars):
+  not a file path) and the `SIMO_SMTP_*` email values; fails fast listing
+  missing vars):
   `cp .env.example .env` then `set -a; . ./.env; set +a; npm start`.
   **Real wizard simulations need either `npm run dev` (proxy wired) or
   opening the player via this server URL** — on `file://` (or vite-only
@@ -63,7 +64,9 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   bucket backend (`SIMO_S3_*` creds, or `SIMO_BUCKET_DISK_DIR=/data/uploads`
   backed by a Railway volume mounted at `/data`),
   `GOOGLE_APPLICATION_CREDENTIALS` (base64 service-account JSON),
-  `SIMO_ADMIN_EMAILS`. Optional: `RAILPACK_PRUNE_DEPS=true` drops devDeps
+  `SIMO_SMTP_*` email values, `SIMO_ADMIN_EMAILS`. Optional:
+  `SIMO_PUBLIC_BASE_URL` (app-root link in notification emails),
+  `RAILPACK_PRUNE_DEPS=true` drops devDeps
   (vite/vitest) from the runtime image; `SIMO_WORKER_COUNT` for 1-vCPU
   instances.
 - One-time schema on the Railway Postgres:
@@ -204,10 +207,25 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   → public (SimPanel keeps working unauthenticated); pending/rejected/
   inactive rows are owner-or-admin only (401 anon / 403 foreign) — that is
   also how the resubmit prefill re-downloads stored XMLs.
+  Email notifications (`mailer.js`, plan: email-notifications): plain-text
+  FIRE-AND-FORGET sends AFTER the response is written — a failed send logs
+  one stdout line, never changes the API response (no retry/queue). Three
+  triggers, recipients = the other party: comment posted (admin comment →
+  `sims.author_email`; owner comment → all `SIMO_ADMIN_EMAILS`; the
+  self-skip covers only the admin-commenting-own-sim direction; legacy
+  rows skip), reject (owner, carries the rejection comment — the route's
+  internal addComment never double-sends), activate WITH supersedes (the
+  SUPERSEDED sim's owner only; plain/idempotent activation sends nothing).
+  `opts.mailer` is the test seam (createMailerFromEnv fail-fast on missing
+  `SIMO_SMTP_HOST/PORT/USER/PASS/FROM` — `SIMO_SMTP_URL` overrides
+  HOST/PORT/USER/PASS wholesale, FROM always required; optional
+  `SIMO_SMTP_SECURE` (465 default), `SIMO_PUBLIC_BASE_URL` appends a View
+  link).
   pg/S3 handlers are async; heavy subprocess work is bounded by the worker
   pool above (review/catalog routes are pure async DB/bucket and need no
-  pool). Startup constructs the DB pool + bucket client from env and
-  fails fast listing missing vars; SIMO_ADMIN_EMAILS unset logs a warning.
+  pool). Startup constructs the DB pool + bucket client + mailer from env
+  and fails fast listing missing vars; SIMO_ADMIN_EMAILS unset logs a
+  warning.
   `test/endpoint.test.js` + `test/endpoint_review.test.js` run it with
   REAL SUMO (where the pipeline is exercised) against a temp player dir
   and the REAL `${PGDATABASE}_test` database; the bucket is an in-memory

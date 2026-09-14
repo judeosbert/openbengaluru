@@ -157,6 +157,7 @@ function startServer(opts = {}) {
     bucket,                                 // bytes in memory, keys real
     verifyToken: fakeVerifyToken,
     adminEmails: ['admin@x.test'],
+    mailer: { send: () => Promise.resolve() },   // no SMTP env in tests
     ...(opts.sumoResolver ? {} : { sumoResolver: () => SUMO }),
     ...opts,
   });

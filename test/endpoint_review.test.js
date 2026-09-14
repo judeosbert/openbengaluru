@@ -24,6 +24,10 @@
  * - GET /api/files access rule: no row -> public (generated ids keep
  *   working); active -> public; pending/rejected/inactive -> owner/admin.
  * - foreign same-id POST -> 403 BEFORE any bucket mutation (files intact).
+ * - email notifications (recording fake opts.mailer seam): admin comment
+ *   -> owner; owner comment -> all admins; self-comment/legacy rows ->
+ *   nothing; reject -> ONE owner email; supersede -> OLD owner only;
+ *   fire-and-forget (a rejecting mailer never changes the response).
  * - (SUMO) simulate happy path: DB row pending + sim_ready + entry_json,
  *   bucket review artifacts, NO player-dir writes; resubmit-of-active ->
  *   pending + catalog stops serving; 422 keeps sim_ready false.
@@ -155,6 +159,22 @@ function fakeVerifyToken(token) {
   throw new Error('bad token');
 }
 
+/* Recording mailer seam twin ({ send, baseUrl } — the createMailerFromEnv
+ * return shape): every notify() pushes into `sent`; `impl` (when given)
+ * lets a case reject the send to prove fire-and-forget. */
+function fakeMailer(impl = null, baseUrl = null) {
+  const sent = [];
+  return {
+    sent,
+    baseUrl,
+    async send(mail) {
+      sent.push(mail);
+      if (impl) return impl(mail);
+      return undefined;
+    },
+  };
+}
+
 function startServer(opts = {}) {
   const td = fs.mkdtempSync(path.join(os.tmpdir(), 'simo-endprev-'));
   const distDir = path.join(td, 'dist');
@@ -169,6 +189,7 @@ function startServer(opts = {}) {
     bucket: opts.bucket || fakeBucketApi(),
     verifyToken: fakeVerifyToken,
     adminEmails: ADMIN_EMAILS,
+    mailer: opts.mailer || fakeMailer(),
     ...(opts.sumoResolver ? {} : { sumoResolver: () => SUMO }),
     ...opts,
   });
@@ -566,6 +587,117 @@ it('POST deactivate: active-only, admin-only', async () => {
   expect(row.status).toBe('inactive');
   const catalog = await (await jget(base, '/api/catalog')).json();
   expect(catalog.map((e) => e.id)).toEqual([]);
+});
+
+/* ------------------------------------------------- email notifications --- */
+
+it('comment notifications: admin comment -> owner; owner comment -> all admins', async () => {
+  const mailer = fakeMailer(null, 'https://app.test');
+  const bucket = fakeBucketApi();
+  const { base, server, td } = await startServer({
+    bucket, mailer, adminEmails: ['admin@x.test', 'admin2@x.test'] });
+  created.push({ server, td });
+  await seedSim(bucket, 'nt-1', {});
+
+  const ok = await jpost(base, '/api/submissions/nt-1/comments',
+    { body: 'please check the demand' }, 'tok-admin');
+  expect(ok.status).toBe(201);
+  expect(mailer.sent.length).toBe(1);
+  expect(mailer.sent[0].to).toEqual(['qa@x.test']);
+  expect(mailer.sent[0].subject)
+    .toBe('[OpenBengaluru] New comment on "Seeded sim"');
+  expect(mailer.sent[0].text).toContain('please check the demand');
+  expect(mailer.sent[0].text).toContain('View: https://app.test');
+
+  mailer.sent.length = 0;
+  await jpost(base, '/api/submissions/nt-1/comments',
+    { body: 'updated the counts' }, 'tok-qa');
+  expect(mailer.sent.length).toBe(1);
+  expect(mailer.sent[0].to).toEqual(['admin@x.test', 'admin2@x.test']);
+  expect(mailer.sent[0].text).toContain('updated the counts');
+});
+
+it('no notification for a self-comment or a legacy row (author_email null)', async () => {
+  const mailer = fakeMailer();
+  const bucket = fakeBucketApi();
+  const { base, server, td } = await startServer({ bucket, mailer });
+  created.push({ server, td });
+  await seedSim(bucket, 'nt-self', { authorUid: 'admin-1',
+    authorEmail: 'admin@x.test' });
+  await seedSim(bucket, 'nt-legacy', { authorUid: null, authorEmail: null });
+
+  expect((await jpost(base, '/api/submissions/nt-self/comments',
+    { body: 'my own sim' }, 'tok-admin')).status).toBe(201);
+  expect((await jpost(base, '/api/submissions/nt-legacy/comments',
+    { body: 'legacy row' }, 'tok-admin')).status).toBe(201);
+  expect(mailer.sent).toEqual([]);
+});
+
+it('reject emails the owner exactly once (no second comment email)', async () => {
+  const mailer = fakeMailer();
+  const bucket = fakeBucketApi();
+  const { base, server, td } = await startServer({ bucket, mailer });
+  created.push({ server, td });
+  await seedSim(bucket, 'nt-rj', { simReady: true });
+
+  const ok = await jpost(base, '/api/submissions/nt-rj/reject',
+    { comment: 'double-check the demand numbers' }, 'tok-admin');
+  expect(ok.status).toBe(200);
+  expect(mailer.sent.length).toBe(1);
+  expect(mailer.sent[0].to).toEqual(['qa@x.test']);
+  expect(mailer.sent[0].subject)
+    .toBe('[OpenBengaluru] "Seeded sim" was rejected');
+  expect(mailer.sent[0].text).toContain('double-check the demand numbers');
+});
+
+it('supersede emails only the OLD sim owner; plain/idempotent activate sends nothing', async () => {
+  const mailer = fakeMailer();
+  const bucket = fakeBucketApi();
+  const { base, server, td } = await startServer({ bucket, mailer });
+  created.push({ server, td });
+  await seedSim(bucket, 'nt-old', { simReady: true, status: 'active',
+    authorUid: 'other', authorEmail: 'other@x.test', author: 'other user',
+    title: 'Old sim' });
+  await seedSim(bucket, 'nt-new', { simReady: true, title: 'New sim' });
+  await seedSim(bucket, 'nt-new2', { simReady: true, title: 'Newer sim' });
+  await seedSim(bucket, 'nt-legacy-old', { simReady: true,
+    status: 'active', authorUid: null, authorEmail: null });
+  await seedSim(bucket, 'nt-new3', { simReady: true });
+
+  // plain activation + idempotent retry: no email
+  expect((await jpost(base, '/api/submissions/nt-new/activate', {},
+    'tok-admin')).status).toBe(200);
+  expect((await jpost(base, '/api/submissions/nt-new/activate', {},
+    'tok-admin')).status).toBe(200);
+  expect(mailer.sent).toEqual([]);
+
+  // supersedes: the OLD sim's owner is emailed, naming the new sim id
+  expect((await jpost(base, '/api/submissions/nt-new2/activate',
+    { supersedes: 'nt-old' }, 'tok-admin')).status).toBe(200);
+  expect(mailer.sent.length).toBe(1);
+  expect(mailer.sent[0].to).toEqual(['other@x.test']);
+  expect(mailer.sent[0].subject)
+    .toBe('[OpenBengaluru] "Old sim" was superseded');
+  expect(mailer.sent[0].text).toContain('nt-new2');
+
+  // a supersede target without an author_email skips the email
+  expect((await jpost(base, '/api/submissions/nt-new3/activate',
+    { supersedes: 'nt-legacy-old' }, 'tok-admin')).status).toBe(200);
+  expect(mailer.sent.length).toBe(1);
+});
+
+it('fire-and-forget: a rejecting mailer never changes the API responses', async () => {
+  const mailer = fakeMailer(() => Promise.reject(new Error('smtp down')));
+  const bucket = fakeBucketApi();
+  const { base, server, td } = await startServer({ bucket, mailer });
+  created.push({ server, td });
+  await seedSim(bucket, 'nt-ff', { simReady: true });
+
+  expect((await jpost(base, '/api/submissions/nt-ff/comments',
+    { body: 'hi' }, 'tok-qa')).status).toBe(201);
+  expect((await jpost(base, '/api/submissions/nt-ff/reject',
+    { comment: 'nope' }, 'tok-admin')).status).toBe(200);
+  expect(mailer.sent.length).toBe(2);
 });
 
 /* ------------------------------------------------- files access rule --- */

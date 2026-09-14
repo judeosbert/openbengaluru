@@ -88,6 +88,24 @@
  *   503 { error }               pool busy | OSM 429/509 rate-limited
  *   504 { error }               netconvert timeout (SIMO_CONVERT_TIMEOUT_MS,
  *                               default 120 s)
+ *
+ * Email notifications (plan: email-notifications; mailer.js): plain-text
+ * FIRE-AND-FORGET emails sent AFTER the HTTP response is written — a
+ * failed send logs one stdout line and never changes the API response (no
+ * retry/queue). Exactly three triggers, recipients = "the other party":
+ *   comment posted  admin comment -> sims.author_email; owner comment ->
+ *                   all SIMO_ADMIN_EMAILS; nobody is emailed about their
+ *                   own comment; legacy rows (author_email null) skip.
+ *   reject          the sim owner; the email carries the rejection comment
+ *                   (the route's internal addComment does NOT double-send).
+ *   activate WITH supersedes  only the SUPERSEDED sim's owner; plain or
+ *                   idempotent activation sends nothing.
+ * SMTP config: SIMO_SMTP_HOST/PORT/USER/PASS/FROM (+ optional
+ * SIMO_SMTP_SECURE) or SIMO_SMTP_URL wholesale override (FROM always
+ * required) — fail-fast at startup listing missing vars; the opts.mailer
+ * seam swaps the whole mailer for tests. SIMO_PUBLIC_BASE_URL (optional)
+ * appends a View link (the client has no deep links — Dashboard/Admin are
+ * overlays).
  */
 import fs from 'node:fs';
 import http from 'node:http';
@@ -100,6 +118,8 @@ import * as dbStore from './db.js';
 import * as bucketStore from './bucket.js';
 import { buildEntry } from './tools/dev_inject.js';
 import { createVerifyIdTokenFromEnv } from './verifyToken.js';
+import { createMailerFromEnv, buildCommentEmail, buildRejectedEmail,
+  buildSupersededEmail } from './mailer.js';
 import { authorFromProfile } from './src/lib/profile.js';
 import { DATA_SOURCES, validSourceUrl } from './src/lib/submit.js';
 import { osmApiUrl, validateBbox, sanitizeAreaName }
@@ -295,7 +315,16 @@ export function createSimServer(opts = {}) {
     || makeBucketApi(bucketStore.createBucketFromEnv());
   const verifyToken = opts.verifyToken || createVerifyIdTokenFromEnv();
   const adminEmails = opts.adminEmails ?? parseAdminEmails(process.env);
+  const mailer = opts.mailer || createMailerFromEnv();
   const packRunJs = path.join(rootDir, 'tools', 'pack_run.js');
+
+  /* Fire-and-forget notification sender: called only AFTER sendJson has
+   * written the response; a rejecting send logs one stdout line and never
+   * touches the API outcome. */
+  function notify(mail) {
+    mailer.send(mail).catch((e) => process.stdout.write(
+      'email notification failed: ' + String((e && e.message) || e) + '\n'));
+  }
 
   /* Worker pool: async simulates run in bounded slots (never more than
    * `workers` SUMO pipelines at once) with a bounded FIFO queue — a full
@@ -979,14 +1008,31 @@ export function createSimServer(opts = {}) {
       }
       /* is_admin is stamped server-side from the verified claims — the
        * request can never claim admin */
+      const admin = isAdmin(claims);
       try {
         const c = await dbApi.addComment(id, {
           author: authorFromProfile(claims),
           authorUid: claims.uid,
-          isAdmin: isAdmin(claims),
+          isAdmin: admin,
           body: text,
         });
-        return sendJson(res, 201, c);
+        /* notification = "the other party": admin comment -> the sim
+         * owner, owner comment -> all admins. The self-comment skip only
+         * covers the direction where the sender IS the recipient (admin
+         * commenting on their own sim) — an owner replying on their own
+         * sim still notifies the admins. Legacy rows (author_email null)
+         * have no owner address on the admin direction. */
+        const recipients = admin
+          ? (row.author_email ? [row.author_email] : [])
+          : adminEmails;
+        sendJson(res, 201, c);
+        if (recipients.length
+            && !(admin && row.author_uid === claims.uid)) {
+          notify({ to: recipients, ...buildCommentEmail({
+            sim: row, comment: text, byAdmin: admin,
+            baseUrl: mailer.baseUrl }) });
+        }
+        return;
       } catch (e) {
         return sendJson(res, 500, { error: String((e && e.message) || e) });
       }
@@ -1026,6 +1072,7 @@ export function createSimServer(opts = {}) {
         return sendJson(res, 409,
           { error: 'rejected submissions cannot be activated' });
       }
+      let supersededRow = null;
       if (supersedes != null) {
         let target = null;
         try {
@@ -1038,6 +1085,7 @@ export function createSimServer(opts = {}) {
           return sendJson(res, 409,
             { error: 'supersedes target is not active' });
         }
+        supersededRow = target;
       }
       /* the playable stream must exist — activating without one would
        * publish a catalog entry whose frames 404 */
@@ -1056,7 +1104,15 @@ export function createSimServer(opts = {}) {
         return sendJson(res, 409,
           { error: String((e && e.message) || e) });
       }
-      return sendJson(res, 200, { id, status: 'active', supersedes });
+      sendJson(res, 200, { id, status: 'active', supersedes });
+      /* only the SUPERSEDED sim's owner is emailed (plain/idempotent
+       * activation sends nothing); legacy targets (author_email null) skip */
+      if (supersededRow && supersededRow.author_email) {
+        notify({ to: [supersededRow.author_email],
+          ...buildSupersededEmail({ sim: supersededRow,
+            by: { id, title: row.title }, baseUrl: mailer.baseUrl }) });
+      }
+      return;
     }
 
     if (action === 'reject') {
@@ -1082,7 +1138,15 @@ export function createSimServer(opts = {}) {
       } catch (e) {
         return sendJson(res, 500, { error: String((e && e.message) || e) });
       }
-      return sendJson(res, 200, { id, status: 'rejected' });
+      sendJson(res, 200, { id, status: 'rejected' });
+      /* the owner is emailed the rejection comment; the addComment above
+       * must NOT trigger a second "new comment" email (notification
+       * triggers live in the routes, never in dbApi.addComment) */
+      if (row.author_email) {
+        notify({ to: [row.author_email], ...buildRejectedEmail({
+          sim: row, comment, baseUrl: mailer.baseUrl }) });
+      }
+      return;
     }
 
     /* deactivate */
