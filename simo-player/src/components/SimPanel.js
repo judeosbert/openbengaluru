@@ -64,10 +64,6 @@ export function SimPanel({ entry, scenKey, simT, running, speed,
 
   return h('div', { className: 'sheet' },
     h('button', { className: 'ghost closex', onClick: onClose }, '✕'),
-    entry.review
-      ? h('div', { className: 'status-chip reviewchip ' + entry.review },
-        'REVIEW · ' + String(entry.review).toUpperCase())
-      : null,
     h('h2', null, entry.title),
     h('div', { className: 'by' },
       'by ', h('b', null, entry.author), ' · added ', entry.addedAt,
@@ -80,6 +76,10 @@ export function SimPanel({ entry, scenKey, simT, running, speed,
         className: 'filelink', href: entry.sourceUrl,
         target: '_blank', rel: 'noreferrer',
       }, ' · source link') : null) : null,
+    entry.review
+      ? h('div', { className: 'status-chip reviewchip ' + entry.review },
+        'REVIEW · ' + String(entry.review).toUpperCase())
+      : null,
     srcFiles && srcFiles.length ? h('div', { className: 'fld files' },
       h('label', null, 'FILES'),
       h('div', { className: 'filelist' },

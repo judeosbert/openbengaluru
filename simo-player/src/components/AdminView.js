@@ -125,7 +125,7 @@ export function AdminView({ store }) {
         h('input', { type: 'text',
           placeholder: 'Reject reason (required)…', value: rejectText,
           onChange: (ev) => setRejectText(ev.target.value) }),
-        h('button', { className: 'danger',
+        h('button', { className: 'ghost',
           disabled: !rejectText.trim() || busy,
           onClick: () => rejectRow(row) }, 'Reject')));
     }
