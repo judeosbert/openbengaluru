@@ -22,3 +22,7 @@ __pycache__/
 
 # OS
 Thumbs.db
+
+# Kilo local plans/config
+.kilo/
+/secrets
