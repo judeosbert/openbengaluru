@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenBengaluru — Open Civic Sandbox</title>
+    <title>OpenBengaluru</title>
     
     <!-- Google Fonts: Fraunces & Space Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -17,8 +17,8 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        serif: ['Fraunces', '"Iowan Old Style"', '"Palatino Linotype"', 'Georgia', 'serif'],
-                        mono: ['"Space Mono"', 'ui-monospace', 'monospace'],
+                        serif: ['Fraunces', 'serif'],
+                        mono: ['"Space Mono"', 'monospace'],
                     },
                     colors: {
                         purewhite: '#FFFFFF',
@@ -37,14 +37,23 @@
         body {
             background-color: #FFFFFF;
             color: #1A1A1A;
-            font-family: 'Space Mono', ui-monospace, monospace;
+            font-family: 'Space Mono', monospace;
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
         }
 
         .font-fraunces {
-            font-family: 'Fraunces', "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+            font-family: 'Fraunces', serif;
             font-variation-settings: "SOFT" 100, "WONK" 1;
+        }
+
+        /* Red accent color */
+        .text-accent-red {
+            color: #c2502e;
+        }
+
+        .bg-accent-red {
+            background-color: #c2502e;
         }
 
         /* Architectural line & crosshair elements */
@@ -75,65 +84,27 @@
 
         /* Monochromatic link hover transition */
         .cta-button {
-            position: relative;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 0.75rem;
+            background-color: #c2502e;
+            color: #ffffff;
+            padding: 0.875rem 2rem;
+            border-radius: 9999px;
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 4px 20px rgba(194, 80, 46, 0.25);
+        }
+        .cta-button:hover {
+            background-color: #a84224;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(194, 80, 46, 0.35);
         }
         .cta-button .arrow {
             transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .cta-button:hover .arrow {
-            transform: translateX(6px);
-        }
-        .cta-button::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            width: 0%;
-            height: 1px;
-            background-color: #1A1A1A;
-            transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .cta-button:hover::after {
-            width: 100%;
-        }
-
-        /* Subtle nodes pulsing on the map */
-        .map-node {
-            position: absolute;
-            transform: translate(-50%, -50%);
-            cursor: pointer;
-            z-index: 20;
-        }
-        .map-node-dot {
-            width: 5px;
-            height: 5px;
-            background-color: #1A1A1A;
-            border-radius: 50%;
-            transition: transform 0.2s ease, background-color 0.2s ease;
-        }
-        .map-node:hover .map-node-dot {
-            transform: scale(2.2);
-            background-color: #000000;
-        }
-        .map-node-label {
-            position: absolute;
-            left: 12px;
-            top: -4px;
-            white-space: nowrap;
-            font-size: 0.65rem;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            opacity: 0.4;
-            transition: opacity 0.2s ease, transform 0.2s ease;
-            pointer-events: none;
-        }
-        .map-node:hover .map-node-label {
-            opacity: 1;
-            transform: translateX(3px);
+            transform: translateX(5px);
         }
 
         /* Modal styling for exploration */
@@ -172,39 +143,22 @@
             </h1>
         </div>
         <div class="font-mono text-[11px] md:text-xs text-midgray tracking-wider uppercase flex items-center gap-3">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-charcoal animate-pulse"></span>
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-accent-red animate-pulse"></span>
             <span>12.9716° N, 77.5946° E</span>
             <span class="text-lightgray">|</span>
             <span>Sandbox v1.0</span>
-            <span class="hidden md:inline text-lightgray">|</span>
-            <span class="hidden md:inline text-charcoal/70">Live Civic Canvas</span>
         </div>
     </header>
 
-    <!-- Floating Map Nodes (Civic Prompts) Positioned Dynamically -->
-    <div class="map-node" style="top: 28%; left: 72%;" onclick="openPromptModal('Walkability & Pedestrian Infrastructure', 'Exploring footpaths, skywalks, and high-density pedestrian corridors across MG Road and Indiranagar.')">
-        <div class="map-node-dot"></div>
-        <div class="map-node-label font-mono">NODE 01 // Walkability</div>
-    </div>
-    
-    <div class="map-node" style="top: 45%; left: 82%;" onclick="openPromptModal('Urban Canopy & Green Cover', 'Simulating micro-climate impacts of tree cover density in Malleshwaram and Cubbon Park buffers.')">
-        <div class="map-node-dot"></div>
-        <div class="map-node-label font-mono">NODE 02 // Canopy</div>
-    </div>
+    <!-- Main Content Area (Centered Editorial & Literary layout) -->
+    <main class="relative z-10 my-auto py-16 md:py-24 max-w-3xl mx-auto text-center">
+        <div class="space-y-8 md:space-y-10 flex flex-col items-center">
+            
+            <!-- Chapter Indicator Tag in Red -->
+            <div class="inline-flex items-center gap-2 font-mono text-xs md:text-sm tracking-widest uppercase text-accent-red font-bold px-3 py-1 bg-accent-red/10 rounded-full border border-accent-red/20">
+                <span>Chapter 1: Traffic</span>
+            </div>
 
-    <div class="map-node" style="top: 68%; left: 62%;" onclick="openPromptModal('Lake Cascades & Water Tables', 'Modeling rainwater runoff, stormwater drains (Kaluve), and Bellandur basin interconnected hydraulics.')">
-        <div class="map-node-dot"></div>
-        <div class="map-node-label font-mono">NODE 03 // Water Tables</div>
-    </div>
-
-    <div class="map-node" style="top: 80%; left: 38%;" onclick="openPromptModal('Transit Bottlenecks & Nodal Flow', 'Analyzing real-time commuter throughput along Outer Ring Road and Silk Board Junction.')">
-        <div class="map-node-dot"></div>
-        <div class="map-node-label font-mono">NODE 04 // Transit</div>
-    </div>
-
-    <!-- Main Content Area (Editorial & restrained) -->
-    <main class="relative z-10 my-auto py-16 md:py-24 max-w-4xl">
-        <div class="space-y-8 md:space-y-10">
             <!-- Dominant Headline -->
             <h2 class="font-fraunces text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-normal leading-[1.02] tracking-tight text-charcoal">
                 What would you change?
@@ -215,34 +169,15 @@
                 Bengaluru is a living city. Explore it, change it, and see what happens.
             </p>
 
-            <!-- Minimal Interactive CTA -->
+            <!-- Centered Red CTA Button -->
             <div class="pt-4">
-                <button id="open-btn" class="cta-button font-mono text-xs md:text-sm tracking-widest uppercase text-charcoal py-2 group cursor-pointer focus:outline-none" onclick="triggerOpenExperience()">
+                <button id="open-btn" class="cta-button font-mono text-xs md:text-sm tracking-widest uppercase cursor-pointer focus:outline-none" onclick="triggerOpenExperience()">
                     <span>Open Bengaluru</span>
-                    <span class="arrow text-base"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8h10.5M8.5 4.5 12 8l-3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg></span>
+                    <span class="arrow font-serif text-base">→</span>
                 </button>
             </div>
         </div>
     </main>
-
-    <!-- Footer Section -->
-    <footer class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pt-8 font-mono text-[11px] text-midgray border-t border-black/5">
-        <div class="flex flex-col sm:flex-row gap-4 sm:gap-8">
-            <div>
-                <span class="block text-black/40 text-[9px] uppercase tracking-wider mb-0.5">PHILOSOPHY</span>
-                <span>Open-Source Civic Architecture</span>
-            </div>
-            <div>
-                <span class="block text-black/40 text-[9px] uppercase tracking-wider mb-0.5">INTERFACE</span>
-                <span>Spatial Simulation & Urban Modeling</span>
-            </div>
-        </div>
-        <div class="flex items-center gap-6">
-            <span id="coordinates-display" class="tabular-nums opacity-60">CURSOR: 0.0000° N, 0.0000° E</span>
-            <span class="text-black/30">|</span>
-            <a href="#about" onclick="openPromptModal('About OpenBengaluru', 'An independent, open-source civic sandbox for modeling infrastructure, public space, and ecological interventions in Namma Bengaluru.')" class="hover:text-black transition-colors">Manifesto</a>
-        </div>
-    </footer>
 
     <!-- Modal Dialog for Prompts & Sandbox Entry -->
     <div id="explore-modal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-white/90 backdrop-blur-sm hidden-modal">
@@ -252,22 +187,22 @@
             <div class="crosshair -bottom-2 -left-2"></div>
             <div class="crosshair -bottom-2 -right-2"></div>
             
-            <span id="modal-tag" class="font-mono text-[10px] tracking-widest uppercase text-black/40 block mb-3">CIVIC PROMPT</span>
+            <span id="modal-tag" class="font-mono text-[10px] tracking-widest uppercase text-accent-red block mb-3 font-semibold">CHAPTER 1 // TRAFFIC & BOTTLENECKS</span>
             
             <h3 id="modal-title" class="font-fraunces text-2xl md:text-3xl text-charcoal mb-4 leading-tight">
-                Walkability & Pedestrian Infrastructure
+                Transit & Flow Simulation
             </h3>
             
-            <p id="modal-desc" class="font-mono text-sm md:text-base text-midgray leading-relaxed mb-8">
-                Exploring footpaths, skywalks, and high-density pedestrian corridors across MG Road and Indiranagar.
+            <p id="modal-desc" class="font-mono text-xs md:text-sm text-midgray leading-relaxed mb-8">
+                Modeling congestion density, silk board arterial flow, and high-frequency bus rapid transit paths.
             </p>
             
             <div class="flex justify-between items-center pt-4 border-t border-black/10 font-mono text-xs">
                 <button onclick="closeModal()" class="text-black/50 hover:text-black tracking-wider uppercase transition-colors cursor-pointer">
                     [ Close ]
                 </button>
-                <button onclick="alert('Entering the interactive spatial sandbox environment... (Simulating urban load)'); closeModal();" class="bg-black text-white px-5 py-2 hover:bg-charcoal transition-colors cursor-pointer tracking-wider uppercase text-[11px]">
-                    Enter Sandbox <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8h10.5M8.5 4.5 12 8l-3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/></svg>
+                <button onclick="alert('Entering Chapter 1: Traffic Sandbox...'); closeModal();" class="bg-accent-red text-white px-5 py-2 hover:bg-[#a84224] transition-colors cursor-pointer tracking-wider uppercase text-[11px] rounded-full">
+                    Enter Sandbox →
                 </button>
             </div>
         </div>
@@ -284,9 +219,6 @@
         let targetMouseX = 0;
         let targetMouseY = 0;
 
-        // Coordinates display tracking
-        const coordsDisplay = document.getElementById('coordinates-display');
-
         function resizeCanvas() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
@@ -298,41 +230,32 @@
         window.addEventListener('mousemove', (e) => {
             targetMouseX = e.clientX;
             targetMouseY = e.clientY;
-
-            // Map mouse position to pseudo lat/lng coordinates for Bengaluru
-            const lat = (12.9100 + (1 - e.clientY / height) * 0.1200).toFixed(4);
-            const lng = (77.5200 + (e.clientX / width) * 0.1400).toFixed(4);
-            coordsDisplay.textContent = `CURSOR: ${lat}° N, ${lng}° E`;
         });
 
         // Abstracted architectural road network representation of Bengaluru
-        // Includes Outer Ring Road loop, MG Road grid, Bellandur/Ulsoor lake contours, Silk Board junction hub
         const generateRoads = () => {
             return [
-                // Outer Ring Road Approximate Loop (Elliptical Bezier path)
-                { type: 'ring', cx: 0.55, cy: 0.52, rx: 0.35, ry: 0.38 },
-                { type: 'ring', cx: 0.55, cy: 0.52, rx: 0.22, ry: 0.24 },
+                // Outer Ring Road Loops
+                { type: 'ring', cx: 0.50, cy: 0.50, rx: 0.36, ry: 0.38 },
+                { type: 'ring', cx: 0.50, cy: 0.50, rx: 0.22, ry: 0.24 },
 
-                // Major Radial Arterials (N, S, E, W, NE, NW, SE, SW)
-                { type: 'line', x1: 0.55, y1: 0.05, x2: 0.55, y2: 0.95 }, // North-South Axis (Ballari Rd - Hosur Rd)
-                { type: 'line', x1: 0.10, y1: 0.52, x2: 0.92, y2: 0.52 }, // East-West Axis (Old Madras Rd - Tumakuru Rd)
-                { type: 'line', x1: 0.25, y1: 0.25, x2: 0.75, y2: 0.75 }, // NW to SE Diagonal
-                { type: 'line', x1: 0.78, y1: 0.20, x2: 0.35, y2: 0.85 }, // NE to SW Diagonal
+                // Major Radial Arterials
+                { type: 'line', x1: 0.50, y1: 0.05, x2: 0.50, y2: 0.95 },
+                { type: 'line', x1: 0.10, y1: 0.50, x2: 0.90, y2: 0.50 },
+                { type: 'line', x1: 0.22, y1: 0.22, x2: 0.78, y2: 0.78 },
+                { type: 'line', x1: 0.78, y1: 0.20, x2: 0.30, y2: 0.85 },
 
-                // MG Road & CBD Grid System
-                { type: 'grid', x: 0.50, y: 0.44, size: 0.12, cols: 5, rows: 4 },
+                // Central Grids
+                { type: 'grid', x: 0.44, y: 0.42, size: 0.12, cols: 5, rows: 4 },
+                { type: 'grid', x: 0.32, y: 0.30, size: 0.08, cols: 4, rows: 4 },
+                { type: 'grid', x: 0.60, y: 0.56, size: 0.09, cols: 4, rows: 3 },
 
-                // Malleshwaram & Rajajinagar Secondary Grids
-                { type: 'grid', x: 0.38, y: 0.35, size: 0.08, cols: 4, rows: 4 },
-
-                // Indiranagar / Koramangala Diagonal Grid Structures
-                { type: 'grid', x: 0.65, y: 0.58, size: 0.09, cols: 4, rows: 3 },
-
-                // Lake Outlines (Minimalist Geometric Contours)
-                { type: 'lake', cx: 0.58, cy: 0.45, r: 0.025, name: 'Ulsoor Lake' }, // Ulsoor
-                { type: 'lake', cx: 0.76, cy: 0.64, r: 0.045, name: 'Bellandur Lake' }, // Bellandur
-                { type: 'lake', cx: 0.72, cy: 0.76, r: 0.038, name: 'Varthur Lake' }, // Varthur
-                { type: 'lake', cx: 0.48, cy: 0.78, r: 0.030, name: 'Agara Lake' }  // Agara
+                // Lake Circles & Topographical Circles (KEPT CIRCLES)
+                { type: 'lake', cx: 0.58, cy: 0.42, r: 0.028 }, // Ulsoor Lake Circle
+                { type: 'lake', cx: 0.74, cy: 0.62, r: 0.048 }, // Bellandur Lake Circle
+                { type: 'lake', cx: 0.70, cy: 0.74, r: 0.040 }, // Varthur Lake Circle
+                { type: 'lake', cx: 0.46, cy: 0.76, r: 0.032 }, // Agara Lake Circle
+                { type: 'lake', cx: 0.35, cy: 0.65, r: 0.025 }  // Sankey Lake Circle
             ];
         };
 
@@ -344,14 +267,14 @@
             // Subtle parallax sway based on mouse movements
             mouseX += (targetMouseX - mouseX) * 0.05;
             mouseY += (targetMouseY - mouseY) * 0.05;
-            const offsetX = (mouseX - width / 2) * 0.02;
-            const offsetY = (mouseY - height / 2) * 0.02;
+            const offsetX = (mouseX - width / 2) * 0.015;
+            const offsetY = (mouseY - height / 2) * 0.015;
 
             ctx.save();
             ctx.translate(offsetX, offsetY);
 
-            // Architectural background grid points
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.07)';
+            // Background subtle grid dots
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
             const gridSpacing = 40;
             for (let x = 0; x < width; x += gridSpacing) {
                 for (let y = 0; y < height; y += gridSpacing) {
@@ -359,7 +282,7 @@
                 }
             }
 
-            // Draw Subtle Abstract Road Line Work
+            // Draw Abstract Road Line Work & Circles
             mapData.forEach(item => {
                 if (item.type === 'ring') {
                     ctx.beginPath();
@@ -407,31 +330,16 @@
                     }
                 }
                 else if (item.type === 'lake') {
+                    // Geometric circle outlines preserved
                     ctx.beginPath();
                     ctx.arc(item.cx * width, item.cy * height, item.r * width, 0, 2 * Math.PI);
-                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
-                    ctx.lineWidth = 0.8;
+                    ctx.strokeStyle = 'rgba(194, 80, 46, 0.25)'; // Touched with subtle terracotta red hint
+                    ctx.fillStyle = 'rgba(194, 80, 46, 0.02)';
+                    ctx.lineWidth = 1;
                     ctx.fill();
                     ctx.stroke();
                 }
             });
-
-            // Interactive Cursor Architectural Reticle / Micro Distance Indicator
-            if (mouseX > 0 && mouseY > 0) {
-                ctx.beginPath();
-                ctx.arc(mouseX, mouseY, 18, 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
-                ctx.lineWidth = 0.75;
-                ctx.setLineDash([2, 2]);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                // Small crosshair center point
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-                ctx.fillRect(mouseX - 0.5, mouseY - 4, 1, 8);
-                ctx.fillRect(mouseX - 4, mouseY - 0.5, 8, 1);
-            }
 
             ctx.restore();
             requestAnimationFrame(drawMap);
@@ -456,8 +364,8 @@
 
         function triggerOpenExperience() {
             openPromptModal(
-                "Welcome to OpenBengaluru Sandbox",
-                "You are entering an interactive civic simulation space. Explore city topography, adjust public transport overlays, model green canopy density, and collaborate on open urban proposals."
+                "Chapter 1: Traffic & Transit Flow",
+                "Explore vehicle bottlenecks, metro expansion paths, and congestion pricing simulations across Bengaluru's high-density corridors."
             );
         }
     </script>

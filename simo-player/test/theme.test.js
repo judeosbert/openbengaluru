@@ -108,8 +108,9 @@ describe('Paper theme tokens (colors stay variables)', () => {
       .toMatch(/var\(--tag-bg\)/);
     expect(expectRule(EXTRA, '\\.active-pins-layer \\.sim-pin \\.tip', '.tip'))
       .toMatch(/var\(--tag-bg\)/);
-    expect(expectRule(EXTRA, '\\.viewtoggle button\\.on', 'view toggle on'))
-      .toMatch(/var\(--on-accent\)/);
+    /* the .viewtoggle on-state moved to test/topbar.test.js — the pill
+     * redesign retires the accent-filled on-state for a raised surface
+     * thumb, so the old var(--on-accent) pin no longer describes it */
   });
 
   it('warm shadows replace the black console shadows', () => {
@@ -140,19 +141,32 @@ describe('Paper theme tokens (colors stay variables)', () => {
 
   it('display serif for emotional moments, with offline fallbacks', () => {
     expect(EXTRA).toMatch(/--serif:"Fraunces"[^;]*Georgia/);
-    expect(EXTRA).toMatch(/--body:"Inter"[^;]*-apple-system/);
+    /* body/UI text uses the Inter sans (not the display serif, not mono);
+     * the fallback chain is pinned because the pre-paint shell mirrors it */
+    expect(EXTRA).toMatch(
+      /--body:"Inter",-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif/);
+    expect(EXTRA).not.toMatch(/--body:"Fraunces"/);
     for (const sel of ['\\.sheet h2', '\\.modal h3', '\\.mark(?![\\w-])']) {
       expect(expectRule(EXTRA, sel, sel), `${sel} must use the display serif`)
         .toMatch(/var\(--serif\)/);
+      expect(expectRule(EXTRA, sel, sel), `${sel} must be bold`)
+        .toMatch(/font-weight:(600|700)/);
     }
     expect(expectRule(EXTRA, '\\.mark small', '.mark small'))
       .toMatch(/var\(--mono\)/);
+    /* buttons follow the body sans — declared explicitly in the override */
+    expect(expectRule(EXTRA, '(?:^|\\n)button(?![\\w.-])', 'bare button'))
+      .toMatch(/font-family:var\(--body\)/);
   });
 
   it('Google Fonts wired in index.html (swap, with system fallbacks in CSS)', () => {
     expect(INDEX).toMatch(/fonts\.googleapis\.com\/css2\?family=Fraunces/);
-    expect(INDEX).toMatch(/family=Inter/);
+    expect(INDEX).toMatch(/family=Inter:wght@400;500;600;700/);
     expect(INDEX).toMatch(/display=swap/);
+    /* the pre-paint shell mirrors --body: the Inter sans, not Fraunces */
+    expect(INDEX).toMatch(
+      /font-family:"Inter",-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif/);
+    expect(INDEX).not.toMatch(/font-family:"Fraunces"/);
   });
 
   it('sim canvas colors read the tokens, no dark literals remain', () => {
@@ -180,5 +194,26 @@ describe('Paper theme tokens (colors stay variables)', () => {
       .toMatch(/stroke:var\(--accent\)/);
     expect(expectRule(EXTRA, '\\.export-crosshair i', 'crosshair'))
       .toMatch(/background:var\(--accent\)/);
+  });
+
+  it('hover: same surface color, accent-red ring — no white-out', () => {
+    /* the generated button:hover{filter:brightness(1.14)} brightens the
+     * warm Paper surfaces toward white on hover (the Export ghost chip).
+     * The site-wide hover language is: the surface color NEVER changes
+     * (filter:none) and a red ring replaces the white-out. outline at
+     * -1px hugs the edge like a border with zero layout shift, and it
+     * works on border:0 controls too. The bare-button tail ((?:^|\n)
+     * button...) keeps this rule OUT of the lastRule reads above. */
+    const hover = expectRule(EXTRA, '(?:^|\\n)button(?![\\w.-]):hover',
+      'bare button:hover');
+    expect(hover, 'no brightness filter — the background never changes')
+      .toMatch(/filter:none/);
+    expect(hover, 'the ring is the accent red')
+      .toMatch(/outline:1px solid var\(--accent\)/);
+    expect(hover, 'the ring hugs the edge like a border (no layout shift)')
+      .toMatch(/outline-offset:-1px/);
+    expect(expectRule(EXTRA, '\\.gbtn:hover', '.gbtn:hover'),
+      'the Google CTA keeps its brand field — no red ring')
+      .toMatch(/outline:none/);
   });
 });

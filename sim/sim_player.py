@@ -109,7 +109,7 @@ CSS = """
 JS = r"""
 (function(){
 var SCEN=__SCEN__, NF=900, TYPES=[[4.5,1.8],[2.1,.8],[12,2.5],[7.5,2.4],[3.2,1.5]];
-var GREEN=[53,196,107],AMBER=[240,160,43],RED=[245,72,79];
+var GREEN=[62,124,79],AMBER=[184,119,31],RED=[190,68,54];
 var B=null,frames=null,stats=null,simT=0,playing=false,speed=30,last=0,loaded=false;
 var root=document.querySelector('.simplay'); if(!root) return;
 var cvs=[].slice.call(root.querySelectorAll('canvas'));
@@ -157,24 +157,24 @@ function fit(){ var x0=B[0],y0=B[1],x1=B[2],y1=B[3];
 function T(x,y){return [PW/2+(x-CX)*SC, PH/2-(y-CY)*SC]}
 function pane(i,t){
   var s=SCEN[i],g=cvs[i].getContext('2d'),k,L,p;
-  g.fillStyle='#17171A'; g.fillRect(0,0,PW,PH);
+  g.fillStyle='#FFFDF8'; g.fillRect(0,0,PW,PH);
   [0,1].forEach(function(pass){
-    g.strokeStyle=pass?'#3A3A40':'#222227'; g.lineJoin='round'; g.lineCap='round';
+    g.strokeStyle=pass?'#B79E7C':'#D9C6A6'; g.lineJoin='round'; g.lineCap='round';
     for(k=0;k<s.lanes.length;k++){ L=s.lanes[k];
       g.lineWidth=Math.max(pass?2:3,L.w*10*SC+(pass?0:4)); g.beginPath();
       for(var q=0;q<L.p.length;q++){p=T(L.p[q][0],L.p[q][1]);
         q?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]);}
       g.stroke();}});
   var st=phaseAt(s.phases,t);
-  if(st){var rank={G:3,g:2,y:1,r:0},col={3:'#35C46B',2:'#288C50',1:'#F0A02B',0:'#46464C'};
+  if(st){var rank={G:3,g:2,y:1,r:0},col={3:'#3E7C4F',2:'#2F613C',1:'#B8771F',0:'#B9AA97'};
     Object.keys(s.stops).forEach(function(frm){
       var idx=s.links[frm]||[],b=0;
       idx.forEach(function(n){var v=rank[st[n]]; if(v!==undefined&&v>b)b=v;});
       var xy=T(s.stops[frm][0],s.stops[frm][1]);
-      g.fillStyle=col[b]; g.strokeStyle='#17171A'; g.lineWidth=2;
+      g.fillStyle=col[b]; g.strokeStyle='#FFFDF8'; g.lineWidth=2;
       g.beginPath(); g.arc(xy[0],xy[1],5.5,0,6.2832); g.fill(); g.stroke();});}
   g.font='700 11px '+getComputedStyle(document.body).fontFamily;
-  g.fillStyle='#9670C8'; g.textAlign='center';
+  g.fillStyle='#4E6E8E'; g.textAlign='center';
   Object.keys(s.arms).forEach(function(n){var xy=T(s.arms[n][0],s.arms[n][1]);
     g.fillText(n,Math.min(Math.max(xy[0],40),PW-40),
                Math.min(Math.max(xy[1],13),PH-7));});
@@ -194,7 +194,7 @@ function draw(){
   for(i=0;i<SCEN.length;i++){ pane(i,t);
     var s=stats[i][Math.floor(t)];
     hudEls[i].forEach(function(el,k){el.textContent=s[k].toLocaleString();});
-    hudEls[i][4].style.color=s[4]?'#F5484F':'#7C7C86';}
+    hudEls[i][4].style.color=s[4]?'#BE4436':'#8A7A66';}
   var ss=Math.floor(t);
   $('sp2-clk').textContent=String(Math.floor(ss/60))+':'+('0'+(ss%60)).slice(-2);
   $('sp2-scrub').value=t;
@@ -271,13 +271,13 @@ def fragment():
       <span class="val" id="sp2-spdv">30&times;</span></div>
   </div>
   <div class="sp2-legend">
-    <span><b>VEHICLE</b><i style="background:#F5484F"></i>stopped
-      <i style="background:#F0A02B;margin-left:10px"></i>crawling
-      <i style="background:#35C46B;margin-left:10px"></i>moving freely</span>
+    <span><b>VEHICLE</b><i style="background:#BE4436"></i>stopped
+      <i style="background:#B8771F;margin-left:10px"></i>crawling
+      <i style="background:#3E7C4F;margin-left:10px"></i>moving freely</span>
     <span><b>SIGNAL</b>
-      <i style="background:#35C46B;border-radius:50%;width:9px;height:9px"></i>green
-      <i style="background:#F0A02B;border-radius:50%;width:9px;height:9px;margin-left:10px"></i>amber
-      <i style="background:#46464C;border-radius:50%;width:9px;height:9px;margin-left:10px"></i>red</span>
+      <i style="background:#3E7C4F;border-radius:50%;width:9px;height:9px"></i>green
+      <i style="background:#B8771F;border-radius:50%;width:9px;height:9px;margin-left:10px"></i>amber
+      <i style="background:#B9AA97;border-radius:50%;width:9px;height:9px;margin-left:10px"></i>red</span>
   </div>
   <div class="sp2-err" id="sp2-err"></div>
 </div>

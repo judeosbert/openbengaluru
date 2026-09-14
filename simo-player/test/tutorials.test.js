@@ -1,13 +1,15 @@
 /* Tutorials page (plan: tutorials page) — data-shape + URL-parse assertions
  * for the pure module src/lib/tutorials.js (placeholder dummy YouTube links
- * until the curated playlist lands), plus regex-style wiring checks (pattern
- * from test/contribute.test.js) pinning the public TopBar Tutorials toggle,
- * App's 'tutorials' overlay branch, and the static view component. */
+ * until the curated playlist lands), plus wiring checks pinning the public
+ * TopBar Tutorials toggle (against the NAV_ITEMS config the pill nav
+ * renders from), App's 'tutorials' overlay branch, and the static view
+ * component. */
 import { it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TUTORIALS, PLAYLIST_URL, youtubeId, embedUrl }
   from '../src/lib/tutorials.js';
+import * as topbar from '../src/components/TopBar.js';
 import { PLAYER_ROOT } from './helpers/dataConsts.js';
 
 /* data shape: every tutorial carries title/blurb/url as non-empty strings;
@@ -84,23 +86,19 @@ it('embedUrl builds the nocookie embed for videos and playlists', () => {
   expect(embedUrl('https://example.com/watch?v=dQw4w9WgXcQ')).toBeNull();
 });
 
-/* TopBar wiring: Tutorials sits in the viewtoggle row after Contribute and
- * is PUBLIC — it must appear in source BEFORE the signed-in `dash` gate. */
+/* TopBar wiring (pill redesign): Tutorials is a PUBLIC entry of the
+ * NAV_ITEMS config — visible signed-out, ordered after Contribute. */
 it('TopBar exposes a public Tutorials toggle after Contribute', () => {
-  const s = fs.readFileSync(
-    path.join(PLAYER_ROOT, 'src', 'components', 'TopBar.js'), 'utf8');
-  expect(s, "TopBar must toggle the 'tutorials' view")
-    .toMatch(/className: view === 'tutorials' \? 'on' : '',\s*onClick: \(\) => onView\('tutorials'\),\s*\}, 'Tutorials'\)/);
-  const discover = s.indexOf("'Discover')");
-  const contribute = s.indexOf("'Contribute')");
-  const tutorials = s.indexOf("'Tutorials')");
-  const dashGate = s.indexOf('dash ?');
-  expect(discover).toBeGreaterThanOrEqual(0);
-  expect(tutorials, 'Tutorials must come after Contribute in the toggle row')
-    .toBeGreaterThan(contribute);
-  expect(contribute).toBeGreaterThan(discover);
-  expect(tutorials, 'Tutorials must be public — before the dash gate')
-    .toBeLessThan(dashGate);
+  const { NAV_ITEMS } = topbar;
+  expect(Array.isArray(NAV_ITEMS), 'TopBar must export a NAV_ITEMS config')
+    .toBe(true);
+  const ids = NAV_ITEMS.map((i) => i.id);
+  expect(ids, "TopBar must toggle the 'tutorials' view").toContain('tutorials');
+  expect(ids.indexOf('tutorials'),
+    'Tutorials must come after Contribute in the nav config')
+    .toBeGreaterThan(ids.indexOf('contribute'));
+  expect(NAV_ITEMS.find((i) => i.id === 'tutorials').show(null, null),
+    'Tutorials must be public — visible signed out').toBe(true);
 });
 
 /* App wiring: 'tutorials' renders the TutorialsView overlay like

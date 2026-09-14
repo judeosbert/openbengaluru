@@ -43,7 +43,7 @@ const sim = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
 });
 
 const vite = spawn(process.execPath,
-  [path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js')], {
+  [path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), '--host'], {
     env: { ...env, SIMO_API_PORT: String(port) },
     stdio: 'inherit',
   });

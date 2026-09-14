@@ -6,6 +6,7 @@ import ReactDOM from 'react-dom/client';
 import 'leaflet/dist/leaflet.css';
 import { BALAGERE_CSS_STYLE } from './data.js';
 import { App } from './components/App.js';
+import { IntroShell } from './components/IntroShell.js';
 
 /* App-only styles on top of BALAGERE_CSS_STYLE (dark tokens stay there). */
 const EXTRA_CSS = ''
@@ -196,24 +197,176 @@ const EXTRA_CSS = ''
   + '.zone-badge span{color:var(--tag-ink);background:var(--tag-bg);'
   + 'border:1px solid var(--hair-strong);border-radius:var(--r-xs)}\n'
   + '.sheet{box-shadow:var(--shadow-lg)}\n'
-  + '.sheet h2{font-family:var(--serif);font-weight:600}\n'
-  + '.mark{font-family:var(--serif)}\n'
+  + '.sheet h2{font-family:var(--serif);font-weight:700}\n'
+  + '.mark{font-family:var(--serif);font-weight:700}\n'
   + '.mark small{font-family:var(--mono)}\n'
   + '.modal{border-radius:var(--r-lg);box-shadow:var(--shadow-lg)}\n'
-  + '.modal h3{font-family:var(--serif);font-weight:600}\n'
+  + '.modal h3{font-family:var(--serif);font-weight:700}\n'
   + '.modal input[type=text],.modal textarea{border-radius:var(--r-sm)}\n'
   + '.modal-veil{background:var(--veil)}\n'
   + '.toast{border-radius:var(--r-sm);box-shadow:var(--shadow-lg)}\n'
-  + 'button{border-radius:var(--r-sm);color:var(--on-accent)}\n'
+  + 'button{border-radius:var(--r-sm);color:var(--on-accent);'
+  + 'font-family:var(--body)}\n'
+  /* hover language: every button keeps its surface color on hover — the
+   * generated button:hover{filter:brightness(1.14)} white-outs the warm
+   * Paper surfaces — and gets an accent-red ring instead. outline at -1px
+   * hugs the edge like a border with zero layout shift and works on
+   * border:0 controls too. The Google CTA is a brand element and keeps
+   * its designed field (no ring). */
+  + 'button:hover{filter:none;outline:1px solid var(--accent);'
+  + 'outline-offset:-1px}\n'
+  + '.gbtn:hover{outline:none}\n'
   + '.chip{border-radius:var(--r-xs)}\n'
   + '.slot{border-radius:var(--r-md)}\n'
   + '.dropzone{border-radius:var(--r-sm)}\n'
   + '.userbox input{border-radius:var(--r-xs)}\n'
   + '.yt-embed{border-radius:var(--r-sm)}\n'
-  + '.export-bbox{stroke:var(--accent);fill:var(--accent)}\n';
+  + '.export-bbox{stroke:var(--accent);fill:var(--accent)}\n'
+  /* Top bar redesign (plan: Figma-style pill + More) — overrides the
+   * generated .viewtoggle segmented control by cascade order (same
+   * selectors, later in the sheet); token-only colors. overflow:visible so
+   * the raised thumb shadow and the dropdown panels are not clipped. */
+  + '.viewtoggle{overflow:visible;gap:2px;padding:3px;border-radius:999px;'
+  + 'background:var(--surface2);border:1px solid var(--hair)}\n'
+  + '.viewtoggle button{display:inline-flex;align-items:center;gap:5px;'
+  + 'border-radius:999px;padding:6px 13px;font-size:12px;'
+  + 'font-weight:500;color:var(--ink2);background:transparent;'
+  + 'box-shadow:none}\n'
+  + '.chev{width:10px;height:10px;flex:none}\n'
+  + '.viewtoggle button:hover{color:var(--ink)}\n'
+  + '.viewtoggle button.on{background:var(--surface);color:var(--ink);'
+  + 'font-weight:600;box-shadow:var(--shadow-sm)}\n'
+  + '.menu-wrap{position:relative;display:inline-block}\n'
+  + '.more-menu{position:absolute;left:0;top:calc(100% + 8px);'
+  + 'min-width:170px;background:var(--surface);border:1px solid var(--hair);'
+  + 'border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:6px;'
+  + 'z-index:700}\n'
+  + '.more-menu button{display:block;width:100%;text-align:left;min-width:0;'
+  + 'border:0;background:transparent;color:var(--ink2);font-size:12.5px;'
+  + 'font-weight:500;padding:8px 11px;border-radius:var(--r-sm)}\n'
+  + '.more-menu button:hover{background:var(--surface2);color:var(--ink)}\n'
+  + '.avatar{display:inline-flex;align-items:center;gap:8px;'
+  + 'background:transparent;border:1px solid var(--hair-strong);'
+  + 'border-radius:999px;padding:3px 10px 3px 3px;color:var(--ink2);'
+  + 'font-size:12.5px;font-weight:600;min-width:0}\n'
+  + '.avatar:hover{border-color:var(--ink3);color:var(--ink)}\n'
+  + '.avatar .ph{width:24px;height:24px;border-radius:50%;'
+  + 'background:var(--accent-soft);color:var(--accent-ink);'
+  + 'display:flex;align-items:center;justify-content:center;'
+  + 'font-family:var(--serif);font-weight:700;font-size:12px;flex:none}\n'
+  + '.account-menu{position:absolute;right:0;top:calc(100% + 8px);'
+  + 'min-width:210px;background:var(--surface);border:1px solid var(--hair);'
+  + 'border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:6px;'
+  + 'z-index:700}\n'
+  + '.account-menu .who{padding:8px 11px;font-size:10.5px;color:var(--ink3);'
+  + 'font-family:var(--mono);letter-spacing:.05em}\n'
+  + '.account-menu button{display:block;width:100%;text-align:left;'
+  + 'min-width:0;border:0;background:transparent;color:var(--red);'
+  + 'font-size:12.5px;font-weight:500;padding:8px 11px;'
+  + 'border-radius:var(--r-sm)}\n'
+  + '.account-menu button:hover{background:var(--surface2)}\n'
+  + '/* brand + actions take equal flex so the pill stays centered in every\n'
+  + '   auth state; the tagline stacks on a second line under the name and\n'
+  + '   is never hidden (user decision — replaces the hide-on-narrow rule).\n'
+  + '   serif/mono are re-declared: these are the last .mark rules, so the\n'
+  + '   theme pins read them here. */\n'
+  + '.mark{flex:1 1 0;flex-wrap:wrap;row-gap:1px;'
+  + 'font-family:var(--serif);font-weight:700}\n'
+  + '.mark small{display:block;flex-basis:100%;font-family:var(--mono)}\n'
+  + '.userbox{flex:1 1 0;justify-content:flex-end}\n'
+  + '/* responsive component: compact single row <=900px; below that the\n'
+  + '   bar stacks to three centered rows (brand / pill / actions).\n'
+  + '   Layout-only — nothing is ever hidden. Media rules that restyle the\n'
+  + '   pinned base selectors use a :where(*) tail on purpose: it keeps\n'
+  + '   specificity and cascade position identical, but the selector no\n'
+  + '   longer ENDS with .mark/.viewtoggle/.userbox, so the contract tests\n'
+  + '   (which read the last rule per selector tail) keep reading the base\n'
+  + '   layout rules, not these narrow-screen deltas. */\n'
+  + '@media (max-width:900px){.topbar{padding:8px 12px;gap:10px}\n'
+  + '.mark:where(*){font-size:13px}\n'
+  + '.mark i{height:16px}\n'
+  + '.viewtoggle:where(*){padding:2px}\n'
+  + '.viewtoggle button:where(*){padding:5px 10px;font-size:11.5px}\n'
+  + '.userbox:where(*){gap:6px}\n'
+  + '.userbox > button{min-width:0;padding:7px 10px;font-size:12px}}\n'
+  + '@media (max-width:640px){.topbar{flex-wrap:wrap;row-gap:8px;'
+  + 'justify-content:center}\n'
+  + '.topbar>:where(.mark,.userbox){flex:0 0 100%;justify-content:center}\n'
+  + '.mark small:where(*){text-align:center}\n'
+  + '.viewtoggle:where(*){flex:0 0 100%;justify-content:center}\n'
+  + '.userbox:where(*){gap:4px}\n'
+  + '.userbox > button{padding:7px 8px;font-size:11.5px}}\n'
+  /* Intro gate (once per lifecycle). .app-reveal wraps the whole app at
+   * the mount point — it replicates the #root column flex so TopBar and
+   * .map-wrap keep their layout; the site stays clipped at circle(0%)
+   * until IntroShell opens the reveal, and the clip is dropped entirely
+   * once settled. Intro overlay: two 50% halves, each clipping a
+   * full-viewport pane — the panes tile the design seamlessly and slide
+   * apart along the center split on the CTA, while the site blooms open
+   * from the center through the widening gap. All chrome is token-only
+   * (theme-swappable); no bare button rules (theme contract). */
+  + '.app-reveal{position:relative;height:100%;display:flex;flex-direction:column;'
+  + 'clip-path:circle(0% at 50% 50%);transition:clip-path 1.1s cubic-bezier(.16,1,.3,1)}\n'
+  + '.app-reveal.open{clip-path:circle(120% at 50% 50%)}\n'
+  + '.app-reveal.settled{clip-path:none;transition:none}\n'
+  + '.intro-root{position:fixed;inset:0;z-index:2000;display:flex}\n'
+  + '.intro-root.intro-out{pointer-events:none}\n'
+  + '.intro-half{position:relative;width:50%;height:100%;overflow:hidden;'
+  + 'transition:transform .9s cubic-bezier(.16,1,.3,1)}\n'
+  + '.intro-half-l .intro-pane{left:0}\n'
+  + '.intro-half-r .intro-pane{left:-100%}\n'
+  + '.intro-pane{position:absolute;top:0;width:200%;height:100%;'
+  + 'background:var(--ground);display:flex;flex-direction:column;'
+  + 'align-items:center;justify-content:center;text-align:center;padding:48px 24px}\n'
+  + '.intro-out .intro-half-l{transform:translateX(-101%)}\n'
+  + '.intro-out .intro-half-r{transform:translateX(101%)}\n'
+  + '.intro-net{position:absolute;inset:0;width:100%;height:100%}\n'
+  + '.intro-copy{position:relative;display:flex;flex-direction:column;'
+  + 'align-items:center;gap:26px}\n'
+  + '.intro-brand{font-family:var(--serif);font-weight:700;color:var(--ink);'
+  + 'font-size:clamp(22px,3.4vw,34px);letter-spacing:-.01em}\n'
+  + '.intro-tag{font-family:var(--mono);font-size:11px;letter-spacing:.16em;'
+  + 'text-transform:uppercase;color:var(--accent);'
+  + 'border:1px solid var(--accent-dim);background:var(--accent-soft);'
+  + 'border-radius:999px;padding:5px 14px}\n'
+  + '.intro-headline{font-family:var(--serif);font-weight:700;line-height:1.02;'
+  + 'letter-spacing:-.02em;color:var(--ink);font-size:clamp(44px,9vw,110px)}\n'
+  + '.intro-sub{font-family:var(--body);font-size:15px;color:var(--ink2);'
+  + 'max-width:34em}\n'
+  + '.intro-cta{display:inline-flex;align-items:center;gap:10px;'
+  + 'background:var(--accent);color:var(--on-accent);border:0;cursor:pointer;'
+  + 'font-family:var(--body);font-size:12.5px;font-weight:600;'
+  + 'letter-spacing:.14em;text-transform:uppercase;padding:14px 30px;'
+  + 'border-radius:999px;box-shadow:var(--shadow-lg);'
+  + 'transition:transform .3s cubic-bezier(.16,1,.3,1),'
+  + 'background .3s cubic-bezier(.16,1,.3,1)}\n'
+  + '.intro-cta .arr{display:inline-flex;'
+  + 'transition:transform .3s cubic-bezier(.16,1,.3,1)}\n'
+  + '.intro-root.intro-hover .intro-cta{background:var(--accent-ink);'
+  + 'transform:translateY(-2px)}\n'
+  + '.intro-root.intro-hover .intro-cta .arr{transform:translateX(5px)}\n'
+  /* the pill straddles the split (two clipped copies, one per half): a
+     :hover/:focus SUBJECT would light only the copy under the pointer, so
+     the state anchors on the shared root via :has() — one style recalc
+     paints BOTH copies together. The .intro-hover class above stays as
+     the keyboard-focus path for engines without :has(). */
+  + '.intro-root:has(.intro-cta:hover) .intro-cta{background:var(--accent-ink);'
+  + 'transform:translateY(-2px)}\n'
+  + '.intro-root:has(.intro-cta:hover) .intro-cta .arr{transform:translateX(5px)}\n'
+  + '.intro-root:has(.intro-cta:focus) .intro-cta{background:var(--accent-ink);'
+  + 'transform:translateY(-2px)}\n'
+  + '.intro-root:has(.intro-cta:focus) .intro-cta .arr{transform:translateX(5px)}\n'
+  + '.intro-micro{font-family:var(--mono);font-size:10px;letter-spacing:.14em;'
+  + 'text-transform:uppercase;color:var(--ink3)}\n'
+  + '.intro-micro-top{position:absolute;top:28px;left:50%;'
+  + 'transform:translateX(-50%);display:flex;gap:18px;white-space:nowrap}\n'
+  + '.intro-micro-bottom{position:absolute;bottom:28px;left:50%;'
+  + 'transform:translateX(-50%);white-space:nowrap}\n'
+  + '@media (prefers-reduced-motion:reduce){.app-reveal,.intro-half,'
+  + '.intro-cta,.intro-cta .arr{transition:none}}\n';
 
 const __simoStyle = document.createElement('style');
 __simoStyle.textContent = BALAGERE_CSS_STYLE + EXTRA_CSS;
 document.head.appendChild(__simoStyle);
 
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(IntroShell, null, React.createElement(App)));

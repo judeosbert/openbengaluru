@@ -42,12 +42,13 @@ export function ExportFlow({ store, map, onClose }) {
    * (armed) or a box move (drawn, pointer inside the box); mousemove
    * updates the rect; window-level mouseup finishes and ALWAYS re-enables
    * dragging (a release outside the container can never leave it stuck).
-   * Zoom stays locked while the anchor-bar is up so the box's geographic
-   * extent is stable for the whole draw session. */
+   * Scroll zoom stays available while the anchor-bar is up; it locks only
+   * for the duration of a gesture so the box's geographic extent is stable
+   * mid-drag. Double-click / touch-pinch / shift-box zoom stay off while
+   * the bar is up — they conflict with the drag-draw gesture itself. */
   React.useEffect(() => {
     if (mode === 'modal') return undefined;
 
-    map.scrollWheelZoom.disable();
     map.doubleClickZoom.disable();
     if (map.touchZoom) map.touchZoom.disable();
     if (map.boxZoom) map.boxZoom.disable();
@@ -59,10 +60,10 @@ export function ExportFlow({ store, map, onClose }) {
       className: 'export-bbox', weight: 1.5, dashArray: '6 5',
       fillOpacity: 0.08,
     };
-    let rect = null;
     let gesture = null;   // { kind: 'draw' | 'move', anchor, bounds }
 
     const insideBox = (ev) => {
+      const rect = boxRef.current;
       if (!rect) return false;
       const p = map.mouseEventToContainerPoint(ev);
       const b = rect.getBounds();
@@ -81,23 +82,28 @@ export function ExportFlow({ store, map, onClose }) {
       if (gesture) return;
       if (mode === 'armed') {
         const ll = map.mouseEventToLatLng(ev);
-        rect = L.rectangle(L.latLngBounds(ll, ll), styleOpts).addTo(map);
-        boxRef.current = rect;
+        /* redraw: the old box goes away only when the new draw starts */
+        if (boxRef.current) map.removeLayer(boxRef.current);
+        boxRef.current =
+          L.rectangle(L.latLngBounds(ll, ll), styleOpts).addTo(map);
         gesture = { kind: 'draw', anchor: ll };
         ev.preventDefault();
         map.dragging.disable();
+        map.scrollWheelZoom.disable();
         el.style.cursor = 'crosshair';
-      } else if (rect && insideBox(ev)) {
+      } else if (boxRef.current && insideBox(ev)) {
         gesture = {
           kind: 'move',
           anchor: map.mouseEventToLatLng(ev),
-          bounds: rect.getBounds(),
+          bounds: boxRef.current.getBounds(),
         };
         ev.preventDefault();
         map.dragging.disable();
+        map.scrollWheelZoom.disable();
       }
     };
     const mv = (ev) => {
+      const rect = boxRef.current;
       if (!gesture) {
         el.style.cursor = (mode === 'drawn' && insideBox(ev)) ? 'move' : '';
         return;
@@ -123,8 +129,9 @@ export function ExportFlow({ store, map, onClose }) {
       const g = gesture;
       gesture = null;
       map.dragging.enable();
+      map.scrollWheelZoom.enable();
       el.style.cursor = '';
-      publish(rect.getBounds());
+      publish(boxRef.current.getBounds());
       if (g.kind === 'draw') setMode('drawn');
     };
     const key = (ev) => {
@@ -145,15 +152,27 @@ export function ExportFlow({ store, map, onClose }) {
       map.doubleClickZoom.enable();
       if (map.touchZoom) map.touchZoom.enable();
       if (map.boxZoom) map.boxZoom.enable();
-      if (rect) map.removeLayer(rect);
-      boxRef.current = null;
+      /* the drawn box STAYS on the map across mode transitions (armed ->
+       * drawn -> 'Use this box' modal) — teardown is unmount-only, below */
     };
   }, [mode, map]);
+
+  /* unmount-only teardown: Cancel / Escape / veil click remove the box */
+  React.useEffect(() => () => {
+    if (boxRef.current) {
+      map.removeLayer(boxRef.current);
+      boxRef.current = null;
+    }
+  }, [map]);
 
   const fmtB = (b) => b.map((v) => (+v).toFixed(5)).join(', ');
   const useView = () => {
     const b = map.getBounds();
     setBbox([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]);
+    if (boxRef.current) {
+      boxRef.current.setBounds(L.latLngBounds(
+        [b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]));
+    }
     setStatus('box = current view');
   };
 
@@ -165,7 +184,7 @@ export function ExportFlow({ store, map, onClose }) {
       const blob = await exportNet(bbox,
         { name: nm, zoom: map.getZoom() });
       downloadBlob(nm + '.net.xml', blob);
-      setStatus('saved ' + nm + '.net.xml — upload it in the Submit wizard');
+      setStatus('saved ' + nm + '.net.xml — Edit,Simulate and Submit the Simulation');
     } catch (e) {
       const msg = String((e && e.message) || e);
       if (msg === 'not signed in' || /auth/i.test(msg)) {

@@ -1,7 +1,9 @@
-/* Sign-in gate: an unauthenticated "Submit a sim" click lands here before
- * the wizard. Explains the Google sign-in requirement and routes the
- * branded CTA through the store's sign-in flow (signInFromGate — success
- * closes the gate and opens the wizard); veil-click / Cancel just dismiss. */
+/* Sign-in gate: an unauthenticated "Submit a sim" OR "Export area" click
+ * lands here before its flow. Explains the Google sign-in requirement and
+ * routes the branded CTA through the store's sign-in flow (signInFromGate —
+ * success closes the gate and continues into the flow that asked for it:
+ * export -> the export area, submit -> the wizard); veil-click / Cancel
+ * just dismiss. Copy branches on the store's gate intent. */
 import React from 'react';
 
 const h = React.createElement;
@@ -32,6 +34,7 @@ h('path', {
 }));
 
 export function SignInGate({ store }) {
+  const isExport = store.signGate === 'export';
   return h('div', {
     className: 'modal-veil',
     onClick: (ev) => {
@@ -39,11 +42,15 @@ export function SignInGate({ store }) {
     },
   },
   h('div', { className: 'modal signin-gate' },
-    h('div', { className: 'step' }, 'SUBMIT A SIMULATION'),
-    h('h3', null, 'Sign in to submit a sim'),
-    h('p', { className: 'hint' },
-      'You need to sign in with Google to submit a simulation. '
-      + 'Your Google account becomes the recorded author.'),
+    h('div', { className: 'step' },
+      isExport ? 'EXPORT AREA FOR SUMO' : 'SUBMIT A SIMULATION'),
+    h('h3', null,
+      isExport ? 'Sign in to export' : 'Sign in to submit a sim'),
+    h('p', { className: 'hint' }, isExport
+      ? 'You need to sign in with Google to export a SUMO road network '
+        + 'for your area.'
+      : 'You need to sign in with Google to submit a simulation. '
+        + 'Your Google account becomes the recorded author.'),
     h('button', { className: 'gbtn', onClick: store.signInFromGate },
       G_MARK, h('span', null, 'Sign in with Google')),
     h('div', { className: 'row' },

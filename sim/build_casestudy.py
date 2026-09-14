@@ -3,23 +3,24 @@
 
 Design plan
 -----------
-Color -- a single committed dark world, because the subject is a signalised
-junction at night-lit contrast and the study's whole argument is about what is
-red and what is green. Every value painted explicitly, never inherited.
-  ground   #0B0B0C  near-black, faint cool bias (chosen, not #000)
-  surface  #17171A / #202027
-  accent   #E50914  signal red -- rules, wordmark, buttons; never a data mark
-  states   #35C46B green / #F0A02B amber / #F5484F critical
-  data     #9BD4F5 -> #3D8FD1  one-hue ordinal ramp (validated on #17171A)
-Type -- Helvetica Neue at 800/900 with tight tracking for display (authentic to
-the idiom and a real face on macOS, no webfont CDN which the CSP blocks), the
-same family at 400/500 for body, and a monospace utility face with tabular
-figures for every number.
-Layout -- full-bleed dark bands. A hero whose background is the actual
-recommended signal plan cycling live: the most characteristic thing in this
-subject's world. Then a numbers shelf, six numbered acts (the study is a real
-sequence, so the numbering encodes order that the reader needs), figure cards,
-and a disclosure list for limitations. Print inverts to ink-on-white.
+Color -- the warm Paper world shared with the app (design/design-sheet.html):
+a cream ground, off-white surface cards, warm brown ink, and one committed
+terracotta accent, because the study's whole argument is about what is red
+and what is green. Every value painted explicitly, never inherited.
+  ground   #F7F1E7  warm cream paper
+  surface  #FFFDF8 / #F2E9DB  cards and insets
+  accent   #C2502E  terracotta -- rules, wordmark, buttons; never a data mark
+  states   #3E7C4F green / #B8771F amber / #BE4436 critical (light-validated)
+  data     #4E6E8E -> #93B7CE  one-hue ordinal ramp (validated on #FFFDF8)
+Type -- Fraunces (display, 500-700, tight optical tracking) for headings and
+the wordmark, Inter at 400/500/600 for body and UI, and a monospace utility
+face with tabular figures for every number. Webfonts via Google Fonts.
+Layout -- a hero whose background is the actual recommended signal plan
+cycling live: the most characteristic thing in this subject's world. Then a
+numbers shelf, six numbered acts (the study is a real sequence, so the
+numbering encodes order that the reader needs), figure cards, and a
+disclosure list for limitations. Figures are built light and embedded
+as-authored; print prints the same document with a pure-white ground.
 """
 import json, os, re
 import viz
@@ -61,7 +62,7 @@ GAP_SINGLE, GAP_PAINT = 5743 - 2582, 5743 - 4591
 # ── figures, built light then moved onto the dark ground ──────────────────
 import render_paint as rp
 
-ATLAS = viz.to_dark(open(os.path.join(HERE, "figs", "paint.html")).read())
+ATLAS = open(os.path.join(HERE, "figs", "paint.html")).read()
 
 CUR_P = CUR["peak"]
 CUR_O = CUR["offpeak"]
@@ -72,21 +73,21 @@ def served(key):
     return 100.0 * r["inserted"] / r["demand"]
 
 
-CMP = viz.to_dark(viz.bar_compare([
+CMP = viz.bar_compare([
     ("Today", "no signal · two U-turns · one lane", CUR_P["served_pct"], CUR_P["worst"]),
     ("U-turns banned + signal", "171 s · four phases · one lane", DEL["served_pct"], DEL["worst"]),
     ("Recommended", "+ two 3.0 m lanes · 180 s", PR["served_pct"], PR["worst"]),
-], title="demand served at peak by configuration"))
+], title="demand served at peak by configuration")
 
-CLIFFSVG = viz.to_dark(viz.cliff_chart(
-    [(r["cycle"], r["served_pct"], r["worst"], r["teleports"]) for r in CLIFF]))
+CLIFFSVG = viz.cliff_chart(
+    [(r["cycle"], r["served_pct"], r["worst"], r["teleports"]) for r in CLIFF])
 
 _e, _j, _c, _t = rp.load(os.path.join(HERE, "nets", "R2-paint180.net.xml"))
 _tl = list(_t.values())[0]
 _links = {int(x["linkIndex"]): (x["from"], x.get("dir")) for x in _c
           if x.get("tl") == _tl["id"] and x.get("linkIndex") is not None}
-HERO_SIGNAL = viz.to_dark(viz.ambient_signal(
-    [(p["duration"], p["state"]) for p in _tl["phases"]], _links, "hero", width=520))
+HERO_SIGNAL = viz.ambient_signal(
+    [(p["duration"], p["state"]) for p in _tl["phases"]], _links, "hero", width=520)
 
 
 def arm_row(r, cells_only=False):
@@ -170,15 +171,18 @@ search_rows = "\n".join(
 
 CSS = """
 :root{
-  --ground:#0B0B0C; --surface:#17171A; --surface-2:#202027; --hair:rgba(245,245,247,.11);
-  --ink:#F5F5F7; --ink-2:#B4B4BC; --ink-3:#7C7C86;
-  --accent:#E50914; --accent-ink:#FF5A60;
+  --ground:#F7F1E7; --surface:#FFFDF8; --surface-2:#F2E9DB; --hair:rgba(74,55,40,.14);
+  --ink:#2E241C; --ink-2:#5C4C3E; --ink-3:#8A7A66;
+  --accent:#C2502E; --accent-ink:#A03F22;
   /* signal states -- always paired with an icon, a word, or a texture */
-  --green:#35C46B; --amber:#F0A02B; --red:#F5484F;
-  /* one-hue ordinal data ramp, validated against #17171A */
-  --purple:#9BD4F5; --blue:#3D8FD1;
-  --display:"Helvetica Neue",Helvetica,"Arial Black",Arial,sans-serif;
-  --body:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --green:#3E7C4F; --amber:#B8771F; --red:#BE4436;
+  /* one-hue ordinal data ramp, validated against #FFFDF8 */
+  --purple:#4E6E8E; --blue:#93B7CE;
+  /* vars consumed by the embedded atlas fragment (figs/paint.html) */
+  --bg-card:#FFFDF8; --text-75:rgba(46,36,28,.75);
+  --border:rgba(74,55,40,.14); --cta-gradient:#C2502E;
+  --display:"Fraunces","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --body:"Inter",-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --wrap:1080px;
 }
@@ -195,12 +199,12 @@ a:focus-visible,button:focus-visible,summary:focus-visible,input:focus-visible,
 select:focus-visible{outline:2px solid var(--accent-ink);outline-offset:3px;border-radius:3px}
 
 /* masthead */
-.mast{position:sticky;top:0;z-index:40;background:rgba(11,11,12,.82);
+.mast{position:sticky;top:0;z-index:40;background:rgba(247,241,231,.85);
   backdrop-filter:saturate(150%) blur(12px);border-bottom:1px solid var(--hair)}
 .mast-in{max-width:var(--wrap);margin:0 auto;padding:13px 28px;display:flex;
   align-items:center;justify-content:space-between;gap:16px}
 .mark{display:flex;align-items:center;gap:11px;font-family:var(--display);
-  font-weight:800;font-size:15px;letter-spacing:-.02em}
+  font-weight:700;font-size:15px;letter-spacing:-.01em}
 .mark i{display:block;width:5px;height:19px;background:var(--accent);border-radius:1px}
 .mast nav{display:flex;gap:20px;font-size:12.5px;font-weight:500}
 .mast nav a{color:var(--ink-2);text-decoration:none}
@@ -219,8 +223,8 @@ select:focus-visible{outline:2px solid var(--accent-ink);outline-offset:3px;bord
 .eyebrow{font-family:var(--mono);font-size:11.5px;font-weight:600;
   letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink);
   margin:0 0 20px}
-h1{font-family:var(--display);font-weight:800;font-size:clamp(38px,7vw,78px);
-  line-height:.98;letter-spacing:-.035em;margin:0 0 22px;max-width:19ch;
+h1{font-family:var(--display);font-weight:700;font-size:clamp(38px,7vw,78px);
+  line-height:.98;letter-spacing:-.015em;margin:0 0 22px;max-width:19ch;
   text-wrap:balance}
 h1 em{font-style:normal;color:var(--accent-ink)}
 .standfirst{font-size:clamp(17px,2.1vw,21px);line-height:1.55;color:var(--ink-2);
@@ -234,8 +238,8 @@ h1 em{font-style:normal;color:var(--accent-ink)}
   gap:14px;padding:30px 0 4px}
 .tile{background:var(--surface);border:1px solid var(--hair);border-radius:5px;
   padding:20px 20px 17px}
-.tile .k{font-family:var(--display);font-weight:800;font-size:38px;line-height:1;
-  letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+.tile .k{font-family:var(--display);font-weight:700;font-size:38px;line-height:1;
+  letter-spacing:-.015em;font-variant-numeric:tabular-nums}
 .tile .k.up{color:var(--green)} .tile .k.dn{color:var(--red)}
 .tile .l{font-size:13px;color:var(--ink-2);margin-top:9px;line-height:1.4}
 .tile .s{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:7px;
@@ -249,10 +253,10 @@ section:first-of-type{border-top:none}
   letter-spacing:.12em}
 .act span{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--ink-3)}
-h2{font-family:var(--display);font-weight:800;font-size:clamp(27px,3.6vw,42px);
-  line-height:1.06;letter-spacing:-.03em;margin:0 0 18px;max-width:26ch;
+h2{font-family:var(--display);font-weight:700;font-size:clamp(27px,3.6vw,42px);
+  line-height:1.06;letter-spacing:-.01em;margin:0 0 18px;max-width:26ch;
   text-wrap:balance}
-h3{font-family:var(--display);font-weight:700;font-size:21px;letter-spacing:-.02em;
+h3{font-family:var(--display);font-weight:700;font-size:21px;letter-spacing:-.01em;
   margin:34px 0 10px}
 h4{font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.12em;
   text-transform:uppercase;color:var(--accent-ink);margin:26px 0 9px}
@@ -270,7 +274,7 @@ pre{font-family:var(--mono);font-size:12.5px;line-height:1.6;background:var(--su
 pre code{background:none;padding:0}
 blockquote{margin:26px 0;padding:2px 0 2px 22px;border-left:3px solid var(--accent);
   font-family:var(--display);font-weight:700;font-size:clamp(19px,2.4vw,25px);
-  line-height:1.28;letter-spacing:-.02em;max-width:34ch}
+  line-height:1.28;letter-spacing:-.01em;max-width:34ch}
 
 /* callouts */
 .note{background:var(--surface);border:1px solid var(--hair);border-left:3px solid var(--amber);
@@ -295,9 +299,9 @@ td:first-child{color:var(--ink-2)}
 tbody tr:hover{background:var(--surface-2)}
 .chip{display:inline-block;padding:2px 9px;border-radius:3px;font-family:var(--mono);
   font-size:11.5px;font-weight:600;white-space:nowrap}
-.chip.ok{background:rgba(53,196,107,.16);color:var(--green)}
-.chip.warn{background:rgba(240,160,43,.16);color:var(--amber)}
-.chip.bad{background:rgba(245,72,79,.16);color:var(--red)}
+.chip.ok{background:rgba(62,124,79,.14);color:var(--green)}
+.chip.warn{background:rgba(184,119,31,.15);color:var(--amber)}
+.chip.bad{background:rgba(190,68,54,.14);color:var(--red)}
 .chip.neut{background:var(--surface-2);color:var(--ink-2)}
 
 /* figure cards */
@@ -328,11 +332,11 @@ details .body p{max-width:74ch}
   border-radius:5px;background:var(--surface)}
 .atlas .pill{display:inline-block;padding:2px 9px;border-radius:3px;
   font-family:var(--mono);font-size:11px;font-weight:600;white-space:nowrap}
-.atlas .pill.green{background:rgba(53,196,107,.16);color:var(--green)}
-.atlas .pill.blue{background:rgba(61,143,209,.18);color:var(--purple)}
-.atlas .pill.orange{background:rgba(240,160,43,.16);color:var(--amber)}
-.atlas .pill.red{background:rgba(245,72,79,.16);color:var(--red)}
-.atlas .pill.purple{background:rgba(155,212,245,.14);color:var(--purple)}
+.atlas .pill.green{background:rgba(62,124,79,.14);color:var(--green)}
+.atlas .pill.blue{background:rgba(78,110,142,.14);color:var(--purple)}
+.atlas .pill.orange{background:rgba(184,119,31,.15);color:var(--amber)}
+.atlas .pill.red{background:rgba(190,68,54,.14);color:var(--red)}
+.atlas .pill.purple{background:rgba(78,110,142,.12);color:var(--purple)}
 .atlas .pill.no{background:var(--surface-2);color:var(--ink-2)}
 .atlas p{font-size:14.5px;color:var(--ink-2)}
 
@@ -364,8 +368,8 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:14px 30px;justify-content:space-bet
    light document while keeping every semantic colour recognisable. */
 @page{size:A4;margin:15mm 13mm}
 @media print{
-  :root{--ground:#fff;--surface:#fff;--surface-2:#f4f4f5;--hair:rgba(0,0,0,.16);
-    --ink:#0B0B0C;--ink-2:#3a3a40;--ink-3:#6b6b72;--accent-ink:#B3060F}
+  :root{--ground:#fff;--surface:#fff;--surface-2:#F5EEE3;--hair:rgba(0,0,0,.16);
+    --ink:#2E241C;--ink-2:#4A3B2F;--ink-3:#6B5B4B;--accent-ink:#A03F22}
   body{font-size:10.5pt}
   .mast,.hero-bg,.sigplay .sp-ctl,.mast nav{display:none!important}
   .hero::after{display:none}
@@ -390,6 +394,9 @@ HTML = f"""<title>The Curious Case of Balagere T Junction</title>
 <meta name="description" content="Two T junctions 12.6 m apart, two give-way
 U-turns, and 6% of rush hour getting through. What 339 simulations found, with no
 permission to widen anything.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>{CSS}</style>
 
 <header class="mast">

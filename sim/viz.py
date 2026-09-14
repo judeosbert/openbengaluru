@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Charts and the interactive signal player for the report.
 
-Palette: report tokens --purple #8725d6 and --blue #169ee9 for the 2-series
-categorical case, validated with the data-viz checks (lightness band, chroma
+Palette: report tokens --purple #4E6E8E and --blue #93B7CE for the 2-series
+categorical case (Paper world, validated on #FFFDF8), validated with the data-viz checks (lightness band, chroma
 floor, CVD separation deltaE 15.3 deutan, normal-vision 26.7, all PASS; contrast
 vs surface WARNs below 3:1, so every mark carries a direct value label and the
 underlying table is kept alongside as the table view). Status colors
@@ -14,7 +14,7 @@ written count, never color alone.
 _RANK = {"G": 3, "g": 2, "y": 1, "r": 0, "u": 1, "O": 3, "o": 2, "s": 1}
 STATE_FILL = {
     "G": "var(--green)",
-    "g": "rgba(63,172,85,0.42)",
+    "g": "rgba(62,124,79,0.42)",
     "y": "var(--amber)",
     "r": "rgba(0,0,0,0.13)",
 }
@@ -37,7 +37,7 @@ def bar_compare(rows, width=660, title=None):
     o = [f'<svg viewBox="0 0 {width} {height}" width="100%" '
          f'style="max-width:{width}px;height:auto;display:block;margin:4px auto" '
          f'role="img" aria-label="{_esc(title or "comparison")}">']
-    o.append('<g font-family="Manrope,sans-serif">')
+    o.append('<g font-family="Inter,sans-serif">')
 
     # legend (2 series -> legend always present)
     o.append(f'<g font-size="11" font-weight="600">')
@@ -96,7 +96,7 @@ def cliff_chart(rows, width=660):
              '<rect width="7" height="7" fill="var(--red)"/>'
              '<line x1="0" y1="0" x2="0" y2="7" stroke="rgba(0,0,0,0.34)" '
              'stroke-width="3"/></pattern></defs>')
-    o.append('<g font-family="Manrope,sans-serif">')
+    o.append('<g font-family="Inter,sans-serif">')
 
     for pct in (0, 25, 50, 75, 100):
         y = top + plot_h * (1 - pct / 100)
@@ -237,7 +237,7 @@ def signal_player(phases, links, uid, width=700):
     o.append(f'<defs><marker id="ah-{uid}" viewBox="0 0 10 10" refX="8" refY="5" '
              f'markerWidth="3.6" markerHeight="3.6" orient="auto">'
              f'<path d="M0 1 L9 5 L0 9 z" fill="context-stroke"/></marker></defs>')
-    o.append('<g font-family="Manrope,sans-serif">')
+    o.append('<g font-family="Inter,sans-serif">')
 
     # carriageway per arm, drawn from the outer end to the junction edge
     for a, (label, _side, h) in ARM_GEOM.items():
@@ -253,7 +253,7 @@ def signal_player(phases, links, uid, width=700):
     # junction box
     jx, jy = P(-R, R)
     o.append(f'<rect x="{jx:.1f}" y="{jy:.1f}" width="{2*R}" height="{2*R}" rx="7" '
-             f'fill="rgba(135,37,214,0.07)" stroke="rgba(135,37,214,0.22)"/>')
+             f'fill="rgba(78,110,142,0.08)" stroke="rgba(78,110,142,0.25)"/>')
 
     # movement paths: inbound offset -> corner control -> outbound offset
     for (a, d) in sorted(groups, key=lambda k: (k[0], {"l": 0, "s": 1, "r": 2}[k[1]])):
@@ -292,7 +292,7 @@ def signal_player(phases, links, uid, width=700):
 
     # legend
     lg = [("var(--green)", "protected — right of way"),
-          ("rgba(63,172,85,0.42)", "permissive — give way"),
+          ("rgba(62,124,79,0.42)", "permissive — give way"),
           ("rgba(0,0,0,0.10)", "stopped")]
     lx = 30
     for col, txt in lg:
@@ -313,7 +313,7 @@ def signal_player(phases, links, uid, width=700):
         isg = any(c in "Gg" for c in st)
         o.append(f'<rect x="{x:.1f}" y="{strip_y:.0f}" '
                  f'width="{max(w-2,1):.1f}" height="20" rx="3" '
-                 f'fill="{"rgba(63,172,85,0.26)" if isg else "var(--amber)"}"/>')
+                 f'fill="{"rgba(62,124,79,0.26)" if isg else "var(--amber)"}"/>')
         if w > 32:
             o.append(f'<text x="{x+w/2:.1f}" y="{strip_y+14:.0f}" text-anchor="middle" '
                      f'font-size="9.5" font-weight="700" fill="rgba(0,0,0,0.6)">'
@@ -377,7 +377,7 @@ def signal_player(phases, links, uid, width=700):
     }});
     heads.forEach(function(h){{
       var c=best[h.getAttribute("data-head")]||"r";
-      h.setAttribute("fill", c==="G"?"var(--green)":c==="g"?"rgba(63,172,85,0.55)":
+      h.setAttribute("fill", c==="G"?"var(--green)":c==="g"?"rgba(62,124,79,0.55)":
                      c==="y"?"var(--amber)":"rgba(0,0,0,0.13)");
     }});
     var x=SL+SW*(t/cycle);

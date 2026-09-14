@@ -39,10 +39,15 @@ export function useTrafficStore() {
    * — gates the dashboard buttons. null when signed out OR when the server
    * is unavailable / the call fails (admin UI never appears). */
   const [me, setMe] = useState(null);
-  /* Submit sign-in gate: an unauthenticated "Submit a sim" click opens the
-   * explanatory modal (SignInGate) instead of popping Firebase directly —
-   * the modal's Google CTA (signInFromGate) starts the flow. */
-  const [signGate, setSignGate] = useState(false);
+  /* Sign-in gate (submit + export): an unauthenticated entry into either
+   * flow opens the explanatory modal (SignInGate) instead of popping
+   * Firebase directly — the modal's Google CTA (signInFromGate) starts the
+   * flow. The state holds the INTENT ('submit' | 'export') so the gate
+   * copy and the post-sign-in continuation match the entry point. */
+  const [signGate, setSignGate] = useState(null);
+  /* Export-area flow open state lives here (not App-local) so the gate's
+   * Google CTA can open the flow after a successful sign-in. */
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => listenAuth(setUser), []);
 
@@ -144,33 +149,48 @@ export function useTrafficStore() {
     });
   }, []);
 
-  /* Submit wizard gate (plan: sim submission only — browsing stays open).
-   * Signed in: straight into the wizard. Signed out: the sign-in gate modal
-   * explains the requirement; its Google CTA (signInFromGate) starts the
-   * Google flow and the wizard only appears after a successful sign-in. */
+  /* Flow gates (submit wizard + export area). Signed in: straight into the
+   * flow. Signed out: the sign-in gate modal explains the requirement; its
+   * Google CTA (signInFromGate) starts the Google flow and the flow only
+   * appears after a successful sign-in. */
   const startDraft = useCallback(() => {
     if (user) {
       openDraftFor(user);
       return;
     }
-    setSignGate(true);
+    setSignGate('submit');
   }, [user, openDraftFor]);
 
   const cancelDraft = useCallback(() => { setDraftSub(null); }, []);
 
   /* The gate modal's Google CTA: run the sign-in flow, then continue into
-   * the wizard via the same opener startDraft uses. Failure keeps the gate
-   * open (retryable) + honest toast. */
+   * the flow that opened the gate — export intent reopens the export area,
+   * submit intent enters the wizard via the same opener startDraft uses.
+   * Failure keeps the gate open (retryable) + honest toast. */
   const signInFromGate = useCallback(() => {
+    const intent = signGate;
     signInWithGoogle().then((u) => {
-      setSignGate(false);
-      openDraftFor(u);
+      setSignGate(null);
+      if (intent === 'export') setExportOpen(true);
+      else openDraftFor(u);
     }).catch((e) => {
       setToast('sign-in failed: ' + ((e && e.message) || e));
     });
-  }, [openDraftFor]);
+  }, [signGate, openDraftFor]);
 
-  const closeSignGate = useCallback(() => { setSignGate(false); }, []);
+  const closeSignGate = useCallback(() => { setSignGate(null); }, []);
+
+  /* Export-area entry (same gate modal as submit): signed in opens the
+   * flow directly; signed out opens the gate with the export intent. */
+  const startExport = useCallback(() => {
+    if (user) {
+      setExportOpen(true);
+      return;
+    }
+    setSignGate('export');
+  }, [user]);
+
+  const closeExport = useCallback(() => { setExportOpen(false); }, []);
 
   /* Parsed .net.xml geometry per slot ('today' | 'proposed') for the live
    * draft preview overlay. Re-uploading a slot replaces it. */
@@ -380,6 +400,7 @@ export function useTrafficStore() {
     view, catalog, activeSimId, activeScenario, running, simT, speed,
     draftSub, submitting, toast, user, me,
     signGate, closeSignGate, signInFromGate,
+    exportOpen, startExport, closeExport,
     setView, signIn, signOut, viewSim, runOnMap, stopAll, setScenario,
     closeSim, startDraft, cancelDraft, updateDraft, placeDraft, submitDraft,
     setDraftGeo, dismissToast, setSimT, setSpeed, tick, mergeStream,

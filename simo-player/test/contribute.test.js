@@ -3,11 +3,13 @@
  * checks (pattern from test/html.test.js) pinning the public TopBar Contribute
  * toggle and App's 'contribute' overlay branch. The copy itself must stay
  * honest: blurbs only reference features that exist (wizard, review queue,
- * comment threads, tools pipeline). */
+ * comment threads, tools pipeline). The public TopBar Contribute toggle is
+ * pinned against the NAV_ITEMS config the pill nav renders from. */
 import { it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TRACKS, LEVELING_UP } from '../src/lib/contribute.js';
+import * as topbar from '../src/components/TopBar.js';
 import { PLAYER_ROOT } from './helpers/dataConsts.js';
 
 const ROLES = TRACKS.flatMap((t) => t.roles);
@@ -84,21 +86,20 @@ it('leveling-up strip names the path and the Zuul threshold', () => {
   expect(LEVELING_UP).toMatch(/active/);
 });
 
-/* TopBar wiring: Contribute sits in the viewtoggle row next to Discover and
- * is PUBLIC — it must appear in source BEFORE the signed-in `dash` gate. */
+/* TopBar wiring (pill redesign): Contribute is a PUBLIC entry of the
+ * NAV_ITEMS config — visible signed-out, ordered right after Discover
+ * (the config drives both pill slots and the More menu). */
 it('TopBar exposes a public Contribute toggle next to Discover', () => {
-  const s = fs.readFileSync(
-    path.join(PLAYER_ROOT, 'src', 'components', 'TopBar.js'), 'utf8');
-  expect(s, "TopBar must toggle the 'contribute' view")
-    .toMatch(/className: view === 'contribute' \? 'on' : '',\s*onClick: \(\) => onView\('contribute'\),\s*\}, 'Contribute'\)/);
-  const discover = s.indexOf("'Discover')");
-  const contribute = s.indexOf("'Contribute')");
-  const dashGate = s.indexOf('dash ?');
-  expect(discover).toBeGreaterThanOrEqual(0);
-  expect(contribute, 'Contribute must come after Discover in the toggle row')
-    .toBeGreaterThan(discover);
-  expect(contribute, 'Contribute must be public — before the dash gate')
-    .toBeLessThan(dashGate);
+  const { NAV_ITEMS } = topbar;
+  expect(Array.isArray(NAV_ITEMS), 'TopBar must export a NAV_ITEMS config')
+    .toBe(true);
+  const ids = NAV_ITEMS.map((i) => i.id);
+  expect(ids, "TopBar must toggle the 'contribute' view").toContain('contribute');
+  expect(ids.indexOf('contribute'),
+    'Contribute must come after Discover in the nav config')
+    .toBeGreaterThan(ids.indexOf('discover'));
+  expect(NAV_ITEMS.find((i) => i.id === 'contribute').show(null, null),
+    'Contribute must be public — visible signed out').toBe(true);
 });
 
 /* App wiring: 'contribute' renders the ContributeView overlay like

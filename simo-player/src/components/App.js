@@ -1,7 +1,8 @@
 /* App shell. Ported verbatim from app.js; review-flow additions: the lazy
  * stream loader branches on entry.apiStream (API-catalog entries fetch
  * /api/catalog/:id/stream; base entries keep the JSONP streams/<id>.js),
- * and the dashboard views render over the map. */
+ * and the dashboard views render over the map. The TopBar Export entry
+ * routes through the store sign-in gate (same popup as submit). */
 import React from 'react';
 import { useTrafficStore, MapProvider, MapOverlayProvider } from '../state/store.js';
 import { TopBar } from './TopBar.js';
@@ -24,7 +25,6 @@ export function App() {
   const [map, setMap] = React.useState(null);
   const [mapReady, setMapReady] = React.useState(false);
   const [overlayApi, setOverlayApi] = React.useState(null);
-  const [exportOpen, setExportOpen] = React.useState(false);
 
   const entry = store.catalog.find((e) => e.id === store.activeSimId) || null;
   const scenKey = entry && entry.scenarios[store.activeScenario]
@@ -37,7 +37,12 @@ export function App() {
   React.useEffect(() => {
     if (store.catalog.length > prevLen.current) {
       const e = store.catalog[store.catalog.length - 1];
-      if (map && e) {
+      /* boot merge (GET /api/catalog) grows the catalog too — that is not
+       * a publish and must not snap the camera (the visible zoom/pan right
+       * as the intro reveal exposes the map). Merged and preview entries
+       * carry the apiStream stamp; a local publish never does. The
+       * id-change effect already fits geo-locked previews. */
+      if (map && e && !e.apiStream) {
         if (e.bounds) {
           map.fitBounds(e.bounds, {
             padding: [48, 48], maxZoom: e.suggestedZoom || 18, animate: true,
@@ -108,7 +113,7 @@ export function App() {
       user: store.user, me: store.me,
       onSignIn: store.signIn, onSignOut: store.signOut,
       onNewSim: store.startDraft,
-      onExport: () => setExportOpen(true),
+      onExport: store.startExport,
     }),
     h(MapProvider.Provider, { value: map },
       h(MapOverlayProvider.Provider, { value: overlayApi },
@@ -137,8 +142,8 @@ export function App() {
           store.view === 'admin' ? h(AdminView, { store }) : null,
           store.view === 'contribute' ? h(ContributeView, { store }) : null,
           store.view === 'tutorials' ? h(TutorialsView, { store }) : null,
-          exportOpen && map ? h(ExportFlow, {
-            map, onClose: () => setExportOpen(false),
+          store.exportOpen && map ? h(ExportFlow, {
+            map, onClose: store.closeExport,
           }) : null,
           store.toast ? h('div', {
             className: 'toast', onClick: store.dismissToast,

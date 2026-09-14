@@ -131,6 +131,9 @@ OUT = f"""<title>Balagere T Junction — Data</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Every network, demand, result and script behind
 the Balagere T Junction traffic study.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>{CSS}
 .act i:empty{{display:none}}
 td a{{font-family:var(--mono);font-size:13px;color:var(--accent-ink);

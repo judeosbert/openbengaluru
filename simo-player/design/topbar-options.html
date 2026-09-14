@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIMO — top bar redesign · options sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --serif:"Fraunces","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:"Inter",-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --r-xs:6px;--r-sm:10px;--r-md:14px;--r-lg:16px;
+
+  /* Paper theme (the live app theme) */
+  --ground:#F7F1E7;--surface:#FFFDF8;--surface2:#F2E9DB;
+  --hair:rgba(74,55,40,.14);--hair-strong:rgba(74,55,40,.26);
+  --ink:#2E241C;--ink2:#5C4C3E;--ink3:#8A7A66;
+  --accent:#C2502E;--accent-ink:#A03F22;--accent-soft:rgba(194,80,46,.10);
+  --on-accent:#FFFDF8;--green:#3E7C4F;--amber:#B8771F;--red:#BE4436;
+  --veil:rgba(58,42,28,.45);
+  --shadow-lg:0 18px 44px rgba(74,55,40,.16),0 4px 14px rgba(74,55,40,.10);
+  --shadow-sm:0 6px 16px rgba(74,55,40,.10);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#EDE4D3;color:#3A2E22;font-family:var(--sans);
+  font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.page{max-width:1180px;margin:0 auto;padding:34px 26px 90px}
+
+.ds-header h1{font-family:var(--serif);font-weight:600;font-size:34px;
+  letter-spacing:-.01em;margin:0 0 6px}
+.ds-header .intent{margin:0 0 8px;font-size:14.5px;color:#6B5A48;max-width:76ch}
+.ds-header .elements{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;
+  color:#8A7A66;margin:0 0 26px}
+
+.sec{margin:44px 0 8px;scroll-margin-top:20px}
+.sec-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 4px}
+.sec-head .n{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:#A03F22}
+.sec-head h2{font-family:var(--serif);font-weight:600;font-size:25px;margin:0;letter-spacing:-.01em}
+.sec-note{margin:0 0 16px;font-size:12.5px;color:#6B5A48;max-width:80ch}
+
+.opt{background:var(--ground);border:1px solid var(--hair);border-radius:18px;
+  padding:18px 20px 22px;margin:0 0 26px}
+.opt-when{font-size:12px;color:#6B5A48;margin:0 0 14px}
+.opt .bar{border-radius:var(--r-md);margin-bottom:14px}
+.state-tag{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:#8A7A66;
+  margin:10px 0 -4px}
+.opt ul{margin:6px 0 0;padding-left:20px;font-size:13px;color:#5C4C3E}
+.opt ul li{margin:3px 0}
+.opt ul li b{color:#2E241C}
+.verdict{margin-top:12px;font-size:12px;color:#6B5A48;border-top:1px dashed var(--hair);
+  padding-top:10px}
+.verdict .vd{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:#A03F22}
+
+/* ---------- shared topbar primitives (paper) ---------- */
+.bar{display:flex;align-items:center;gap:16px;background:var(--surface);
+  border:1px solid var(--hair);border-radius:var(--r-md);padding:10px 16px;
+  box-shadow:var(--shadow-sm);font-size:13px;flex-wrap:nowrap}
+.mark{display:flex;align-items:center;gap:10px;flex:none}
+.mark i{width:5px;height:20px;background:var(--accent);border-radius:3px;display:block}
+.mark .nm{font-family:var(--serif);font-weight:700;font-size:17px;color:var(--ink);white-space:nowrap}
+.mark small{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink3);
+  font-weight:600;white-space:nowrap}
+
+button{font:inherit;cursor:pointer}
+.btn{display:inline-flex;align-items:center;gap:7px;background:var(--accent);
+  color:var(--on-accent);border:1px solid transparent;border-radius:var(--r-sm);
+  font-size:12.5px;font-weight:600;padding:8px 14px;box-shadow:var(--shadow-sm);white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--ink2);border-color:var(--hair-strong);
+  box-shadow:none;font-weight:500}
+.btn.ghost:hover{color:var(--ink);border-color:var(--ink3)}
+.btn:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+
+.spacer{flex:1}
+
+/* nav links (option A) */
+.navlinks{display:flex;align-items:center;gap:2px;min-width:0}
+.navlinks a{display:inline-flex;align-items:center;padding:10px 11px;font-size:13px;
+  font-weight:500;color:var(--ink2);text-decoration:none;border-radius:var(--r-sm);
+  white-space:nowrap;border:0;background:transparent;cursor:pointer;position:relative}
+.navlinks a:hover{color:var(--ink);background:var(--surface2)}
+.navlinks a.on{color:var(--accent-ink);font-weight:600}
+.navlinks a.on::after{content:"";position:absolute;left:11px;right:11px;bottom:4px;
+  height:2px;border-radius:2px;background:var(--accent)}
+
+/* segmented pill (option B) */
+.pill{display:flex;gap:2px;background:var(--surface2);border:1px solid var(--hair);
+  border-radius:999px;padding:3px}
+.pill a{border:0;background:transparent;color:var(--ink2);font-size:12px;font-weight:500;
+  padding:6px 13px;border-radius:999px;white-space:nowrap;cursor:pointer;text-decoration:none}
+.pill a:hover{color:var(--ink)}
+.pill a.on{background:var(--surface);color:var(--ink);font-weight:600;
+  box-shadow:var(--shadow-sm);border:1px solid var(--hair)}
+
+/* tab strip (option C) */
+.tabstrip{display:flex;gap:0;background:var(--surface);border:1px solid var(--hair);
+  border-radius:var(--r-md);border-bottom:0;border-radius:var(--r-md) var(--r-md) 0 0;
+  box-shadow:var(--shadow-sm);padding:0 16px}
+.tabstrip a{border:0;background:transparent;color:var(--ink2);font-size:12.5px;
+  font-weight:500;padding:12px 13px 10px;cursor:pointer;text-decoration:none;
+  border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabstrip a:hover{color:var(--ink)}
+.tabstrip a.on{color:var(--accent-ink);font-weight:600;border-bottom-color:var(--accent)}
+.stack{border-radius:var(--r-md);overflow:hidden}
+.stack .bar{border-radius:0;border:0;border-bottom:1px solid var(--hair);box-shadow:none}
+.stack .tabstrip{border:1px solid var(--hair);border-top:0;border-radius:0 0 var(--r-md) var(--r-md);
+  box-shadow:var(--shadow-sm)}
+
+/* avatar + menu (options A/D) */
+.avatar{display:inline-flex;align-items:center;gap:8px;background:transparent;
+  border:1px solid var(--hair-strong);border-radius:999px;padding:3px 10px 3px 3px;
+  cursor:pointer;color:var(--ink2);font-size:12.5px;font-weight:600}
+.avatar:hover{border-color:var(--ink3)}
+.avatar .ph{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);
+  color:var(--accent-ink);display:flex;align-items:center;justify-content:center;
+  font-family:var(--serif);font-weight:700;font-size:12px;flex:none}
+.avatar svg{width:10px;height:10px;stroke:var(--ink3)}
+.menu-wrap{position:relative;display:inline-block}
+.menu{position:absolute;right:0;top:calc(100% + 8px);min-width:210px;background:var(--surface);
+  border:1px solid var(--hair);border-radius:var(--r-md);box-shadow:var(--shadow-lg);
+  padding:6px;z-index:5}
+.menu .mi{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;
+  color:var(--ink2);font-size:13px;font-weight:500;padding:9px 11px;border-radius:var(--r-sm);
+  cursor:pointer;text-align:left}
+.menu .mi:hover{background:var(--surface2);color:var(--ink)}
+.menu .mi svg{width:14px;height:14px;stroke:currentColor;fill:none;flex:none}
+.menu .msep{height:1px;background:var(--hair);margin:5px 4px}
+.menu .mi.danger{color:var(--red)}
+.menu .who{padding:9px 11px;font-size:11px;color:var(--ink3);font-family:var(--mono);
+  letter-spacing:.05em}
+
+/* icon buttons (option D) */
+.icobtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
+  border:1px solid transparent;border-radius:var(--r-sm);background:transparent;
+  color:var(--ink2);cursor:pointer}
+.icobtn:hover{background:var(--surface2);color:var(--ink)}
+.icobtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6}
+
+svg.ic{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none}
+
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:900px){.compare{grid-template-columns:1fr}}
+
+/* primitives section */
+.prim{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.prim .pcard{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-md);
+  padding:14px 16px;box-shadow:var(--shadow-sm)}
+.prim h4{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:#A03F22;margin:0 0 10px}
+.prim .demo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:44px}
+.prim p{font-size:12px;color:#6B5A48;margin:8px 0 0}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="ds-header">
+  <h1>Top bar — redesign options</h1>
+  <p class="intent">The element set is now stable, so this sheet compares common web top-bar
+    patterns for how naturally they absorb the <em>next</em> item — a new public view, a
+    signed-in-only view, a new action — without a layout rewrite. Every option renders the
+    exact same element inventory; only arrangement and affordances change.</p>
+  <p class="elements">ELEMENTS &nbsp;·&nbsp; brand (OpenBengaluru / what-would-you-change) &nbsp;·&nbsp;
+    public views: Discover, Contribute, Tutorials &nbsp;·&nbsp; gated views: Dashboard (signed in),
+    Admin (admin) &nbsp;·&nbsp; auth: Google sign-in / signed-in chip &nbsp;·&nbsp;
+    actions: Export area, Submit a sim (primary)</p>
+</div>
+
+<!-- ================= OPTION A ================= -->
+<div class="sec" id="a">
+  <div class="sec-head"><span class="n">A</span><h2>App-shell nav bar</h2></div>
+  <p class="sec-note">Inspiration: Linear, Stripe, GitHub, Notion. Brand left, plain nav links
+    directly after the brand, actions pinned right. New views are appended to the nav list;
+    a link is one config entry, and overflow (if ever needed) is a natural "More" tail.</p>
+</div>
+<div class="opt">
+  <div class="opt-when">Anonymous visitor</div>
+  <div class="bar">
+    <div class="mark"><i></i><span class="nm">OpenBengaluru</span><small>WHAT WOULD YOU CHANGE?</small></div>
+    <nav class="navlinks">
+      <a class="on">Discover</a><a>Contribute</a><a>Tutorials</a>
+    </nav>
+    <div class="spacer"></div>
+    <button class="btn ghost">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3"/></svg>
+      Export area</button>
+    <button class="btn ghost">Sign in with Google</button>
+    <button class="btn">Submit a sim</button>
+  </div>
+
+  <div class="state-tag">SIGNED IN · ADMIN (menu open)</div>
+  <div class="bar" style="position:relative;z-index:3">
+    <div class="mark"><i></i><span class="nm">OpenBengaluru</span><small>WHAT WOULD YOU CHANGE?</small></div>
+    <nav class="navlinks">
+      <a>Discover</a><a>Contribute</a><a>Tutorials</a><a>Dashboard</a><a>Admin</a>
+    </nav>
+    <div class="spacer"></div>
+    <button class="btn ghost">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3"/></svg>
+      Export area</button>
+    <div class="menu-wrap">
+      <button class="avatar"><span class="ph">J</span>Jude
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+      <div class="menu">
+        <div class="who">SIGNED IN · JUDE@EXAMPLE.ORG</div>
+        <button class="mi"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg>Dashboard</button>
+        <button class="mi"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg>Admin</button>
+        <div class="msep"></div>
+        <button class="mi danger"><svg viewBox="0 0 24 24"><path d="M9 4h6m-7 0v3h8V4M7 7l1 13h8l1-13"/></svg>Sign out</button>
+      </div>
+    </div>
+    <button class="btn">Submit a sim</button>
+  </div>
+
+  <div class="compare">
+    <div>
+      <ul>
+        <li><b>Extensibility:</b> nav is a flat config list <code>{id,label,visible(state)}</code> —
+          a new view is one entry; the underline-indicator pattern does not run out of room as
+          fast as a segmented control.</li>
+        <li><b>Auth degrades gently:</b> Dashboard/Admin appear as links when entitled, or fold
+          into the avatar menu (variant shown right).</li>
+        <li><b>Export area</b> stays a labeled ghost action — it is a map utility, so it reads
+          better as text than as an icon.</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><b>Risk:</b> with brand + tagline + 5 links + 4 right actions the bar is full at
+          ~1000px; needs a wrap/overflow rule (see notes).</li>
+        <li><b>Note:</b> the two signed-in states can be combined — Dashboard/Admin as nav
+          links <i>and</i> the avatar menu as the account surface only (sign out). Pick one.</li>
+      </ul>
+      <p class="verdict"><span class="vd">VERDICT</span> — strongest long-run shape; the one
+        most product sites converge on. Gated items either join the nav or the menu, both cheap.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= OPTION B ================= -->
+<div class="sec" id="b">
+  <div class="sec-head"><span class="n">B</span><h2>Centered segmented pill</h2></div>
+  <p class="sec-note">Inspiration: Vercel dashboard, Figma file switcher, Railway. The current
+    layout kept, restyled: the segmented control becomes a soft pill with a raised active
+    thumb. Familiar to the app today; the cheapest change that still looks current.</p>
+</div>
+<div class="opt">
+  <div class="opt-when">Anonymous visitor</div>
+  <div class="bar">
+    <div class="mark"><i></i><span class="nm">OpenBengaluru</span><small>WHAT WOULD YOU CHANGE?</small></div>
+    <div class="spacer"></div>
+    <nav class="pill">
+      <a class="on">Discover</a><a>Contribute</a><a>Tutorials</a>
+    </nav>
+    <div class="spacer"></div>
+    <button class="btn ghost">Export area</button>
+    <button class="btn ghost">Sign in with Google</button>
+    <button class="btn">Submit a sim</button>
+  </div>
+
+  <div class="state-tag">SIGNED IN · ADMIN</div>
+  <div class="bar">
+    <div class="mark"><i></i><span class="nm">OpenBengaluru</span><small>WHAT WOULD YOU CHANGE?</small></div>
+    <div class="spacer"></div>
+    <nav class="pill">
+      <a>Discover</a><a>Contribute</a><a>Tutorials</a><a>Dashboard</a><a>Admin</a>
+    </nav>
+    <div class="spacer"></div>
+    <button class="btn ghost">Export area</button>
+    <button class="avatar"><span class="ph">J</span>Jude</button>
+    <button class="btn">Submit a sim</button>
+  </div>
+
+  <div class="compare">
+    <div>
+      <ul>
+        <li><b>Extensibility:</b> same flat nav config as A; the pill grows horizontally —
+          fine to ~6 items, then cramped.</li>
+        <li><b>Least churn:</b> keeps the app's current three-zone mental model and the
+          existing <code>.viewtoggle</code> markup (restyled), so tests/CSS deltas stay small.</li>
+        <li><b>Centered nav + pinned actions</b> reads "product tool" — good when Discover
+          stays the hero view.</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><b>Risk:</b> centered controls are the first thing to break on narrow screens —
+          they cannot wrap gracefully; needs a breakpoint decision sooner than A.</li>
+        <li><b>Risk:</b> admin state (5 segments) already fills the pill; one more view
+          forces the overflow question.</li>
+      </ul>
+      <p class="verdict"><span class="vd">VERDICT</span> — best if you want a visual refresh
+        with minimal structural risk; extensibility ceiling is lower than A.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= OPTION C ================= -->
+<div class="sec" id="c">
+  <div class="sec-head"><span class="n">C</span><h2>Slim header + tab strip</h2></div>
+  <p class="sec-note">Inspiration: YouTube, Stripe docs, Atlassian. Row 1: brand, auth,
+    actions. Row 2: view tabs. The most room of any option — but the map already lives under
+    a top bar, so this costs vertical map space.</p>
+</div>
+<div class="opt">
+  <div class="opt-when">Anonymous visitor</div>
+  <div class="stack">
+    <div class="bar">
+      <div class="mark"><i></i><span class="nm">OpenBengaluru</span><small>WHAT WOULD YOU CHANGE?</small></div>
+      <div class="spacer"></div>
+      <button class="btn ghost">Export area</button>
+      <button class="btn ghost">Sign in with Google</button>
+      <button class="btn">Submit a sim</button>
+    </div>
+    <div class="tabstrip">
+      <a class="on">Discover</a><a>Contribute</a><a>Tutorials</a>
+    </div>
+  </div>
+
+  <div class="state-tag">SIGNED IN · ADMIN</div>
+  <div class="stack">
+    <div class="bar">
+      <div class="mark"><i></i><span class="nm">OpenBengaluru</span><small>WHAT WOULD YOU CHANGE?</small></div>
+      <div class="spacer"></div>
+      <button class="btn ghost">Export area</button>
+      <button class="avatar"><span class="ph">J</span>Jude</button>
+      <button class="btn">Submit a sim</button>
+    </div>
+    <div class="tabstrip">
+      <a>Discover</a><a>Contribute</a><a>Tutorials</a><a>Dashboard</a><a>Admin</a>
+    </div>
+  </div>
+
+  <div class="compare">
+    <div>
+      <ul>
+        <li><b>Extensibility:</b> unlimited — the tab strip scrolls/shrinks independently of
+          the action bar; the two concerns never fight for width.</li>
+        <li><b>Clear separation:</b> "where am I" (tabs) vs "what can I do" (actions) never
+          compete in one row.</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><b>Cost:</b> ~40px of permanent vertical space taken from the map — the app's
+          core surface. On short laptop screens this is a real tax.</li>
+        <li><b>Feel:</b> reads "content site / docs", less "map tool".</li>
+      </ul>
+      <p class="verdict"><span class="vd">VERDICT</span> — most extensible, but the map-space
+        tax and content-site feel make it the weakest fit for a map-first product.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= OPTION D ================= -->
+<div class="sec" id="d">
+  <div class="sec-head"><span class="n">D</span><h2>Compact utility bar + overflow menu</h2></div>
+  <p class="sec-note">Inspiration: Google Maps header, Figma toolbar, Slack. Brand left;
+    primary nav as compact links; everything secondary (Export area, later: about, help,
+    settings) lives behind one overflow menu. The most aggressive decluttering.</p>
+</div>
+<div class="opt">
+  <div class="opt-when">Anonymous visitor (overflow open)</div>
+  <div class="bar" style="position:relative;z-index:2">
+    <div class="mark"><i></i><span class="nm">OpenBengaluru</span></div>
+    <nav class="navlinks">
+      <a class="on">Discover</a><a>Contribute</a><a>Tutorials</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="menu-wrap">
+      <button class="icobtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+      <div class="menu">
+        <button class="mi"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3"/></svg>Export area</button>
+        <button class="mi"><svg viewBox="0 0 24 24"><path d="M4 19V6a2 2 0 012-2h12a2 2 0 012 2v13"/><path d="M9 19v-6h6v6"/></svg>About the project</button>
+        <button class="mi"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 10v6m0-9v.01"/></svg>Help / FAQ</button>
+      </div>
+    </div>
+    <button class="btn ghost">Sign in with Google</button>
+    <button class="btn">Submit a sim</button>
+  </div>
+
+  <div class="state-tag">SIGNED IN · ADMIN</div>
+  <div class="bar">
+    <div class="mark"><i></i><span class="nm">OpenBengaluru</span></div>
+    <nav class="navlinks">
+      <a>Discover</a><a>Contribute</a><a>Tutorials</a><a>Dashboard</a><a>Admin</a>
+    </nav>
+    <div class="spacer"></div>
+    <button class="icobtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+    <button class="avatar"><span class="ph">J</span>Jude</button>
+    <button class="btn">Submit a sim</button>
+  </div>
+
+  <div class="compare">
+    <div>
+      <ul>
+        <li><b>Extensibility:</b> the overflow menu absorbs any number of secondary actions
+          with zero layout cost — the strongest "add things later" story for <i>actions</i>.</li>
+        <li><b>Calmest bar:</b> 2 buttons + menu visible at all times; brand tagline drops,
+          bar can go shorter.</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><b>Risk:</b> Export area becomes discoverable only inside the menu — it is a
+          workflow entry (draw a bbox, download a net), so hiding it may hurt usage.</li>
+        <li><b>Tagline loss:</b> "WHAT WOULD YOU CHANGE?" is the project's voice; dropping
+          it is a brand decision, not a layout one.</li>
+      </ul>
+      <p class="verdict"><span class="vd">VERDICT</span> — best raw extensibility for actions;
+        the Export-area discoverability tradeoff is the one thing to weigh. A/D hybrids work
+        (keep Export as ghost, overflow for the rest).</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PRIMITIVES ================= -->
+<div class="sec" id="primitives">
+  <div class="sec-head"><span class="n">§</span><h2>Shared primitives (any option)</h2></div>
+  <p class="sec-note">Whatever layout wins, these are the extensible building blocks the
+    implementation should ship — each is data-driven, so future items slot in without new
+    markup.</p>
+</div>
+<div class="opt">
+  <div class="prim">
+    <div class="pcard">
+      <h4>NAV CONFIG (PURE DATA)</h4>
+      <div class="demo" style="font-family:var(--mono);font-size:10.5px;color:#5C4C3E">
+        [{id:'discover',label:'Discover',<br>&nbsp;show:s=>true},<br>
+        &nbsp;{id:'dashboard',…<br>&nbsp;&nbsp;show:s=>s.user&&s.me},<br>
+        &nbsp;{id:'admin',…<br>&nbsp;&nbsp;show:s=>s.user&&s.me?.isAdmin}]
+      </div>
+      <p>Ordered list of {id, label, visibility predicate} driving whichever nav affordance
+        wins. Adding a view = adding an entry, in the component file or the store.</p>
+    </div>
+    <div class="pcard">
+      <h4>AVATAR MENU</h4>
+      <div class="demo">
+        <button class="avatar"><span class="ph">J</span>Jude
+          <svg viewBox="0 0 24 24" style="width:10px;height:10px;stroke:#8A7A66"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <p>Signed-in chip → dropdown: identity header, gated links (Dashboard/Admin if they
+        move here), sign out. Replaces the "SIGNED IN AS name [Sign out]" inline row; shows
+        the Google photo when present.</p>
+    </div>
+    <div class="pcard">
+      <h4>PRIMARY CTA</h4>
+      <div class="demo"><button class="btn">Submit a sim</button></div>
+      <p>Exactly one accent-filled button per bar, always the last right element. "Export
+        area" and auth become ghost/icon affordances so the hierarchy survives new actions.</p>
+    </div>
+    <div class="pcard">
+      <h4>OVERFLOW MENU</h4>
+      <div class="demo">
+        <button class="icobtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+        <span style="font-size:12px;color:#8A7A66">⋮ / “More”</span>
+      </div>
+      <p>Generic item-list menu (same component as the avatar menu body). Absorbs secondary
+        actions and, at small widths, nav links that no longer fit.</p>
+    </div>
+  </div>
+  <p class="verdict" style="border-top:1px dashed var(--hair);margin-top:16px">
+    <span class="vd">RESPONSIVE RULE (ALL OPTIONS)</span> — one breakpoint: below ~820px the
+    nav (links or pill) collapses into the overflow menu, leaving brand + avatar + CTA; the
+    bar never wraps to two lines. Decide once, reuse for every future item.</p>
+</div>
+
+</div>
+</body>
+</html>

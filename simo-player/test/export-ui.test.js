@@ -89,6 +89,48 @@ it('ExportFlow: drag-draw state machine (armed -> drawn) with move + redraw', ()
   expect(src, 'Escape exits draw mode').toMatch(/Escape/);
 });
 
+it('ExportFlow: mode transitions never remove the drawn box', () => {
+  const src = fs.readFileSync(EF, 'utf8');
+  const gestureCleanup = src.match(/return \(\) => \{[\s\S]*?\}, \[mode, map\]\);/);
+  expect(gestureCleanup, 'the mode-keyed gesture effect exists').toBeTruthy();
+  expect(gestureCleanup[0], 'gesture-effect cleanup never removes the '
+    + 'rect — the box survives armed -> drawn -> "Use this box" (modal)')
+    .not.toMatch(/removeLayer/);
+});
+
+it('ExportFlow: the drawn box is torn down only on flow unmount', () => {
+  const src = fs.readFileSync(EF, 'utf8');
+  expect(src, 'an unmount-scoped effect removes the rect (Cancel / '
+    + 'Escape / veil click)')
+    .toMatch(/React\.useEffect\(\(\) => \(\) => \{[\s\S]{0,300}removeLayer[\s\S]{0,300}\}, \[map\]\);/);
+});
+
+it('ExportFlow: a redraw removes the old box only when the new draw starts', () => {
+  const src = fs.readFileSync(EF, 'utf8');
+  expect(src, 'the new draw starts by replacing the old box')
+    .toMatch(/if \(boxRef\.current\) map\.removeLayer\(boxRef\.current\);/);
+});
+
+it("ExportFlow: 'Use current view' re-syncs the visible rect", () => {
+  const src = fs.readFileSync(EF, 'utf8');
+  expect(src, 'useView updates the drawn rect bounds to the current view')
+    .toMatch(/const useView = \(\) => \{[\s\S]{0,500}boxRef\.current[\s\S]{0,300}setBounds/);
+});
+
+it('ExportFlow: scroll zoom stays available while the draw bar is up', () => {
+  const src = fs.readFileSync(EF, 'utf8');
+  const setup = src.match(/if \(mode === 'modal'\) return undefined;[\s\S]{0,400}?const el = map\.getContainer\(\);/);
+  expect(setup, 'the armed/drawn effect setup block exists').toBeTruthy();
+  expect(setup[0], 'entering draw mode must not disable scrollWheelZoom '
+    + 'upfront — zoom works while the bar is up')
+    .not.toMatch(/scrollWheelZoom\.disable/);
+  expect(src, 'scroll zoom locks only during an active gesture (draw or '
+    + 'move) so the box extent is stable mid-drag')
+    .toMatch(/map\.dragging\.disable\(\);\s*map\.scrollWheelZoom\.disable\(\);/);
+  expect(src, 'mouseup re-enables scroll zoom along with dragging')
+    .toMatch(/const up = \(\) => \{[\s\S]{0,600}map\.scrollWheelZoom\.enable\(\)/);
+});
+
 it('ExportFlow: status surfaces server errors verbatim + the player-server hint', () => {
   const src = fs.readFileSync(EF, 'utf8');
   expect(src, '401 -> sign-in hint').toMatch(/sign in to export/);
@@ -96,4 +138,20 @@ it('ExportFlow: status surfaces server errors verbatim + the player-server hint'
     .toMatch(/export needs the player server/);
   expect(src, 'server error text is shown, not swallowed').toMatch(
     /e\.message/);
+});
+
+/* The sign-in gate lives in the store (same popup as the submit flow) —
+ * App must route the TopBar Export entry through it and render the flow
+ * from store state so the gate's Google CTA can open it after sign-in. */
+it('Export entry routes through the store sign-in gate', () => {
+  const app = fs.readFileSync(
+    path.join(PLAYER_ROOT, 'src', 'components', 'App.js'), 'utf8');
+  expect(app, 'TopBar Export must route through the store gate action '
+    + '(signed out -> the same SignInGate popup the submit flow uses)')
+    .toMatch(/onExport: store\.startExport/);
+  expect(app, 'ExportFlow renders from store-held exportOpen — the gate '
+    + 'CTA can open it after a successful sign-in')
+    .toMatch(/store\.exportOpen && map \? h\(ExportFlow/);
+  expect(app, 'flow close hands through the store')
+    .toMatch(/onClose: store\.closeExport/);
 });
