@@ -1,7 +1,8 @@
 /* DashboardView (plan: review flow + dashboards) — the signed-in user's
  * submission dashboard: status chips, expandable detail (metadata, files,
- * comment thread + reply box), and the row actions: View on map (active),
- * Preview (own pending/rejected/inactive with artifacts), Resubmit
+ * comment thread + reply box), and the row actions: Open (expand/collapse,
+ * same toggle as the title), View on map (active), Preview (own
+ * pending/rejected/inactive with artifacts), Resubmit
  * (non-active — reopens the wizard prefilled, id pinned).
  *
  * Full-screen overlay panel over the map (SubmitFlow shell pattern); no
@@ -147,16 +148,19 @@ export function DashboardView({ store }) {
 
   const renderActions = (row) => {
     const out = [];
+    out.push(h('button', { key: 'op', className: 'linkbtn',
+      onClick: () => setOpenId(openId === row.id ? null : row.id) },
+    'Open'));
     if (row.status === 'active') {
-      out.push(h('button', { key: 'vm', onClick: () => viewOnMap(row) },
-        'View on map'));
+      out.push(h('button', { key: 'vm', className: 'linkbtn',
+        onClick: () => viewOnMap(row) }, 'View on map'));
     }
     if (row.status !== 'active' && row.sim_ready) {
-      out.push(h('button', { key: 'pv', className: 'ghost',
+      out.push(h('button', { key: 'pv', className: 'linkbtn',
         onClick: () => preview(row) }, 'Preview'));
     }
     if (row.status !== 'active') {
-      out.push(h('button', { key: 'rs', className: 'ghost',
+      out.push(h('button', { key: 'rs', className: 'linkbtn',
         onClick: () => resubmit(row) }, 'Resubmit'));
     }
     return out;
