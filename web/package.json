@@ -1,9 +1,0 @@
-{
-  "name": "balagere-t-junction",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Balagere T Junction — no-construction traffic study",
-  "main": "server.js",
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=18" }
-}
