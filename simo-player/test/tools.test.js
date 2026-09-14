@@ -359,6 +359,84 @@ it('no geo no anchor', () => {
   expect(sc).not.toHaveProperty('geoLocked');
 });
 
+/* Server-side recentering for hand nets (no geo provenance) -----------------
+ * parseNetXml recenters the wizard preview to the lane bounds centroid, but
+ * buildPack embedded RAW net coordinates — playback anchors raw sim (0,0)
+ * (the net's bottom-left min corner) at the entry pin, so a submitted sim
+ * drew its network up-and-right from the pin instead of centered on it.
+ * buildPack must mirror the client recenter: shift lanes/stops/arms/frames
+ * by the lane bounds centroid when the scenario has no latlngMap/utm. */
+
+function rawScenario() {
+  /* netconvert hand-net shape: coords start at (0,0), extents 0..2000 x
+   * 0..500 dm -> centroid (1000, 250). */
+  return {
+    geometry: {
+      lanes: [{ p: [[0, 0], [2000, 0]], w: 3.2 },
+              { p: [[0, 500], [2000, 500]], w: 3.2 }],
+      arms: { Panathur: [0, 0], Varthur: [2000, 0] },
+      phases: [], links: {}, stops: { NE1_0: [2000, 500] },
+    },
+    geo: null,
+    frames: [[[7, 100, 200, 90, 80, 0]]],
+    stats: [[0, 1, 0, 0, 0]],
+  };
+}
+
+it('buildPack recenters non-geo lanes/stops/arms to the bounds centroid', () => {
+  const sc = buildPack({ today: rawScenario() }, 1).scenarios.today;
+  expect(sc.lanes[0].p).toEqual([[-1000, -250], [1000, -250]]);
+  expect(sc.lanes[1].p).toEqual([[-1000, 250], [1000, 250]]);
+  expect(sc.arms.Panathur).toEqual([-1000, -250]);
+  expect(sc.arms.Varthur).toEqual([1000, -250]);
+  expect(sc.stops.NE1_0).toEqual([1000, 250]);
+});
+
+it('buildPack shifts vehicle frames by the same recenter', () => {
+  const sc = buildPack({ today: rawScenario() }, 1).scenarios.today;
+  const eng = new TrafficSimEngine({ nFrames: 1,
+    scenarios: { today: { frames: sc.frames } } });
+  expect(eng.getVehiclesAtTime(0, 'today')).toEqual([[7, -900, -50, 180, 10, 0]]);
+});
+
+it('buildPack leaves utm-only geo-locked scenarios untouched', () => {
+  const d = rawScenario();
+  d.geo = { latlngMap: null,
+    utm: { offX: '-794602.11', offY: '-1431388.13', zone: 43, south: false } };
+  const sc = buildPack({ today: d }, 1).scenarios.today;
+  expect(sc.lanes[0].p).toEqual([[0, 0], [2000, 0]]);
+  expect(sc.arms.Panathur).toEqual([0, 0]);
+  const eng = new TrafficSimEngine({ nFrames: 1,
+    scenarios: { today: { frames: sc.frames } } });
+  expect(eng.getVehiclesAtTime(0, 'today')).toEqual([[7, 100, 200, 180, 10, 0]]);
+});
+
+it('buildPack recenter is a no-op without lanes', () => {
+  const d = rawScenario();
+  d.geometry.lanes = [];
+  const sc = buildPack({ today: d }, 1).scenarios.today;
+  const eng = new TrafficSimEngine({ nFrames: 1,
+    scenarios: { today: { frames: sc.frames } } });
+  expect(eng.getVehiclesAtTime(0, 'today')).toEqual([[7, 100, 200, 180, 10, 0]]);
+});
+
+it('buildEntry hands the server a net centered on the entry anchor', () => {
+  const pack = buildPack({ today: rawScenario() }, 1);
+  const { entry } = buildEntry(pack, {
+    title: 'Wizard Run', id: 'wizard-run', anchor: [12.9517, 77.7894],
+    netGeo: { latlngMap: null, utm: null },
+  });
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const l of entry.scenarios.today.lanes) {
+    for (const p of l.p) {
+      x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+      y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]);
+    }
+  }
+  /* playback anchors sim (0,0) at entry.anchor — the centroid must sit there */
+  expect([(x0 + x1) / 2, (y0 + y1) / 2]).toEqual([0, 0]);
+});
+
 /* TestTypeMapping ----------------------------------------------------------------
  * blgr_pack.buildTypeMap: rou vType id/vClass -> render-class index. */
 
