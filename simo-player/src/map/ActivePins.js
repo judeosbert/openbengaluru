@@ -9,18 +9,23 @@
  * is a transformed stacking context pinned at effective 0 in that
  * container — so no Leaflet pane (or tooltip) can ever render above the
  * roads. The pins are therefore a plain DOM layer in the container itself
- * at z 645 (above the canvas, below the Leaflet controls), repositioned
- * from container points on move/zoom. Clicking a pin plays that sim.
+ * at z 645 (above the canvas, below the Leaflet controls). Pins whose
+ * anchors land within OVERLAP_R container px would stack invisibly, so
+ * every layout pass spreads overlapping pins into a vertical list (the
+ * pure spreadOverlaps helper) — each marker stays visible and individually
+ * clickable, and clicking a pin plays that sim.
  * .sim-pin/.dot/.pip/.tag styles ride in the generated data.js CSS blob —
  * same class names as the old ZonesAndPins layer. */
 import React from 'react';
 import L from 'leaflet';
-import { pinEntries, batches } from '../lib/pins.js';
+import { pinEntries, batches, spreadOverlaps } from '../lib/pins.js';
 import { escapeHtml } from './overlay.js';
 
 const BATCH_SIZE = 40;    // pins per timer tick
 const BATCH_MS = 30;      // spacing between ticks
 const LAYER_Z = 645;      // above .sim-canvas (640), below the controls
+const OVERLAP_R = 16;     // container px — pins closer than this overlap
+const SPREAD_PX = 20;     // vertical gap in a spread list (>= pin height)
 
 export function ActivePins({ map, catalog, activeSimId, onViewSim }) {
   React.useEffect(() => {
@@ -34,17 +39,32 @@ export function ActivePins({ map, catalog, activeSimId, onViewSim }) {
     const timers = [];
     let cancelled = false;
 
-    const place = (el, ll) => {
-      const cp = map.latLngToContainerPoint(L.latLng(ll[0], ll[1]));
-      el.style.left = cp.x + 'px';
-      el.style.top = cp.y + 'px';
+    /* container points of every placed pin, overlapped pins spread into
+     * vertical lists (pure helper — view-relative, recomputed each pass),
+     * then repositioned. Leaflet Points are read as .x/.y — a Point has
+     * no toArray method. */
+    const layout = () => {
+      const raw = new Map();
+      pins.forEach((p, id) => {
+        const cp = map.latLngToContainerPoint(L.latLng(p.latlng[0],
+          p.latlng[1]));
+        raw.set(id, [cp.x, cp.y]);
+      });
+      spreadOverlaps(raw, OVERLAP_R, SPREAD_PX).forEach(([x, y], id) => {
+        const p = pins.get(id);
+        if (p) {
+          p.el.style.left = x + 'px';
+          p.el.style.top = y + 'px';
+        }
+      });
     };
+
     /* pan: 'move' fires per frame while dragging; zoom: 'zoom' fires at
      * the animation start (pins jump to the target view and stay put —
      * the map scales underneath for ~250 ms before zoomend redraw) */
     const sync = () => {
       if (cancelled) return;
-      pins.forEach((p) => place(p.el, p.latlng));
+      layout();
     };
 
     batches(entries.length, BATCH_SIZE).forEach((idxs, k) => {
@@ -68,10 +88,10 @@ export function ActivePins({ map, catalog, activeSimId, onViewSim }) {
             ev.stopPropagation();
             onViewSim(e.id);
           });
-          place(el, e.anchor);
           layer.appendChild(el);
           pins.set(e.id, { el, latlng: e.anchor });
         }
+        layout();
       }, BATCH_MS * k));
     });
 
