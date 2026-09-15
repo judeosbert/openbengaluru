@@ -26,8 +26,9 @@ generated data + JSONP streams are served from `public/`.
   `cp .env.example .env` then `set -a; . ./.env; set +a; npm start`.
   **Real wizard simulations need either `npm run dev` (proxy wired) or
   opening the player via this server URL** — on `file://` (or vite-only
-  origins without the proxy) a submit falls back to a geometry-only preview
-  entry and Export shows the run-via-server hint.
+  origins without the proxy) submit AND export show the run-via-server
+  hint; nothing is ever published locally (submit failures keep the wizard
+  open with an inline error, catalog untouched).
   Optional worker-pool sizing: `SIMO_WORKER_COUNT` (default cpus−1),
   `SIMO_WORKER_QUEUE_MAX` (default 32 — a full queue answers 503 busy),
   `SIMO_CONVERT_TIMEOUT_MS` (default 120000).
@@ -80,6 +81,10 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   util, profile, catalogMerge, ingestSlot, introScene). **Must stay DOM-free and
   react/leaflet-free** — enforced by `test/lib-purity.test.js`. New pure
   logic goes here so vitest's node environment can run it directly.
+  `engine.js` decodes BLGR frames/stats ONLY — the synthetic-traffic
+  fallback is gone (frames-less scenarios yield no vehicles and zero
+  stats). `draft.js` keeps just the id helpers (`slugTitle`/`entryIdFor`);
+  the local publish path is gone.
   `catalogMerge.js` is the two-source merge (base bundle + /api/catalog:
   replace-by-id, API wins, `apiStream` stamp); `ingestSlot.js` is the
   shared upload-ingest core used by SubmitFlow's FileReader path AND the
@@ -99,7 +104,8 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
 - `src/state/store.js` — useTrafficStore + MapProvider/MapOverlayProvider
   (Google-auth `user` state via listenAuth; `startDraft` opens the Google
   popup when signed out — the wizard gate; `draft.username` is derived from
-  the profile via `authorFromProfile`; mergeStream swaps the entry OBJECT).
+  the profile via `authorFromProfile`; mergeStream swaps the entry OBJECT
+  and clears `streamErrorId` for that id).
   Review-flow wiring: boot merges `GET /api/catalog` over the base bundle
   (`mergeApiEntries`; failure → base only, file:// keeps base only); `me`
   comes from `GET /api/me` (failure → null, admin UI never appears);
@@ -110,8 +116,13 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   (`draft.id`) and the stored XMLs re-ingested via `ingestSlot`; submit
   success does NOT reload — toast 'submitted — pending review' + view
   `dashboard` (a re-pipeline resets the row to pending, thread preserved);
-  `activateSim` drops the local `entry.review` stamp; `deactivateSim`
-  drops the local entry.
+  submit failure NEVER publishes — every failure path (file://, no token,
+  non-OK, network throw) sets `submitError` (inline on the wizard's review
+  step, server error text verbatim; cleared on submit start / draft
+  open/close), so the wizard stays open and Submit stays retryable;
+  `streamErrorId` + `streamFailed(id)` mark an entry whose stream failed
+  to load; `activateSim` drops the local `entry.review` stamp;
+  `deactivateSim` drops the local entry.
 - `src/auth/firebase.js` — Firebase Google sign-in adapter (NOT under
   src/lib): hardcoded public web config, singleton init at module import
   (same pattern as src/data.js). Thin API for the store:
@@ -126,7 +137,11 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   a self-contained fetch of `/api/files/<id>` and renders a FILES download
   block only when the list is non-empty (fetch failure / file:// / route
   missing → section stays hidden, no error UI). SimPanel also renders a
-  REVIEW status chip when `entry.review` is stamped (transient previews).
+  REVIEW status chip when `entry.review` is stamped (transient previews),
+  and gates the numbers block on the active scenario's frames: `streamError`
+  → 'simulation data failed to load' note, frames absent → 'loading
+  simulation data…' note — no stats call, never fake numbers (API entries
+  with inline stats still wait for frames: uniform, always honest).
   Bottom sheet <=900px (CSS media block in EXTRA_CSS): the grip/h2/✕ strip
   is fixed OUTSIDE the scroll — only `.sheet-body` scrolls (base flex:1
   rule keeps the desktop layout); mobile `order` puts Run on top, then
@@ -134,7 +149,7 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   56px title strip (`sheet-collapsed`, touch-action:none — nothing
   scrolls), pointer drag on the strip (threshold snap, `STRIP_PX = 56`) or
   a strip tap re-expands; classes are inert on desktop (side panel
-  unchanged). App's `fitPadding` gives both snap effects
+  unchanged). App's `fitPadding` gives the open-snap effect
   `paddingBottomRight` = 62% of the map height <=900px, so the opened
   sheet never covers the sim.
   `DashboardView` (user) + `AdminView` (review queue) are full-screen
@@ -146,7 +161,12 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   test/contribute.test.js).
   App's lazy-stream loader branches on `entry.apiStream`:
   `/api/catalog/:id/stream` for API entries, JSONP `streams/<id>.js` for
-  the base bundle.
+  the base bundle. Stream failure (fetch reject or JSONP null) is honest:
+  `streamFailed(id)` + a toast — the entry stays open on its real lane
+  geometry with zero vehicles, SimPanel shows the error note, and
+  reopening the entry re-fires the lazy effect (deps `[entry && entry.id]`).
+  The old catalog-grow publish-snap effect is deleted (local publishes no
+  longer exist).
 - `tools/*.js` — packer/injector, ports of the retired Python tools:
   `sumo_geom.js` (geom/geoLock/findSumo), `blgr_pack.js` (BLGR packing,
   readline XML parsing), `pack_run.js` (exact SUMO_FLAGS — seed 42,

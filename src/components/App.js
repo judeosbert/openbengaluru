@@ -43,31 +43,6 @@ export function App() {
   const scenKey = entry && entry.scenarios[store.activeScenario]
     ? store.activeScenario : 'today';
 
-  /* after a publish (catalog grew): snap to the new entry — fitBounds its
-   * downloaded bbox when it has one (geo-locked), else fly to the anchor.
-   * Panel opens via activeSimId (set by approveDraft through submitDraft). */
-  const prevLen = React.useRef(store.catalog.length);
-  React.useEffect(() => {
-    if (store.catalog.length > prevLen.current) {
-      const e = store.catalog[store.catalog.length - 1];
-      /* boot merge (GET /api/catalog) grows the catalog too — that is not
-       * a publish and must not snap the camera (the visible zoom/pan right
-       * as the intro reveal exposes the map). Merged and preview entries
-       * carry the apiStream stamp; a local publish never does. The
-       * id-change effect already fits geo-locked previews. */
-      if (map && e && !e.apiStream) {
-        if (e.bounds) {
-          map.fitBounds(e.bounds, {
-            ...fitPadding(map), maxZoom: e.suggestedZoom || 18, animate: true,
-          });
-        } else {
-          map.flyTo(e.anchor, 16, { duration: 0.9 });
-        }
-      }
-    }
-    prevLen.current = store.catalog.length;
-  }, [store.catalog.length, map]);
-
   /* auto-snap on open: clicking a geo-locked pin later fits the map to the
    * entry's downloaded bounds too. Only on a real id change, and never while
    * the draft wizard is open (it owns the map during anchoring). */
@@ -95,25 +70,35 @@ export function App() {
    * frames and merges them into the catalog (mergeStream). Two sources:
    * - entry.apiStream -> GET /api/catalog/:id/stream (active submissions);
    * - else the base bundle's JSONP streams/<id>.js via script injection.
-   * Synthetic entries never ship a stream file — the onerror path is a
-   * no-op. Preview entries arrive with frames already merged in the same
-   * batched update, so this effect never fires for them. */
+   * Failure is honest, never synthetic: streamFailed(id) + a toast — the
+   * entry stays open with its real lanes and zero vehicles, SimPanel shows
+   * an error note, and reopening the entry re-fires this effect (deps
+   * [entry && entry.id]). Preview entries arrive with frames already merged
+   * in the same batched update, so this effect never fires for them. */
   React.useEffect(() => {
     if (!entry) return;
     const needsFrames = Object.values(entry.scenarios || {})
       .some((s) => !s.frames);
     if (!needsFrames) return undefined;
+    const onFail = () => {
+      store.streamFailed(entry.id);
+      store.setToast('could not load simulation data for "'
+        + (entry.title || entry.id)
+        + '" — check your connection and reopen the sim');
+    };
     if (entry.apiStream) {
       let live = true;
       fetchCatalogStream(entry.id)
         .then((payload) => {
           if (payload && live) store.mergeStream(entry.id, payload);
+          else if (live) onFail();
         })
-        .catch(() => { /* frames stay absent; stats still ride inline */ });
+        .catch(() => { if (live) onFail(); });
       return () => { live = false; };
     }
     loadSimStream(entry.id, (payload) => {
       if (payload) store.mergeStream(entry.id, payload);
+      else onFail();
     });
     return undefined;
   }, [entry && entry.id]);
@@ -145,6 +130,7 @@ export function App() {
           entry ? h(SimPanel, {
             entry, scenKey, simT: store.simT,
             running: store.running, speed: store.speed,
+            streamError: store.streamErrorId === entry.id,
             onScenario: store.setScenario, onRun: store.runOnMap,
             onStop: store.stopAll, onScrub, onSpeed: store.setSpeed,
             onClose: store.closeSim,

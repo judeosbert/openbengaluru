@@ -56,10 +56,18 @@ export function SimScenarioToggle({ value, onChange, scenarios }) {
 }
 
 export function SimPanel({ entry, scenKey, simT, running, speed,
-  onScenario, onRun, onStop, onScrub, onSpeed, onClose }) {
+  streamError, onScenario, onRun, onStop, onScrub, onSpeed, onClose }) {
   const eng = React.useMemo(() => engineFor(entry), [entry]);
   const srcFiles = useSourceFiles(entry);
-  const stats = eng.getStatsAt(simT, scenKey);
+  const scenario = entry.scenarios && entry.scenarios[scenKey]
+    ? entry.scenarios[scenKey] : null;
+  /* frames gate every number: until the scenario's stream arrives there is
+   * nothing honest to show, so the stats block is replaced by a loading
+   * note (or the failure note after a stream error) — no fake zeros
+   * dressed as data. API entries carry real inline stats but still wait
+   * for frames: uniform, always honest. */
+  const loaded = !!(scenario && scenario.frames);
+  const stats = loaded ? eng.getStatsAt(simT, scenKey) : null;
   const geo = scenarioGeoOf(entry, scenKey);
   const nf = entry.nFrames || 900;
   const ss = Math.floor(Math.max(0, Math.min(nf - 1, simT)));
@@ -67,8 +75,8 @@ export function SimPanel({ entry, scenKey, simT, running, speed,
     + String(ss % 60).padStart(2, '0');
   const hasBoth = !!(entry.scenarios && entry.scenarios.today
     && entry.scenarios.proposed);
-  const statColors = ['var(--green)', 'var(--ink)', 'var(--amber)',
-    'var(--red)', stats[4] ? 'var(--red)' : 'var(--ink3)'];
+  const statColors = loaded ? ['var(--green)', 'var(--ink)', 'var(--amber)',
+    'var(--red)', stats[4] ? 'var(--red)' : 'var(--ink3)'] : null;
 
   /* bottom-sheet state (only styled <=900px; the classes are inert on
    * desktop where the media block does not exist) */
@@ -173,13 +181,19 @@ export function SimPanel({ entry, scenKey, simT, running, speed,
       hasBoth ? h(SimScenarioToggle, {
         value: scenKey, onChange: onScenario, scenarios: entry.scenarios,
       }) : null,
-      h('div', { className: 'statgrid' },
-        HUD_LABELS.map((lab, k) => h('div', { key: lab },
-          h('b', null, lab),
-          h('span', { className: 'num', style: { color: statColors[k] } },
-            fmtStat(stats[k])))),
-        h('div', null, h('b', null, 'SIM TIME'),
-          h('span', { className: 'num' }, clock))),
+      streamError
+        ? h('div', { key: 'serr', className: 'reject' },
+          'simulation data failed to load — close and reopen to retry')
+        : !loaded
+          ? h('div', { key: 'sload', className: 'hint' },
+            'loading simulation data…')
+          : h('div', { key: 'stats', className: 'statgrid' },
+            HUD_LABELS.map((lab, k) => h('div', { key: lab },
+              h('b', null, lab),
+              h('span', { className: 'num', style: { color: statColors[k] } },
+                fmtStat(stats[k])))),
+            h('div', null, h('b', null, 'SIM TIME'),
+              h('span', { className: 'num' }, clock))),
       h('div', { className: 'fld' },
         h('label', null, 'SCRUB'),
         h('input', {

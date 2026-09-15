@@ -133,7 +133,7 @@ it('engine decodes frames from entry.scenarios', () => {
       },
     },
   };
-  const eng = new TrafficSimEngine(null, entryWithFrames, 'test-sim');
+  const eng = new TrafficSimEngine(null, entryWithFrames);
   const vehicles = eng.getVehiclesAtTime(0, 'today');
   expect(Array.isArray(vehicles),
     'getVehiclesAtTime did not return array from entry frames').toBe(true);
@@ -152,6 +152,39 @@ it('frameCount reads entry.nFrames', () => {
       },
     },
   };
-  const eng = new TrafficSimEngine(null, entryWithFrames, 'test-sim');
+  const eng = new TrafficSimEngine(null, entryWithFrames);
   expect(eng.frameCount('today')).toBe(900);
+});
+
+/* No synthetic fallback (plan: never load fake simulations) --------------------
+ * The synthesis code is REMOVED: a scenario without frames draws nothing and
+ * reports zero stats — the UI shows loading/error notes instead of fakes. */
+const LANED_NO_FRAMES = {
+  id: 'laned-no-frames',
+  nFrames: 900,
+  scenarios: {
+    today: { title: 'TODAY', lanes: [{ p: [[0, 0], [100, 0]], w: 3.2 }] },
+  },
+};
+
+it('frames-less scenario yields no vehicles (synthesis removed)', () => {
+  const eng = new TrafficSimEngine(null, LANED_NO_FRAMES);
+  expect(eng.getVehiclesAtTime(0, 'today')).toEqual([]);
+  expect(eng.getVehiclesAtTime(45, 'today')).toEqual([]);
+  expect(eng.getVehiclesAtTime(899, 'today')).toEqual([]);
+  expect(eng.getVehiclesAtTime(-3, 'today')).toEqual([]);
+});
+
+it('stats-less scenario yields zero stats (defensive; UI gates on frames)', () => {
+  const eng = new TrafficSimEngine(null, LANED_NO_FRAMES);
+  for (const t of [0, 45.5, 899]) {
+    expect(eng.getStatsAt(t, 'today')).toEqual([0, 0, 0, 0, 0]);
+  }
+});
+
+it('engine source carries no synthesis code', () => {
+  const src = fs.readFileSync(
+    path.join(PLAYER_ROOT, 'src', 'lib', 'engine.js'), 'utf8');
+  expect(src, 'the synthetic-vehicle fallback must be gone entirely')
+    .not.toMatch(/_synthVehicles|_synthStats/);
 });

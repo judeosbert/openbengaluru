@@ -40,8 +40,8 @@ export function serverAvailable(loc) {
   return !!loc && (loc.protocol === 'http:' || loc.protocol === 'https:');
 }
 
-/* Draft -> POST body. The entry id is the one approveDraft would generate,
- * so the reloaded page lands on the same id the server persisted. Raw file
+/* Draft -> POST body. The entry id is the slug+timestamp id the persisted
+ * entry must match (a resubmission re-pins the same id). Raw file
  * text rides on the slot records (SubmitFlow keeps it from the FileReader). */
 export function buildSimulateRequest(draft, id) {
   const d = draft || {};

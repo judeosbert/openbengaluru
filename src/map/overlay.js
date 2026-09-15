@@ -63,9 +63,10 @@ export function escapeHtml(s) {
 }
 
 /* Create engine for an entry. If the entry's scenario has frames (base64 BLGR),
- * TrafficSimEngine will decode them; otherwise it synthesises vehicles from lanes. */
+ * TrafficSimEngine decodes them; until they arrive (or if the stream never
+ * loads) it draws no vehicles — lanes still render from the entry geometry. */
 export function engineFor(entry) {
-  return new TrafficSimEngine(null, entry, entry.id);
+  return new TrafficSimEngine(null, entry);
 }
 export function scenarioGeoOf(entry, scenKey) {
   if (entry && entry.scenarios) {

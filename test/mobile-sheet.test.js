@@ -201,8 +201,9 @@ describe('mobile focus: the opened sheet never covers the sim', () => {
     expect(s).toMatch(/matchMedia\('\(max-width:900px\)'\)/);
     expect(s).toMatch(
       /paddingBottomRight: \[24, Math\.round\(m\.getSize\(\)\.y \* 0\.62\)\]/);
-    /* both snap effects (publish + open) route through the helper */
-    expect((s.match(/fitPadding\(map\)/g) || []).length).toBe(2);
+    /* the auto-snap-on-open effect routes through the helper (the old
+     * publish-snap effect is gone — local publishes no longer exist) */
+    expect((s.match(/fitPadding\(map\)/g) || []).length).toBe(1);
   });
 
   it('desktop keeps the plain [48, 48] padding', () => {

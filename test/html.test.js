@@ -47,7 +47,7 @@ it('overlay attach effect deps the entry object', () => {
   /* mergeStream swaps the entry OBJECT while keeping the id string; the
    * TrafficMap attach effect must dep the object itself or the overlay
    * engine stays bound to the pre-merge (frames-less) entry and keeps
-   * drawing _synthVehicles placeholders until close+reopen. */
+   * drawing zero vehicles until close+reopen. */
   const s = fs.readFileSync(path.join(PLAYER_ROOT, 'src', 'map', 'TrafficMap.js'), 'utf8');
   expect(s,
     'attach effect must re-run on the entry object: `}, [entry, scenKey, map]);`')

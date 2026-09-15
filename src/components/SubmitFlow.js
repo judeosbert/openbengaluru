@@ -198,6 +198,12 @@ export function SubmitFlow({ store }) {
       h('div', { key: 'h', className: 'hint' },
         'Submitting runs the real simulation, then your sim goes to the '
         + 'review queue — an admin activates it onto the public map.'),
+      /* persistent inline submit error (file:// hint, expired sign-in,
+       * server/network failure — server error text verbatim): the wizard
+       * stays open with the draft intact and Submit stays retryable. */
+      store.submitError
+        ? h('div', { key: 'se', className: 'reject' }, store.submitError)
+        : null,
     ];
   }
 

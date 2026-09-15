@@ -4,7 +4,7 @@
  * The pure contract lives in src/lib/submit.js (DOM-free, node-testable):
  *   - buildSimulateRequest(draft) -> POST /api/simulate body
  *   - serverAvailable(loc)        -> http(s) pages get real sims,
- *                                    file:// keeps the preview-only path
+ *                                    file:// gets the run-via-server hint
  * The raw-file-retention + simulating-state wiring in SubmitFlow/store is
  * pinned with source-regex checks (html.test.js precedent — component glue
  * is not directly testable in the node environment).
@@ -142,7 +142,7 @@ describe('serverAvailable', () => {
     expect(serverAvailable({ protocol: 'http:' })).toBe(true);
     expect(serverAvailable({ protocol: 'https:' })).toBe(true);
   });
-  it('file:// (no server) keeps the geometry-preview path', () => {
+  it('file:// (no server) gets the run-via-server hint — no local publish', () => {
     expect(serverAvailable({ protocol: 'file:' })).toBe(false);
     expect(serverAvailable(null)).toBe(false);
     expect(serverAvailable(undefined)).toBe(false);
@@ -195,9 +195,41 @@ describe('browser wiring', () => {
       .toMatch(/setView\('dashboard'\)/);
     expect(s, 'the POST must hit /api/simulate')
       .toMatch(/['"]\/api\/simulate['"]/);
-    expect(s, 'resubmission must pin the draft id (draft.id before the '
+    expect(s, 'resubmission must pin the draft id (draftSub.id before the '
       + 'generated id)')
-      .toMatch(/draft\.id \|\| entryIdFor\(draft\.title\)/);
+      .toMatch(/draftSub\.id \|\| entryIdFor\(draftSub\.title\)/);
+  });
+
+  it('submit failures set an inline submitError — nothing is published locally', () => {
+    const s = fs.readFileSync(
+      path.join(PLAYER_ROOT, 'src', 'state', 'store.js'), 'utf8');
+    expect(s, 'the geometry-only publish fallback must be gone entirely '
+      + '(no fake previews reach the catalog)')
+      .not.toMatch(/publishLocally|approveDraft|defaultSimMeta/);
+    expect(s, 'server-unavailable submit must surface the run-via-server '
+      + 'hint (names npm run dev like ExportFlow)')
+      .toMatch(/npm run dev/);
+    expect(s, 'the hint must also name npm start')
+      .toMatch(/npm start/);
+    expect(s, 'an expired sign-in must set the inline submitError')
+      .toMatch(/setSubmitError\(/);
+    expect(s, 'server error body must surface verbatim (HTTP status as the '
+      + 'fallback)')
+      .toMatch(/setSubmitError\(body\.error \|\| 'HTTP ' \+ res\.status\)/);
+    expect(s, 'a network failure must set submitError from the thrown error')
+      .toMatch(/String\(\(e && e\.message\) \|\| e\)/);
+    expect(s, 'submitError must be cleared when a new submit starts')
+      .toMatch(/setSubmitError\(null\)/);
+    expect(s, 'the store must expose submitError to the wizard')
+      .toMatch(/submitError/);
+  });
+
+  it('SubmitFlow renders the persistent submit error on the review step', () => {
+    const s = fs.readFileSync(
+      path.join(PLAYER_ROOT, 'src', 'components', 'SubmitFlow.js'), 'utf8');
+    expect(s, 'the review step must render store.submitError inline so the '
+      + 'wizard stays open and retryable')
+      .toMatch(/store\.submitError/);
   });
 });
 

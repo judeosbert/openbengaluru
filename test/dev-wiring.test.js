@@ -4,8 +4,8 @@
  * The wizard POSTs to a relative /api/simulate (src/state/store.js), so on
  * the vite origin the dev server must proxy /api to the player server, and
  * the dev script must start both processes together. Without this, a wizard
- * submit on :5173 silently degrades to the geometry-only preview
- * ("server simulation failed — published preview only").
+ * submit on :5173 gets the inline run-via-server hint (nothing is ever
+ * published locally) instead of running the real SUMO pipeline.
  *
  * Pinned as text, same style as test/html.test.js pins the TrafficMap
  * attach-effect dep array.

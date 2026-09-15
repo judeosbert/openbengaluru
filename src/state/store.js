@@ -1,10 +1,12 @@
 /* Store hook + context seams. Ported verbatim from the app.js pure head;
  * auth wiring added by the Firebase Google sign-in plan; review-flow wiring
  * (me, boot catalog merge, preview, resubmit, no-reload submit) added by
- * the review-flow plan. */
+ * the review-flow plan. Nothing is ever published locally: submit failures
+ * keep the wizard open with an inline submitError, stream failures flip
+ * streamErrorId (lanes-only playback + SimPanel note until a retry). */
 import React from 'react';
 import { CATALOG } from '../data.js';
-import { approveDraft, defaultSimMeta, entryIdFor } from '../lib/draft.js';
+import { entryIdFor } from '../lib/draft.js';
 import { buildSimulateRequest, serverAvailable } from '../lib/submit.js';
 import { authorFromProfile } from '../lib/profile.js';
 import { mergeApiEntries } from '../lib/catalogMerge.js';
@@ -31,6 +33,15 @@ export function useTrafficStore() {
   const [speed, setSpeed] = useState(30);
   const [draftSub, setDraftSub] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  /* Submit failures keep the wizard open with the draft intact: this
+   * persistent inline error (review step) is cleared on the next submit
+   * attempt and whenever a draft opens/closes. Never a local publish. */
+  const [submitError, setSubmitError] = useState(null);
+  /* Id of the entry whose stream failed to load — App passes
+   * streamError={streamErrorId === entry.id} to SimPanel (error note, no
+   * numbers) and the map draws the real lanes with zero vehicles until a
+   * reopen re-fires the lazy loader. Cleared when the stream merges. */
+  const [streamErrorId, setStreamErrorId] = useState(null);
   const [toast, setToast] = useState(null);
   /* Google profile (null when signed out): uid/displayName/email — the
    * author identity for new sims (the old free-text username is gone). */
@@ -111,7 +122,14 @@ export function useTrafficStore() {
         nFrames: payload.nFrames || e.nFrames,
       };
     }));
+    /* real data landed for this id — clear its stream-failure flag */
+    setStreamErrorId((cur) => (cur === id ? null : cur));
   }, []);
+
+  /* Stream load failure (JSONP onerror / null payload, or the apiStream
+   * fetch rejecting): App calls this + toasts — the entry stays open with
+   * its real lanes and zero vehicles until a reopen retries. */
+  const streamFailed = useCallback((id) => { setStreamErrorId(id); }, []);
 
   const setScenario = useCallback((key) => {
     setActiveScenario(key);
@@ -145,7 +163,7 @@ export function useTrafficStore() {
       files: {}, geo: { today: null, proposed: null }, demandCount: null,
       latlng: null, rotation: 0,
       dataSource: '', sourceUrl: '',
-      title: '', desc: '', simMeta: null,
+      title: '', desc: '',
     });
   }, []);
 
@@ -154,6 +172,7 @@ export function useTrafficStore() {
    * Google CTA (signInFromGate) starts the Google flow and the flow only
    * appears after a successful sign-in. */
   const startDraft = useCallback(() => {
+    setSubmitError(null);
     if (user) {
       openDraftFor(user);
       return;
@@ -161,7 +180,10 @@ export function useTrafficStore() {
     setSignGate('submit');
   }, [user, openDraftFor]);
 
-  const cancelDraft = useCallback(() => { setDraftSub(null); }, []);
+  const cancelDraft = useCallback(() => {
+    setDraftSub(null);
+    setSubmitError(null);
+  }, []);
 
   /* The gate modal's Google CTA: run the sign-in flow, then continue into
    * the flow that opened the gate — export intent reopens the export area,
@@ -207,42 +229,31 @@ export function useTrafficStore() {
     setDraftSub((d) => (d ? { ...d, latlng } : d));
   }, []);
 
-  /* Geometry-only publish: the local approveDraft moderation step. Used
-   * directly on file:// and as the fallback when the server simulation
-   * fails (the entry's sub label stays honest about being a preview). */
-  const publishLocally = useCallback((draft) => {
-    const next = approveDraft({ catalog }, draft);
-    setCatalog(next.catalog);
-    setView(next.view);
-    setActiveSimId(next.activeSimId);
-    setRunning(false);
-    setSimT(0);
-    setDraftSub(null);
-    setToast(next.toast);
-  }, [catalog]);
-
+  /* Submit = the REAL SUMO pipeline on the player server, always. Every
+   * failure path (file:// origin, expired sign-in, server error, network
+   * failure) keeps the wizard open with the draft intact and surfaces a
+   * persistent inline error on the review step — Submit stays retryable.
+   * NO path publishes anything to the catalog; entries only arrive through
+   * GET /api/catalog after admin activation. Submissions NEVER go live
+   * directly — the row lands `pending` for admin review, so success is NO
+   * reload: a toast + the dashboard view. The id is the draft's pinned id
+   * when resubmitting (same id, thread preserved), else the
+   * entryIdFor(title) slug. The ID token rides along; the server derives
+   * the author from the verified claims. */
   const submitDraft = useCallback(() => {
     if (!draftSub || submitting) return;
-    const draft = draftSub.simMeta
-      ? draftSub
-      : { ...draftSub, simMeta: defaultSimMeta(draftSub) };
+    setSubmitError(null);
     const loc = typeof location !== 'undefined' ? location : null;
     if (!serverAvailable(loc)) {
-      publishLocally(draft);
+      setSubmitError('submitting runs the real SUMO simulation on the player'
+        + ' server — open the player via `npm run dev` (http://localhost:5173)'
+        + ' or `npm start`');
       return;
     }
-    /* server present: run the REAL SUMO pipeline. Submissions NEVER go
-     * live directly — the row lands `pending` for admin review, so there
-     * is NO reload: a toast + the dashboard view. The id is the draft's
-     * pinned id when resubmitting (same id, thread preserved), else the
-     * entryIdFor(title) slug. The ID token rides along; the server derives
-     * the author from the verified claims. Signed out mid-wizard (no
-     * token) or any failure -> honest toast + geometry-only fallback. */
     setSubmitting(true);
     currentToken().then((token) => {
       if (!token) {
-        publishLocally(draft);
-        setToast('not signed in — published preview only');
+        setSubmitError('your sign-in expired — sign in again and retry');
         return null;
       }
       return fetch('/api/simulate', {
@@ -252,7 +263,7 @@ export function useTrafficStore() {
           Authorization: 'Bearer ' + token,
         },
         body: JSON.stringify(buildSimulateRequest(
-          draft, draft.id || entryIdFor(draft.title))),
+          draftSub, draftSub.id || entryIdFor(draftSub.title))),
       }).then(async (res) => {
         if (res.ok) {
           setDraftSub(null);
@@ -261,15 +272,12 @@ export function useTrafficStore() {
           return;
         }
         const body = await res.json().catch(() => ({}));
-        publishLocally(draft);
-        setToast('server simulation failed — published preview only: '
-          + (body.error || 'HTTP ' + res.status));
+        setSubmitError(body.error || 'HTTP ' + res.status);
       });
     }).catch((e) => {
-      publishLocally(draft);
-      setToast('server simulation failed — published preview only: ' + e);
+      setSubmitError(String((e && e.message) || e));
     }).finally(() => setSubmitting(false));
-  }, [draftSub, catalog, submitting, publishLocally]);
+  }, [draftSub, submitting]);
 
   const dismissToast = useCallback(() => { setToast(null); }, []);
 
@@ -302,6 +310,7 @@ export function useTrafficStore() {
   const startResubmit = useCallback(async (sub) => {
     if (!sub) return;
     const go = (u) => {
+      setSubmitError(null);
       setDraftSub({
         username: authorFromProfile(u),
         files: {}, geo: { today: null, proposed: null }, demandCount: null,
@@ -313,7 +322,6 @@ export function useTrafficStore() {
         sourceUrl: sub.source_url || '',
         title: sub.title || '',
         desc: sub.description || '',
-        simMeta: null,
         id: sub.id,               // pinned id — resubmission reuses it
       });
     };
@@ -398,7 +406,8 @@ export function useTrafficStore() {
 
   return {
     view, catalog, activeSimId, activeScenario, running, simT, speed,
-    draftSub, submitting, toast, user, me,
+    draftSub, submitting, submitError,
+    toast, setToast, streamErrorId, streamFailed, user, me,
     signGate, closeSignGate, signInFromGate,
     exportOpen, startExport, closeExport,
     setView, signIn, signOut, viewSim, runOnMap, stopAll, setScenario,

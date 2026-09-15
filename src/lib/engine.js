@@ -1,14 +1,14 @@
-/* TrafficSimEngine — decodes BLGR stream blobs or synthesises deterministic
- * traffic. Ported verbatim from the app.js pure head. */
-import { b64ToBytes, hashStr } from './util.js';
-import { laneProfile, pointOnLane } from './geo.js';
+/* TrafficSimEngine — decodes BLGR stream blobs into vehicle frames + stats.
+ * Ported from the app.js pure head. There is NO synthetic fallback: a
+ * scenario without frames yields no vehicles and zero stats — the UI shows
+ * honest loading/error states instead of fabricated traffic. */
+import { b64ToBytes } from './util.js';
 
 /* --------------------------------------------------- TrafficSimEngine
  * streamOrNull: BALAGERE_STREAM-shaped object ({nFrames, scenarios:{key:
  * {frames:b64, stats:b64}}}) or null for catalog-only sims.
- * scenarioGeoOrNull: geometry/catalog entry carrying .scenarios (used for
- * fallback stats and for vehicle synthesis when stream is null).
- * simId: stable string seeding the deterministic fake-stream synthesis.
+ * scenarioGeoOrNull: geometry/catalog entry carrying .scenarios (used when
+ * the stream is null — frames/stats still come only from real data).
  *
  * Blob formats (see build_player.py):
  *   frames: per frame u16LE n + n x 9-byte records
@@ -16,13 +16,11 @@ import { laneProfile, pointOnLane } from './geo.js';
  *   stats:  nFrames x 5 u16LE  [through, moving, stopped, queued, gridlock]
  * ------------------------------------------------------------------------*/
 export class TrafficSimEngine {
-  constructor(streamOrNull, scenarioGeoOrNull, simId) {
+  constructor(streamOrNull, scenarioGeoOrNull) {
     this.stream = streamOrNull || null;
     this.geo = scenarioGeoOrNull || null;
-    this.simId = String(simId == null ? 'sim' : simId);
     this._frames = {};   // scenKey -> array of Map(id -> [x,y,angle,speed,type])
     this._stats = {};    // scenKey -> array of [5] int rows
-    this._synth = {};    // scenKey -> [laneProfile,...]
   }
 
   _scenMeta(key) {
@@ -72,7 +70,8 @@ export class TrafficSimEngine {
   }
 
   /* NEW array of fresh rows [id, xDm, yDm, angleDeg, speedMps, type] on every
-   * call — caller mutation must never leak into later calls. */
+   * call — caller mutation must never leak into later calls. A frames-less
+   * scenario returns [] (draw nothing — never a synthesized replacement). */
   getVehiclesAtTime(t, scenKey) {
     t = Number(t);
     if (!isFinite(t)) t = 0;
@@ -85,66 +84,29 @@ export class TrafficSimEngine {
     const a = tc - f0;
 
     const meta = this._scenMeta(scenKey);
-    if (meta && meta.frames) {
-      let frames = this._frames[scenKey];
-      if (!frames) { frames = this._decodeFrames(scenKey) || []; this._frames[scenKey] = frames; }
-      const A = frames[f0] || new Map(), B = frames[f1] || new Map();
-      const rows = [];
-      for (const [id, v] of A) {
-        let x = v[0], y = v[1], ang = v[2];
-        const w = B.get(id);
-        if (w) {
-          x += (w[0] - x) * a;
-          y += (w[1] - y) * a;
-          const d = ((w[2] - ang + 540) % 360) - 180;   // wrap-safe lerp
-          ang += d * a;
-        }
-        rows.push([id, x, y, ang, v[3], v[4]]);
-      }
-      return rows;
-    }
-    return this._synthVehicles(scenKey, tc);
-  }
-
-  /* ~40 deterministic vehicles circulating along the scenario lanes; pure
-   * function of (simId, scenKey, t) — no Math.random at call time. */
-  _synthVehicles(scenKey, t) {
-    const meta = this._scenMeta(scenKey);
-    const lanes = meta && meta.lanes ? meta.lanes : [];
-    if (!lanes.length) return [];
-    let profs = this._synth[scenKey];
-    if (!profs) { profs = laneProfile(lanes); this._synth[scenKey] = profs; }
-    const COUNT = 40;
+    if (!(meta && meta.frames)) return [];
+    let frames = this._frames[scenKey];
+    if (!frames) { frames = this._decodeFrames(scenKey) || []; this._frames[scenKey] = frames; }
+    const A = frames[f0] || new Map(), B = frames[f1] || new Map();
     const rows = [];
-    for (let i = 0; i < COUNT; i++) {
-      const h = hashStr(this.simId + ':' + scenKey + ':' + i);
-      const prof = profs[h % profs.length];
-      const u0 = ((h >>> 8) % 1000) / 1000;
-      const speedDm = 25 + ((h >>> 18) % 85);              // 2.5 .. 11 m/s
-      const dist = u0 * prof.len + t * speedDm;
-      const p = pointOnLane(prof, dist);
-      const wobble = 0.85 + 0.15 * Math.sin(t * 0.35 + i * 1.7);
-      rows.push([i + 1, p[0], p[1], p[2], Math.max(0, speedDm / 10 * wobble), (h >>> 4) % 5]);
-    }
-    return rows;
-  }
-
-  _synthStats(scenKey, nf) {
-    const h = hashStr(this.simId + ':' + scenKey + ':stats');
-    const rows = new Array(nf);
-    const rate = 0.6 + (h % 40) / 50, cap = 150 + (h % 600);
-    for (let f = 0; f < nf; f++) {
-      const through = Math.min(cap, Math.floor(f * rate));
-      const moving = Math.max(0, 18 + (h % 37) + Math.round(8 * Math.sin(f / 37 + (h % 7))));
-      const stopped = Math.max(0, 5 + ((h >>> 3) % 23) + Math.round(5 * Math.sin(f / 29 + 2)));
-      const queued = Math.max(0, Math.round(40 * Math.sin(f / 80 + (h % 5)) + ((h >>> 5) % 30)));
-      rows[f] = [through, moving, stopped, queued, 0];
+    for (const [id, v] of A) {
+      let x = v[0], y = v[1], ang = v[2];
+      const w = B.get(id);
+      if (w) {
+        x += (w[0] - x) * a;
+        y += (w[1] - y) * a;
+        const d = ((w[2] - ang + 540) % 360) - 180;   // wrap-safe lerp
+        ang += d * a;
+      }
+      rows.push([id, x, y, ang, v[3], v[4]]);
     }
     return rows;
   }
 
   /* [through, moving, stopped, queued, gridlock] — 5 non-negative ints at
-   * index floor(t) clamped into range. Fresh copy each call. */
+   * index floor(t) clamped into range. Fresh copy each call. Stats-less
+   * scenarios yield all-zero rows (defensive — SimPanel gates the numbers
+   * block on loaded frames and never renders this state as data). */
   getStatsAt(t, scenKey) {
     let rows = this._stats[scenKey];
     if (!rows) {
@@ -164,7 +126,7 @@ export class TrafficSimEngine {
           o += 10;
         }
       } else {
-        rows = this._synthStats(scenKey, this.frameCount(scenKey));
+        rows = new Array(this.frameCount(scenKey)).fill([0, 0, 0, 0, 0]);
       }
       this._stats[scenKey] = rows;
     }
@@ -179,6 +141,5 @@ export class TrafficSimEngine {
   clearCache() {
     this._frames = {};
     this._stats = {};
-    this._synth = {};
   }
 }
