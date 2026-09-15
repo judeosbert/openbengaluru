@@ -17,6 +17,9 @@
  * scene with it. */
 import React from 'react';
 import { hasSeenIntro, markIntroSeen } from '../lib/intro.js';
+import {
+  sceneScale, sceneX, sceneY, sceneLenX, sceneLenY,
+} from '../lib/introScene.js';
 
 const h = React.createElement;
 
@@ -76,10 +79,14 @@ function IntroPane({ onEnter, onHover }) {
       for (let x = 0; x < w; x += 40) {
         for (let y = 0; y < hgt; y += 40) ctx.fillRect(x, y, 1, 1);
       }
+      /* cover-fit the 16:9 design box: uniform scale, crop overflow — at
+       * exactly 16:9 this reduces to the original fraction math */
+      const s = sceneScale(w, hgt);
       INTRO_ROADS.forEach((it) => {
         if (it.type === 'ring') {
           ctx.beginPath();
-          ctx.ellipse(it.cx * w, it.cy * hgt, it.rx * w, it.ry * hgt, 0, 0, 2 * Math.PI);
+          ctx.ellipse(sceneX(it.cx, w, s), sceneY(it.cy, hgt, s),
+            sceneLenX(it.rx, s), sceneLenY(it.ry, s), 0, 0, 2 * Math.PI);
           ctx.strokeStyle = 'rgba(74,55,40,.16)';
           ctx.lineWidth = 1;
           ctx.setLineDash([4, 4]);
@@ -87,16 +94,16 @@ function IntroPane({ onEnter, onHover }) {
           ctx.setLineDash([]);
         } else if (it.type === 'line') {
           ctx.beginPath();
-          ctx.moveTo(it.x1 * w, it.y1 * hgt);
-          ctx.lineTo(it.x2 * w, it.y2 * hgt);
+          ctx.moveTo(sceneX(it.x1, w, s), sceneY(it.y1, hgt, s));
+          ctx.lineTo(sceneX(it.x2, w, s), sceneY(it.y2, hgt, s));
           ctx.strokeStyle = 'rgba(74,55,40,.18)';
           ctx.lineWidth = 1;
           ctx.stroke();
         } else if (it.type === 'grid') {
-          const sx = it.x * w;
-          const sy = it.y * hgt;
-          const cw = (it.size * w) / it.cols;
-          const ch = (it.size * hgt) / it.rows;
+          const sx = sceneX(it.x, w, s);
+          const sy = sceneY(it.y, hgt, s);
+          const cw = sceneLenX(it.size, s) / it.cols;
+          const ch = sceneLenY(it.size, s) / it.rows;
           ctx.strokeStyle = 'rgba(74,55,40,.12)';
           ctx.lineWidth = 0.75;
           for (let c = 0; c <= it.cols; c++) {
@@ -113,7 +120,7 @@ function IntroPane({ onEnter, onHover }) {
           }
         } else {
           ctx.beginPath();
-          ctx.arc(it.cx * w, it.cy * hgt, it.r * w, 0, 2 * Math.PI);
+          ctx.arc(sceneX(it.cx, w, s), sceneY(it.cy, hgt, s), sceneLenX(it.r, s), 0, 2 * Math.PI);
           ctx.strokeStyle = 'rgba(194,80,46,.30)';
           ctx.fillStyle = 'rgba(194,80,46,.04)';
           ctx.lineWidth = 1;

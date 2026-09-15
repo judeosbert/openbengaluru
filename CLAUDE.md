@@ -77,7 +77,7 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
 ## Layout
 
 - `src/lib/` — pure logic (engine, netxml, geo, draft, submit, areaExport,
-  util, profile, catalogMerge, ingestSlot). **Must stay DOM-free and
+  util, profile, catalogMerge, ingestSlot, introScene). **Must stay DOM-free and
   react/leaflet-free** — enforced by `test/lib-purity.test.js`. New pure
   logic goes here so vitest's node environment can run it directly.
   `catalogMerge.js` is the two-source merge (base bundle + /api/catalog:
@@ -86,6 +86,11 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   resubmit prefill. `areaExport.js` is the server-consumed export head:
   `osmApiUrl` + `validateBbox` (shape/range/min<max/0.25° OSM cap) +
   `sanitizeAreaName` — the client-side convert.sh era is gone.
+  `introScene.js` is the intro canvas scene mapping: cover-fit of a fixed
+  16:9 reference box (uniform scale, crop overflow) — at exactly 16:9 it
+  reduces to the original full-viewport fraction math, so desktop intro
+  rendering is unchanged; portrait phones get the scene cut at the sides
+  instead of squished (locked by test/intro-scene.test.js).
 - `src/data.js` — adapter over the classic-script bundle `public/data.js`.
   `index.html` loads `/data.js` as a classic script BEFORE the module entry
   (classic blocks, modules defer — order is guaranteed). Script-level `const`
@@ -122,6 +127,16 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   block only when the list is non-empty (fetch failure / file:// / route
   missing → section stays hidden, no error UI). SimPanel also renders a
   REVIEW status chip when `entry.review` is stamped (transient previews).
+  Bottom sheet <=900px (CSS media block in EXTRA_CSS): the grip/h2/✕ strip
+  is fixed OUTSIDE the scroll — only `.sheet-body` scrolls (base flex:1
+  rule keeps the desktop layout); mobile `order` puts Run on top, then
+  sliders, then numbers, then FILES. Run on Map collapses the panel to the
+  56px title strip (`sheet-collapsed`, touch-action:none — nothing
+  scrolls), pointer drag on the strip (threshold snap, `STRIP_PX = 56`) or
+  a strip tap re-expands; classes are inert on desktop (side panel
+  unchanged). App's `fitPadding` gives both snap effects
+  `paddingBottomRight` = 62% of the map height <=900px, so the opened
+  sheet never covers the sim.
   `DashboardView` (user) + `AdminView` (review queue) are full-screen
   overlay panels over the map, fed by `src/api.js` wrappers; TopBar shows
   Dashboard/Admin only when signed in AND `me` resolved (`me.isAdmin`).

@@ -20,6 +20,19 @@ import { fetchCatalogStream } from '../api.js';
 
 const h = React.createElement;
 
+/* fit padding: <=900px the bottom sheet covers up to 62% of the map —
+ * fit the sim into the visible band above it instead of the full
+ * viewport; desktop keeps the plain symmetric padding */
+function fitPadding(m) {
+  if (window.matchMedia('(max-width:900px)').matches) {
+    return {
+      paddingTopLeft: [24, 24],
+      paddingBottomRight: [24, Math.round(m.getSize().y * 0.62)],
+    };
+  }
+  return { padding: [48, 48] };
+}
+
 export function App() {
   const store = useTrafficStore();
   const [map, setMap] = React.useState(null);
@@ -45,7 +58,7 @@ export function App() {
       if (map && e && !e.apiStream) {
         if (e.bounds) {
           map.fitBounds(e.bounds, {
-            padding: [48, 48], maxZoom: e.suggestedZoom || 18, animate: true,
+            ...fitPadding(map), maxZoom: e.suggestedZoom || 18, animate: true,
           });
         } else {
           map.flyTo(e.anchor, 16, { duration: 0.9 });
@@ -66,7 +79,7 @@ export function App() {
     if (!changed || !map || store.draftSub) return;
     if (entry && entry.bounds) {
       map.fitBounds(entry.bounds, {
-        padding: [48, 48], maxZoom: entry.suggestedZoom || 18, animate: true,
+        ...fitPadding(map), maxZoom: entry.suggestedZoom || 18, animate: true,
       });
     }
   }, [store.activeSimId, map, store.draftSub]);

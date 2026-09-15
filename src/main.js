@@ -205,6 +205,8 @@ const EXTRA_CSS = ''
   + 'border:1px solid var(--hair-strong);border-radius:var(--r-xs)}\n'
   + '.sheet{box-shadow:var(--shadow-lg)}\n'
   + '.sheet h2{font-family:var(--serif);font-weight:700}\n'
+  + '.sheet-grip{display:none}\n'
+  + '.sheet-body{display:flex;flex-direction:column;flex:1;min-height:0}\n'
   + '.mark{font-family:var(--serif);font-weight:700}\n'
   + '.mark small{font-family:var(--mono)}\n'
   + '.modal{border-radius:var(--r-lg);box-shadow:var(--shadow-lg)}\n'
@@ -370,7 +372,40 @@ const EXTRA_CSS = ''
   + '.intro-micro-bottom{position:absolute;bottom:28px;left:50%;'
   + 'transform:translateX(-50%);white-space:nowrap}\n'
   + '@media (prefers-reduced-motion:reduce){.app-reveal,.intro-half,'
-  + '.intro-cta,.intro-cta .arr{transition:none}}\n';
+  + '.intro-cta,.intro-cta .arr{transition:none}}\n'
+  /* SimPanel bottom sheet (<=900px, same breakpoint as the compact topbar):
+   * the generated .sheet is a 360px right-side panel inside .map-wrap — on
+   * phones it becomes a bottom sheet capped at 62% that collapses to a
+   * 56px title strip (grip + h2 + ✕) while the sim runs. The strip stays
+   * OUTSIDE the scroll: only .sheet-body scrolls, so the grip/h2/✕ are
+   * always visible; minimized, the sheet gets touch-action:none (nothing
+   * scrolls) and the pointer handlers own swipe-to-expand. Mobile order
+   * puts Run on top, then the sliders, then the numbers, then FILES.
+   * Media rules restyling the pinned base selectors use the :where(*) tail
+   * (see the topbar block above): identical cascade weight, but the
+   * selector no longer ENDS with .sheet, so the theme contract keeps
+   * reading the base shadow rule. touch-action stays OFF .sheet itself —
+   * an ancestor none would kill the body's touch scrolling. */
+  + '@media (max-width:900px){\n'
+  + '.sheet:where(*){top:auto;left:0;right:0;bottom:0;width:auto;height:auto;'
+  + 'max-height:62%;border-left:0;'
+  + 'border-top:1px solid var(--hair);'
+  + 'border-radius:var(--r-lg) var(--r-lg) 0 0;'
+  + 'transition:transform .3s cubic-bezier(.16,1,.3,1)}\n'
+  + '.sheet .sheet-body:where(*){overflow-y:auto;overscroll-behavior:contain}\n'
+  + '.sheet.sheet-collapsed:where(*){transform:translateY(calc(100% - 56px));'
+  + 'touch-action:none}\n'
+  + '.sheet.sheet-drag:where(*){transition:none;user-select:none}\n'
+  + '.sheet .sheet-grip:where(*){display:block;width:34px;height:4px;'
+  + 'border-radius:999px;background:var(--hair-strong);margin:8px auto 2px;'
+  + 'flex:none;touch-action:none}\n'
+  + '.sheet h2:where(*){touch-action:none}\n'
+  + '.sheet .actions:where(*){order:-6;margin-top:0}\n'
+  + '.sheet .fld:where(*){order:-5}\n'
+  + '.sheet .statgrid:where(*){order:-4}\n'
+  + '.sheet .scen-toggle:where(*){order:-3}\n'
+  + '.sheet .fld.files:where(*){order:1}\n'
+  + '.map-wrap{overflow:hidden}}\n';
 
 const __simoStyle = document.createElement('style');
 __simoStyle.textContent = BALAGERE_CSS_STYLE + EXTRA_CSS;
