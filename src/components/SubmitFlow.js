@@ -150,7 +150,7 @@ export function SubmitFlow({ store }) {
         value: d.desc,
         onChange: (ev) => store.updateDraft({ desc: ev.target.value }),
       }),
-      h('div', { key: 'ds', className: 'fld' },
+      h('div', { key: 'ds', className: 'fld stack' },
         h('label', null, 'DATA SOURCE'),
         h('select', {
           value: d.dataSource || '',
