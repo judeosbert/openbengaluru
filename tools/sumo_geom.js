@@ -6,6 +6,7 @@
  * logic to the retired Python tooling.
  */
 import fs from 'node:fs';
+import path from 'node:path';
 
 function isExecutableFile(p) {
   try {
@@ -38,6 +39,31 @@ export function findNetconvert() {
   ];
   for (const c of candidates) {
     if (c && isExecutableFile(c)) return c;
+  }
+  return null;
+}
+
+/* sumoDataHome: the dir that actually CONTAINS data/ for a discovered
+ * binary, or null when nothing derivable (bare PATH name, no data dir
+ * nearby). The macOS Eclipse framework splits bin/ (framework root) from
+ * the data tree (share/sumo/data), so a SUMO_HOME pointing at the
+ * framework root breaks netconvert's default OSM typemap lookup
+ * (<SUMO_HOME>/data/typemap/osmNetconvert.typ.xml). Callers pass the
+ * result as SUMO_HOME in the subprocess env; null inherits untouched
+ * (Debian/PATH installs resolve data internally). */
+export function sumoDataHome(binPath) {
+  if (!binPath || !path.isAbsolute(binPath)) return null;
+  const binDir = path.dirname(binPath);
+  const homes = [
+    path.dirname(binDir),
+    path.join(path.dirname(binDir), 'share', 'sumo'),
+  ];
+  for (const home of homes) {
+    try {
+      fs.statSync(path.join(home, 'data', 'typemap',
+        'osmNetconvert.typ.xml'));
+      return home;
+    } catch { /* try the next layout */ }
   }
   return null;
 }

@@ -16,7 +16,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { findSumo, findNetconvert, geoLock, geom } from '../tools/sumo_geom.js';
+import { findSumo, findNetconvert, sumoDataHome, geoLock, geom }
+  from '../tools/sumo_geom.js';
 import {
   TYPES, VCLASS_TO_IDX, readDemand, buildTypeMap, buildHeader, packFcd, packStats,
 } from '../tools/blgr_pack.js';
@@ -145,6 +146,50 @@ it('find netconvert mirrors the sumo discovery (same candidate list)', () => {
       .toBeTruthy();
     expect(path.dirname(nc)).toBe(path.dirname(sumo));
   }
+});
+
+/* sumoDataHome: the dir containing data/ for a discovered binary — the
+ * macOS Eclipse framework splits bin/ (framework root) from the data tree
+ * (share/sumo/data), so a SUMO_HOME pointing at the framework root breaks
+ * netconvert's default OSM typemap lookup. Locked with synthetic layouts:
+ * classic (bin/.. has data/), framework (bin/../share/sumo has data/),
+ * and "leave the env alone" (bare PATH name / no data dir nearby). */
+describe('sumoDataHome', () => {
+  function makeLayout(binRel, dataRel) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'simo-sumohome-'));
+    const bin = path.join(root, binRel, 'netconvert');
+    fs.mkdirSync(path.dirname(bin), { recursive: true });
+    fs.writeFileSync(bin, '#!/bin/sh\n');
+    fs.chmodSync(bin, 0o755);
+    if (dataRel) {
+      fs.mkdirSync(path.join(root, dataRel, 'typemap'), { recursive: true });
+      fs.writeFileSync(
+        path.join(root, dataRel, 'typemap', 'osmNetconvert.typ.xml'),
+        '<types/>');
+    }
+    return bin;
+  }
+
+  it('classic layout: data/ next to bin/', () => {
+    const bin = makeLayout('bin', 'data');
+    expect(sumoDataHome(bin)).toBe(path.dirname(path.dirname(bin)));
+  });
+
+  it('framework layout: data/ under share/sumo', () => {
+    const bin = makeLayout(path.join('EclipseSUMO', 'bin'),
+      path.join('EclipseSUMO', 'share', 'sumo', 'data'));
+    expect(sumoDataHome(bin))
+      .toBe(path.join(path.dirname(path.dirname(bin)), 'share', 'sumo'));
+  });
+
+  it('no data dir nearby -> null (inherit the environment)', () => {
+    const bin = makeLayout('bin', null);
+    expect(sumoDataHome(bin)).toBeNull();
+  });
+
+  it('bare PATH name -> null (nothing to derive from)', () => {
+    expect(sumoDataHome('netconvert')).toBeNull();
+  });
 });
 
 /* TestSumoExecution — flag contract -------------------------------------------

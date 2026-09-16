@@ -113,7 +113,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createPool, runProcess } from './pool.js';
 import { fileURLToPath } from 'node:url';
-import { findSumo, findNetconvert, geoLock } from './tools/sumo_geom.js';
+import { findSumo, findNetconvert, geoLock, sumoDataHome }
+  from './tools/sumo_geom.js';
 import * as dbStore from './db.js';
 import * as bucketStore from './bucket.js';
 import { buildEntry } from './tools/dev_inject.js';
@@ -699,7 +700,14 @@ export function createSimServer(opts = {}) {
       const netPath = path.join(td, name + '.net.xml');
       fs.writeFileSync(osmPath, xml);
       /* netconvert runs in a pool slot (CPU-bound subprocess, bounded
-       * like simulate). POOL_BUSY -> 503, same body. */
+       * like simulate). POOL_BUSY -> 503, same body. The env derives
+       * SUMO_HOME from the discovered binary so the default OSM typemap
+       * resolves on every layout (macOS Eclipse framework splits bin/
+       * from data/); null -> inherit untouched. */
+      const ncEnv = (() => {
+        const home = sumoDataHome(netconvert);
+        return home ? { ...process.env, SUMO_HOME: home } : undefined;
+      })();
       let run;
       try {
         run = pool.submit(() => runProcess(netconvert, [
@@ -711,7 +719,7 @@ export function createSimServer(opts = {}) {
           '--tls.guess',
           '--tls.join',
           '--junctions.corner-detail', '5',
-        ], { timeoutMs: convertTimeoutMs }));
+        ], { timeoutMs: convertTimeoutMs, env: ncEnv }));
       } catch (e) {
         run = Promise.reject(e);
       }
