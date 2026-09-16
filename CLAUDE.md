@@ -34,7 +34,13 @@ generated data + JSONP streams are served from `public/`.
   `SIMO_CONVERT_TIMEOUT_MS` (default 120000).
 - `npm run db:setup` — creates `PGDATABASE` + `${PGDATABASE}_test` and
   applies `db/schema.sql` (idempotent, transactional). Run twice to confirm
-  idempotency; `--no-test-db` skips the test db.
+  idempotency; `--no-test-db` skips the test db. (Optional since startup
+  self-provisions: the server now applies `db/schema.sql` on boot via
+  `db.js ensureDbReady` — a missing database is created through the
+  maintenance db, then the schema lands in one transaction; `main()` awaits
+  it before `listen` and exits non-zero on failure so the platform
+  restarts. The manual step remains useful for provisioning the TEST db
+  before running suites.)
 - `npm test` — vitest, single run (alias: `npx vitest run`)
 - `npm run test:watch` — vitest watch
 - `node tools/pack_run.js --net n.xml --rou r.xml --scenario today -o out.simo.json`
@@ -70,9 +76,11 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   `RAILPACK_PRUNE_DEPS=true` drops devDeps
   (vite/vitest) from the runtime image; `SIMO_WORKER_COUNT` for 1-vCPU
   instances.
-- One-time schema on the Railway Postgres:
-  `DATABASE_URL=<railway pg url> npm run db:setup -- --no-test-db` from this
-  dir.
+- Schema on the Railway Postgres is applied automatically on server boot
+  (`ensureDbReady` — creates the database when missing + applies
+  `db/schema.sql` idempotently); the one-time manual step
+  `DATABASE_URL=<railway pg url> npm run db:setup -- --no-test-db` from
+  this dir is now only a fallback.
 - `server.js` binds `0.0.0.0:$PORT` (Railway-injected `PORT`, default 8787).
 
 ## Layout

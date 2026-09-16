@@ -12,6 +12,9 @@
  * Every query here is parameterized ($1…) — zero string interpolation of
  * caller data.
  */
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 export const PG_VARS = ['PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD',
@@ -32,6 +35,7 @@ export function pgConnFromEnv(env = process.env) {
     port: Number(env.PGPORT),
     user: env.PGUSER,
     password: env.PGPASSWORD,
+    database: env.PGDATABASE,
   };
 }
 
@@ -128,6 +132,94 @@ export async function getUploadRef(pool, id, name) {
 export function closePool(pool) {
   return pool && typeof pool.end === 'function' ? pool.end()
     : Promise.resolve();
+}
+
+/* ------------------------------------------------ startup provisioning */
+
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const SCHEMA_SQL = fs.readFileSync(
+  path.join(ROOT, 'db', 'schema.sql'), 'utf8');
+
+const DB_NAME_RE = /^[a-z0-9_]+$/;
+
+/* maintenanceConn: connection options for a maintenance database, derived
+ * from the target's connOpts — DATABASE_URL rewrites the path, discrete
+ * PG* overrides the database (same shape tools/db_setup.js connFor uses).
+ * The name is the one dynamic identifier: validated + double-quoted. */
+function maintenanceConn(connOpts, name) {
+  if (!DB_NAME_RE.test(name)) {
+    throw new Error('invalid maintenance db name: ' + JSON.stringify(name));
+  }
+  if (connOpts.connectionString) {
+    const u = new URL(connOpts.connectionString);
+    u.pathname = '/' + name;
+    return { connectionString: u.toString() };
+  }
+  return { ...connOpts, database: name };
+}
+
+/* targetDbName: the database the connOpts point at (URL path or the
+ * discrete database field). */
+function targetDbName(connOpts) {
+  if (connOpts.connectionString) {
+    const name = decodeURIComponent(
+      new URL(connOpts.connectionString).pathname.replace(/^\//, ''));
+    if (!name) {
+      throw new Error('connection string carries no database name');
+    }
+    return name;
+  }
+  return connOpts.database;
+}
+
+/* applySchema: idempotent DDL from db/schema.sql in ONE transaction on a
+ * single client (the same shape tools/db_setup.js uses — the file carries
+ * no transaction statements of its own). Internal: ensureDbReady is the
+ * startup entry point. */
+async function applySchema(pool) {
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await client.query(SCHEMA_SQL);
+    await client.query('commit');
+  } catch (e) {
+    await client.query('rollback').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/* ensureDbReady: the server's startup provisioning — a fresh database
+ * (e.g. a newly provisioned Railway Postgres) needs no manual
+ * npm run db:setup. Contract: connect; if the target database does not
+ * exist (SQLSTATE 3D000) create it via a maintenance connection (default
+ * 'postgres', opts.maintenanceDb overrides) and reconnect; then apply
+ * db/schema.sql idempotently in one transaction. Any other failure
+ * (unreachable host, auth, DDL permission) propagates — the caller (main)
+ * exits non-zero so the platform restarts. The pool arrives from the
+ * server (createPoolFromEnv); connOpts is the same shape, needed only to
+ * derive the maintenance connection and target name. */
+export async function ensureDbReady(pool, connOpts, opts = {}) {
+  const maintenance = opts.maintenanceDb || 'postgres';
+  try {
+    await pool.query('select 1');
+  } catch (e) {
+    if ((e && e.code) !== '3D000') throw e;
+    const name = targetDbName(connOpts);
+    if (!DB_NAME_RE.test(name)) {
+      throw new Error('target database name must match ^[a-z0-9_]+$, got: '
+        + JSON.stringify(name));
+    }
+    const admin = new pg.Pool(maintenanceConn(connOpts, maintenance));
+    try {
+      await admin.query('create database "' + name + '"');
+    } finally {
+      await admin.end();
+    }
+    await pool.query('select 1');
+  }
+  await applySchema(pool);
 }
 
 /* ------------------------------------------------------------ review flow */

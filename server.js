@@ -310,10 +310,19 @@ export function createSimServer(opts = {}) {
   const resolveSumo = opts.sumoResolver || findSumo;
   const maxBodyBytes = opts.maxBodyBytes || MAX_BODY_BYTES;
   const timeoutMs = opts.timeoutMs || SIMULATE_TIMEOUT_MS;
-  const dbApi = opts.db || makeDbApi(dbStore.createPoolFromEnv());
+  /* DB backend: an injected opts.db (test seam) swaps everything — no
+   * provisioning. The default env pool self-provisions at startup:
+   * dbReady applies db/schema.sql (and creates the database if missing);
+   * main() awaits it before listen. */
+  let dbApi = opts.db || null;
+  let dbReady = null;
+  if (!dbApi) {
+    const dbPool = dbStore.createPoolFromEnv();
+    dbApi = makeDbApi(dbPool);
+    dbReady = dbStore.ensureDbReady(dbPool, dbStore.pgConnFromEnv());
+  }
   const bucketApi = opts.bucket
-    || makeBucketApi(bucketStore.createBucketFromEnv());
-  const verifyToken = opts.verifyToken || createVerifyIdTokenFromEnv();
+    || makeBucketApi(bucketStore.createBucketFromEnv());  const verifyToken = opts.verifyToken || createVerifyIdTokenFromEnv();
   const adminEmails = opts.adminEmails ?? parseAdminEmails(process.env);
   const mailer = opts.mailer || createMailerFromEnv();
   const packRunJs = path.join(rootDir, 'tools', 'pack_run.js');
@@ -1245,10 +1254,13 @@ export function createSimServer(opts = {}) {
     try { pool.close(); } catch { /* already closed */ }
     return origClose(cb);
   };
+  /* startup DB provisioning promise (null when opts.db is injected) —
+   * main() awaits it before listen; tests may too. */
+  server.dbReady = dbReady;
   return server;
 }
 
-export function main() {
+export async function main() {
   const port = Number(process.env.PORT) || 8787;
   if (!parseAdminEmails().length) {
     process.stdout.write('warning: SIMO_ADMIN_EMAILS unset/empty — no '
@@ -1259,6 +1271,17 @@ export function main() {
   process.stdout.write(`worker pool: ${pc.workers} slots `
     + '(SIMO_WORKER_COUNT), queue cap ' + pc.queueMax + '\n');
   const server = createSimServer();
+  if (server.dbReady) {
+    try {
+      await server.dbReady;
+      process.stdout.write('database ready — schema ensured\n');
+    } catch (e) {
+      process.stderr.write('database startup failed: '
+        + String((e && e.message) || e) + '\n');
+      process.exit(1);
+      return;
+    }
+  }
   server.listen(port, '0.0.0.0', () => {
     process.stdout.write('simo-player server -> listening on 0.0.0.0:' + port
       + ' (LAN-reachable at http://<your-ip>:' + port + ')'
@@ -1271,5 +1294,9 @@ export function main() {
 if (process.argv[1]
     && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(
       import.meta.url))) {
-  main();
+  main().catch((e) => {
+    process.stderr.write('server startup failed: '
+      + String((e && e.message) || e) + '\n');
+    process.exit(1);
+  });
 }
