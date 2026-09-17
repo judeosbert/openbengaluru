@@ -11,7 +11,7 @@
         "mise x python@3.12 -- python3 -m pip install --no-cache-dir --target /app/sumo eclipse-sumo==1.27.1",
         "ldd /app/sumo/sumo/bin/sumo",
         "/app/sumo/sumo/bin/sumo --version",
-        "test \"$(/app/sumo/sumo/bin/sumo --version | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -n1)\" = \"1.27.1\"",
+        "/app/sumo/sumo/bin/sumo --version | grep -qF 1.27.1",
         "/app/sumo/sumo/bin/netconvert --version > /dev/null"
       ],
       "deployOutputs": [{ "include": ["sumo"] }]

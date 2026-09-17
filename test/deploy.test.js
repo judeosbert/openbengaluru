@@ -41,6 +41,21 @@ describe('deployment (server bind + container image)', () => {
       .toMatch(/"startCommand":\s*"node server\.js"/);
   });
 
+  it('railpack.json version check survives Railpack sh -c wrapping', () => {
+    const r = read('railpack.json');
+    expect(r, 'the build-time version check must grep a fixed string '
+      + '(grep -qF 1.27.1) — the previous grep -oE pattern relied on '
+      + 'backslash-escaped dots, which Railpack doubles inside its '
+      + "sh -c wrapper; inside single quotes the doubled \\\\ becomes "
+      + 'a literal-backslash ERE that matches nothing, the substitution '
+      + 'yields the empty string, and the build fails silently with '
+      + 'exit 1 (d4b2b53, 60f1bbc, 45e0389, c5456ec all died here)')
+      .toMatch(/grep -qF 1\.27\.1/);
+    expect(r, 'no railpack.json command may contain backslash-escaped '
+      + 'dots (\\\\.) — Railpack sh -c wrapping doubles them')
+      .not.toMatch(/\\\\\./);
+  });
+
   it('.dockerignore keeps local junk out of the image context', () => {
     const i = read('.dockerignore');
     expect(i, 'node_modules must not ship in the build context')
