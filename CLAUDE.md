@@ -71,7 +71,14 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   (locked by test/tools.test.js); `deriveSumoHome` (tools/pack_run.js)
   replaces the old framework special case. apt `libproj25` stays — the
   wheel bundles libproj but not proj.db, whose baked default
-  `/usr/share/proj` the Debian package provides. The explicit start
+  `/usr/share/proj` the Debian package provides. apt also installs the
+  X11 runtime libs the wheel's binaries link but manylinux does not
+  bundle (`libx11-6 libxext6 libxrender1`, plus `libgl1` for libGL.so.1;
+  verified via DT_NEEDED of bin/sumo + bin/netconvert) — BOTH
+  `buildAptPackages` and `deploy.aptPackages` need the full set: the
+  build-time `--version` checks pass on the build image while the
+  runtime image can still miss a lib (the real libXrender 422). The
+  explicit start
   command also keeps Railpack's Vite SPA detection from turning the
   deploy into a static Caddy site. Node version resolves from
   `engines.node` (>=18 → latest via mise); pin in the dashboard with
