@@ -16,12 +16,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { findSumo, findNetconvert, sumoDataHome, geoLock, geom }
+import { findSumo, findNetconvert, sumoDataHome, geoLock, geom,
+  sumoCandidates, netconvertCandidates }
   from '../tools/sumo_geom.js';
 import {
   TYPES, VCLASS_TO_IDX, readDemand, buildTypeMap, buildHeader, packFcd, packStats,
 } from '../tools/blgr_pack.js';
-import { SUMO_FLAGS, parseScenarioSpecs, buildPack } from '../tools/pack_run.js';
+import {
+  SUMO_FLAGS, parseScenarioSpecs, buildPack, deriveSumoHome,
+} from '../tools/pack_run.js';
 import { readCatalog, writeCatalog, slug, statsDerive, injectPack, buildEntry, parseArgs as parseInjectArgs }
   from '../tools/dev_inject.js';
 import { TrafficSimEngine } from '../src/lib/engine.js';
@@ -146,6 +149,87 @@ it('find netconvert mirrors the sumo discovery (same candidate list)', () => {
       .toBeTruthy();
     expect(path.dirname(nc)).toBe(path.dirname(sumo));
   }
+});
+
+/* Pinned wheel deploy: the Railpack build step installs the official
+ * eclipse-sumo==1.27.1 wheel at /app/sumo (pip --target), layout
+ * /app/sumo/sumo/bin/sumo + /app/sumo/sumo/data/ (classic). The Debian
+ * apt sumo (1.18, trixie) cannot load nets saved by netedit >= 1.20
+ * (net format version 1.20) — the wheel must win over the bare PATH
+ * name while a SUMO_HOME override keeps priority. */
+describe('sumoCandidates / netconvertCandidates (pinned wheel deploy)', () => {
+  const FRAMEWORK_SUMO = '/Library/Frameworks/EclipseSUMO.framework'
+    + '/Versions/Current/EclipseSUMO/share/sumo/bin/sumo';
+  const PINNED = '/app/sumo/sumo/bin/sumo';
+
+  it('orders: pinned wheel before framework before PATH fallback', () => {
+    const c = sumoCandidates({});
+    expect(c).toContain(PINNED);
+    expect(c).toContain(FRAMEWORK_SUMO);
+    expect(c.indexOf(PINNED)).toBeLessThan(c.indexOf(FRAMEWORK_SUMO));
+    expect(c[c.length - 1]).toBe('sumo');
+  });
+
+  it('SUMO_HOME override stays first', () => {
+    const c = sumoCandidates({ SUMO_HOME: '/custom/home' });
+    expect(c[0]).toBe('/custom/home/bin/sumo');
+    expect(c.indexOf(PINNED)).toBeLessThan(c.indexOf(FRAMEWORK_SUMO));
+  });
+
+  it('netconvert mirrors the same order with its own binary name', () => {
+    const c = netconvertCandidates({});
+    expect(c).toContain('/app/sumo/sumo/bin/netconvert');
+    expect(c.indexOf('/app/sumo/sumo/bin/netconvert')).toBeLessThan(
+      c.indexOf('/Library/Frameworks/EclipseSUMO.framework'
+        + '/Versions/Current/EclipseSUMO/share/sumo/bin/netconvert'));
+    expect(c[c.length - 1]).toBe('netconvert');
+  });
+
+  it('findSumo/findNetconvert still resolve through the same lists', () => {
+    const sumo = findSumo();
+    const nc = findNetconvert();
+    if (sumo && nc) {
+      expect(sumo).toBe(sumoCandidates(process.env).find(
+        (c) => c && fs.existsSync(c)));
+      expect(nc).toBe(netconvertCandidates(process.env).find(
+        (c) => c && fs.existsSync(c)));
+    }
+  });
+});
+
+/* deriveSumoHome (pack_run): which SUMO_HOME to hand the subprocess —
+ * env override wins, else derive from the discovered binary (wheel and
+ * framework layouts), else null (inherit untouched). Replaces the
+ * hardcoded macOS-framework special case. */
+describe('deriveSumoHome', () => {
+  function makeLayout(binRel, dataRel) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'simo-derivehome-'));
+    const bin = path.join(root, binRel, 'sumo');
+    fs.mkdirSync(path.dirname(bin), { recursive: true });
+    fs.writeFileSync(bin, '#!/bin/sh\n');
+    fs.chmodSync(bin, 0o755);
+    if (dataRel) {
+      fs.mkdirSync(path.join(root, dataRel, 'typemap'), { recursive: true });
+      fs.writeFileSync(
+        path.join(root, dataRel, 'typemap', 'osmNetconvert.typ.xml'),
+        '<types/>');
+    }
+    return { root, bin };
+  }
+
+  it('env SUMO_HOME wins over derivation', () => {
+    expect(deriveSumoHome('/anywhere/bin/sumo', { SUMO_HOME: '/h' }))
+      .toBe('/h');
+  });
+
+  it('derives from the binary when layout supports it (wheel/classic)', () => {
+    const { root, bin } = makeLayout('bin', 'data');
+    expect(deriveSumoHome(bin, {})).toBe(root);
+  });
+
+  it('null when nothing derivable (bare PATH name)', () => {
+    expect(deriveSumoHome('sumo', {})).toBeNull();
+  });
 });
 
 /* sumoDataHome: the dir containing data/ for a discovered binary — the

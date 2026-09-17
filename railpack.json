@@ -3,9 +3,19 @@
   "packages": {
     "node": "22"
   },
+  "steps": {
+    "sumo": {
+      "inputs": [{ "step": "packages:mise" }],
+      "commands": [
+        "mise x python@3.12 -- python3 -m pip install --no-cache-dir --target /app/sumo eclipse-sumo==1.27.1",
+        "test \"$(/app/sumo/sumo/bin/sumo --version | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -n1)\" = \"1.27.1\"",
+        "/app/sumo/sumo/bin/netconvert --version > /dev/null"
+      ],
+      "deployOutputs": ["sumo"]
+    }
+  },
   "deploy": {
     "startCommand": "node server.js",
-    "aptPackages": ["...", "sumo"]
+    "aptPackages": ["...", "libproj25"]
   }
 }
-

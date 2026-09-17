@@ -16,14 +16,37 @@ function isExecutableFile(p) {
   }
 }
 
-/* Discover SUMO binary: $SUMO_HOME -> macOS framework -> PATH. */
-export function findSumo() {
-  const candidates = [
-    (process.env.SUMO_HOME || '') + '/bin/sumo',
+/* Pinned wheel deploy (Railpack build step): the official eclipse-sumo
+ * wheel installed with `pip install --target /app/sumo` lands at
+ * /app/sumo/sumo/bin/<bin> with data/ next to bin/. Must outrank the
+ * bare PATH name — the Debian apt sumo (1.18, trixie) rejects nets saved
+ * by netedit >= 1.20 (net format version 1.20) — while a SUMO_HOME
+ * override keeps priority. */
+const PINNED_SUMO_ROOT = '/app/sumo/sumo';
+
+/* Discovery candidates, in priority order. Pure over the env — the
+ * finders below add the filesystem probe. */
+export function sumoCandidates(env = process.env) {
+  return [
+    (env.SUMO_HOME || '') + '/bin/sumo',
+    PINNED_SUMO_ROOT + '/bin/sumo',
     '/Library/Frameworks/EclipseSUMO.framework/Versions/Current/EclipseSUMO/share/sumo/bin/sumo',
     'sumo',
   ];
-  for (const c of candidates) {
+}
+
+export function netconvertCandidates(env = process.env) {
+  return [
+    (env.SUMO_HOME || '') + '/bin/netconvert',
+    PINNED_SUMO_ROOT + '/bin/netconvert',
+    '/Library/Frameworks/EclipseSUMO.framework/Versions/Current/EclipseSUMO/share/sumo/bin/netconvert',
+    'netconvert',
+  ];
+}
+
+/* Discover SUMO binary: $SUMO_HOME -> pinned wheel -> macOS framework -> PATH. */
+export function findSumo() {
+  for (const c of sumoCandidates()) {
     if (c && isExecutableFile(c)) return c;
   }
   return null;
@@ -32,12 +55,7 @@ export function findSumo() {
 /* netconvert ships next to sumo in every discovery location — identical
  * candidate list with the binary name swapped (server-side area export). */
 export function findNetconvert() {
-  const candidates = [
-    (process.env.SUMO_HOME || '') + '/bin/netconvert',
-    '/Library/Frameworks/EclipseSUMO.framework/Versions/Current/EclipseSUMO/share/sumo/bin/netconvert',
-    'netconvert',
-  ];
-  for (const c of candidates) {
+  for (const c of netconvertCandidates()) {
     if (c && isExecutableFile(c)) return c;
   }
   return null;

@@ -12,7 +12,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { findSumo as findSumoBinary, geom, geoLock } from './sumo_geom.js';
+import { findSumo as findSumoBinary, geom, geoLock, sumoDataHome }
+  from './sumo_geom.js';
 import {
   buildTypeMap, readDemand, packFcd, packStats, readFcd, readSummary,
 } from './blgr_pack.js';
@@ -127,6 +128,15 @@ export function parseScenarioSpecs(scenarioArgs, net, rou) {
   return specs;
 }
 
+/* SUMO_HOME for the subprocess: env override wins, else derive from the
+ * discovered binary (pinned wheel /app/sumo/sumo and the macOS framework
+ * both carry data/ next to or under the bin dir — sumoDataHome handles
+ * every layout); null -> inherit untouched (Debian/PATH installs resolve
+ * data internally). Locked by test/tools.test.js deriveSumoHome. */
+export function deriveSumoHome(sumo, env = process.env) {
+  return env.SUMO_HOME || sumoDataHome(sumo) || null;
+}
+
 /* Run SUMO with exact flags from video_capture.py:34-38. */
 export function runSumo(sumo, net, rou, fcdOut, summOut, endTime, sumoHome) {
   const cmd = [sumo, '-n', net, '-r', rou];
@@ -141,7 +151,12 @@ export function runSumo(sumo, net, rou, fcdOut, summOut, endTime, sumoHome) {
     env: sumoHome ? { ...process.env, SUMO_HOME: sumoHome } : process.env,
   });
   if (r.status !== 0) {
-    throw new Error(`SUMO failed: ${(r.stderr || '').slice(-800)}`);
+    /* single-line: server.js tail() keeps only the last 8 lines of
+     * pack_run stderr and logs the FIRST of them — a multi-line message
+     * (with its 6-line JS stack) pushes the real SUMO error out of the
+     * window. Locked by test/pack_run_error.test.js. */
+    const tailMsg = (r.stderr || '').slice(-800).replace(/\s+/g, ' ').trim();
+    throw new Error(`SUMO failed: ${tailMsg}`);
   }
   return true;
 }
@@ -277,13 +292,7 @@ export async function main(argv) {
   const sumo = args.sumo || findSumoBinary();
   if (!sumo) fail('error: sumo not found. Set --sumo or $SUMO_HOME');
 
-  let sumoHome = null;
-  if (process.env.SUMO_HOME) {
-    sumoHome = process.env.SUMO_HOME;
-  } else if (sumo.startsWith('/Library/Frameworks/EclipseSUMO.framework/')) {
-    sumoHome = '/Library/Frameworks/EclipseSUMO.framework/'
-      + 'Versions/Current/EclipseSUMO/share/sumo';
-  }
+  const sumoHome = deriveSumoHome(sumo, process.env);
 
   const scenariosData = {};
   const td = fs.mkdtempSync(path.join(os.tmpdir(), 'simo-pack-'));

@@ -58,10 +58,21 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
 
 ## Railway deploy (Railpack)
 
-- `railpack.json` (this dir): start command `node server.js` + deploy apt
-  package `sumo` (the same Debian package the retired Dockerfile installed —
-  ships both `sumo` and `netconvert` for simulate/export-net). The explicit
-  start command also keeps Railpack's Vite SPA detection from turning the
+- `railpack.json` (this dir): start command `node server.js` + a `sumo`
+  build step that pip-installs the PINNED official wheel
+  (`eclipse-sumo==1.27.1`, `--target /app/sumo` via ephemeral mise
+  python, build-time version check, `deployOutputs: ["sumo"]`) — it
+  ships both `sumo` and `netconvert` plus `data/` for simulate and
+  export-net. The apt `sumo` package is GONE: Debian trixie ships SUMO
+  1.18, which rejects nets saved by netedit >= 1.20 (net format version
+  1.20 — what current netedit users submit), the cause of a real 422.
+  `sumoCandidates`/`netconvertCandidates` (tools/sumo_geom.js) order
+  discovery SUMO_HOME → `/app/sumo/sumo/bin` → macOS framework → PATH
+  (locked by test/tools.test.js); `deriveSumoHome` (tools/pack_run.js)
+  replaces the old framework special case. apt `libproj25` stays — the
+  wheel bundles libproj but not proj.db, whose baked default
+  `/usr/share/proj` the Debian package provides. The explicit start
+  command also keeps Railpack's Vite SPA detection from turning the
   deploy into a static Caddy site. Node version resolves from
   `engines.node` (>=18 → latest via mise); pin in the dashboard with
   `RAILPACK_NODE_VERSION` if determinism matters. The git root is the parent
