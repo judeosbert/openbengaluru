@@ -236,13 +236,14 @@ it.skipIf(!SUMO)('POST /api/simulate runs the real pipeline: 200 + DB row + buck
   expect(row.description).toBe('posted from endpoint test');
   expect(row.demand).toBe(150);           // 120 + 30 veh/h from the fixture
   expect(row.entry_json.nFrames).toBe(900);
-  /* the net carries origBoundary 0,0,50,50 -> geo-locked placement comes
-   * from the net bounds, NOT the posted wizard anchor */
-  expect(row.entry_json.anchor).toEqual([25, 25]);
-  expect(row.entry_json.rotation).toBe(0);
+  /* the net carries projParameter="!" + sentinel origBoundary -> NON-geo
+   * (geoLock guard): placement falls back to the posted wizard anchor,
+   * never geo-locked from fake net bounds */
+  expect(row.entry_json.anchor).toEqual([12.97, 77.72]);
+  expect(row.entry_json.rotation).toBe(7);
   expect(row.entry_json.dataSource).toBe('survey_data');
   expect(row.entry_json.sourceUrl).toBe('https://example.test/counts');
-  expect(row.entry_json.scenarios.today.geoLocked).toBe(true);
+  expect(row.entry_json.scenarios.today.geoLocked).toBeUndefined();
   expect(row.entry_json.scenarios.today.stats,
     'stats must ride inline in entry_json').toBeTruthy();
 

@@ -810,8 +810,8 @@ it.skipIf(!SUMO)('simulate: DB row pending + sim_ready + entry_json, bucket arti
   expect(row.author).toBe('qa user');       // claims author, body ignored
   expect(row.demand).toBe(150);
   expect(row.entry_json.id).toBe('rev-happy');
-  expect(row.entry_json.scenarios.today.geoLocked).toBe(true);
-  expect(row.entry_json.anchor).toEqual([25, 25]);
+  expect(row.entry_json.scenarios.today.geoLocked).toBeUndefined();
+  expect(row.entry_json.anchor).toEqual([12.97, 77.72]);
   expect(row.entry_json.dataSource).toBe('survey_data');
   expect(row.entry_json.sourceUrl).toBe('https://example.test/counts');
   expect(row.reviewed_by).toBeNull();

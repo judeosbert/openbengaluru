@@ -100,6 +100,12 @@ export function geoLock(netPath) {
   const netOff = vec2(attr('netOffset'));
   const proj = attr('projParameter') || '';
 
+  /* Non-geo net: SUMO writes projParameter="!" and mirrors convBoundary
+   * into origBoundary — raw metres, not lat/lng. The small-bounds
+   * heuristic below would misread that as a lat/lng box and wrongly
+   * geo-lock the pack. */
+  if (proj === '!') return { latlngMap: null, utm: null };
+
   let latlngMap = null;
   if (convB && origB && origB.every((v) => Math.abs(v) <= 1000)
       && convB[2] > convB[0] && convB[3] > convB[1]
