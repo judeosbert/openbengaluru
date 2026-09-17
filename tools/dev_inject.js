@@ -195,7 +195,7 @@ export function injectPack(opts) {
 export function usage() {
   return `usage: dev_inject.js [-h] pack --title TITLE [--net NET] [--author AUTHOR] [--id ID]
                           [--player-dir DIR] [--desc DESC] [--anchor LAT,LNG]
-                          [--rotation N] [--suggested-zoom N]
+                          [--rotation N] [--suggested-zoom N] [--json]
 
 Inject a .simo.json pack into the player (public/data.js + public/streams/)
 
@@ -211,7 +211,8 @@ options:
   --desc DESC        wizard description (catalog entry)
   --anchor LAT,LNG   fallback anchor for non-geo-locked nets
   --rotation N       fallback rotation for non-geo-locked nets
-  --suggested-zoom N fitBounds zoom cap written onto the entry`;
+  --suggested-zoom N fitBounds zoom cap written onto the entry
+  --json             print the injection summary as JSON (for tooling)`;
 }
 
 export function parseArgs(argv) {
@@ -247,7 +248,8 @@ export function parseArgs(argv) {
       const v = Number(next());
       if (!Number.isFinite(v)) fail('argument --suggested-zoom: expected a number');
       opts.suggestedZoom = v;
-    } else positional.push(a);
+    } else if (a === '--json') opts.json = true;
+    else positional.push(a);
   }
   if (!positional.length) fail('the following arguments are required: pack');
   if (!opts.title) fail('the following arguments are required: --title');
@@ -258,6 +260,10 @@ export function parseArgs(argv) {
 export function main(argv) {
   const opts = parseArgs(argv);
   const r = injectPack(opts);
+  if (opts.json) {
+    process.stdout.write(JSON.stringify(r) + '\n');
+    return;
+  }
   process.stdout.write(`entry '${r.id}' -> ${r.dataPath} CATALOG `
     + `(${r.entryCount} entries)\n`);
   const kb = Math.round(fs.statSync(r.streamPath).size / 1024);
