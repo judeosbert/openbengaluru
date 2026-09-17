@@ -3,6 +3,7 @@
   "packages": {
     "node": "22"
   },
+  "buildAptPackages": ["...", "libgl1"],
   "steps": {
     "sumo": {
       "inputs": [{ "step": "packages:mise" }],
@@ -16,6 +17,6 @@
   },
   "deploy": {
     "startCommand": "node server.js",
-    "aptPackages": ["...", "libproj25"]
+    "aptPackages": ["...", "libproj25", "libgl1"]
   }
 }
