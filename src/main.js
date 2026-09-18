@@ -284,6 +284,17 @@ const EXTRA_CSS = ''
   + 'font-family:var(--serif);font-weight:700}\n'
   + '.mark small{display:block;flex-basis:100%;font-family:var(--mono)}\n'
   + '.userbox{flex:1 1 0;justify-content:flex-end}\n'
+  /* open-source repo chip: on the brand mark's title row (the stacked
+   * tagline wraps below it) — hair border, full round, token ink; hover
+   * parity with the buttons (ink text + accent ring, no filter). Same 30×30
+   * size as the original right-cluster chip, 15px octicon. */
+  + '.mark a.gh{display:inline-flex;align-items:center;justify-content:'
+   + 'center;width:30px;height:30px;flex:none;border:1px solid var(--hair);'
+   + 'border-radius:999px;background:transparent;color:var(--ink2);'
+   + 'text-decoration:none}\n'
+   + '.mark a.gh svg{width:15px;height:15px;display:block}\n'
+   + '.mark a.gh:hover{color:var(--ink);outline:1px solid var(--accent);'
+   + 'outline-offset:-1px}\n'
   + '/* responsive component: compact single row <=900px; below that the\n'
   + '   bar stacks to three centered rows (brand / pill / actions).\n'
   + '   Layout-only — nothing is ever hidden. Media rules that restyle the\n'

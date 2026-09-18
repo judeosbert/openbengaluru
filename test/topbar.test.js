@@ -234,6 +234,60 @@ describe('TopBar render structure (source-pinned — node env has no DOM)', () =
   });
 });
 
+describe('GitHub repo link (open-source toolbar entry)', () => {
+  it('exports the public repo URL', () => {
+    expect(topbar.GITHUB_URL)
+      .toBe('https://github.com/judeosbert/openbengaluru');
+  });
+
+  it('renders an icon-only <a> in the brand mark, on the title row', () => {
+    expect(TOPBAR, 'an anchor element, not a view-toggle button')
+      .toMatch(/h\('a',/);
+    expect(TOPBAR, 'href comes from the exported constant')
+      .toMatch(/href: GITHUB_URL/);
+    expect(TOPBAR, 'new tab').toMatch(/target: '_blank'/);
+    expect(TOPBAR, 'no opener access from the embedded page')
+      .toMatch(/rel: 'noreferrer noopener'/);
+    expect(TOPBAR, 'icon-only → labelled for assistive tech')
+      .toMatch(/'aria-label': 'GitHub'/);
+    expect(TOPBAR, 'GitHub mark is a real SVG (octicon 16-grid)')
+      .toMatch(/viewBox: '0 0 16 16'/);
+    expect(TOPBAR, 'icon follows the text color via currentColor')
+      .toMatch(/fill: 'currentColor'/);
+    const at = (s) => TOPBAR.indexOf(s);
+    expect(at("'OpenBengaluru '"), 'after the headline text')
+      .toBeLessThan(at("'gh'"));
+    expect(at("'gh'"),
+      'before the tagline — the tagline wraps, so the chip shares the '
+      + 'title flex line')
+      .toBeLessThan(at("'WHAT WOULD YOU CHANGE?'"));
+    expect(at("'gh'"), '…still inside the brand mark, before the pill')
+      .toBeLessThan(at("className: 'viewtoggle'"));
+  });
+
+  it('gh icon styling: token-only icon chip + button-parity hover ring', () => {
+    const base = expectRule(EXTRA, '\\.mark a\\.gh', '.mark a.gh');
+    expect(base).toMatch(/display:inline-flex/);
+    expect(base).toMatch(/align-items:center/);
+    expect(base, 'first-placement size — 30×30 chip, 15px mark')
+      .toMatch(/width:30px;height:30px/);
+    expect(EXTRA).toMatch(/\.mark a\.gh svg\{[^}]*width:15px;height:15px/);
+    expect(base, 'hair border like the pill chips')
+      .toMatch(/border:1px solid var\(--hair\)/);
+    expect(base).toMatch(/border-radius:999px/);
+    expect(base).toMatch(/color:var\(--ink2\)/);
+    expect(base, 'it is a link — kill the underline')
+      .toMatch(/text-decoration:none/);
+    const hover = expectRule(EXTRA, '\\.mark a\\.gh:hover',
+      '.mark a.gh:hover');
+    expect(hover).toMatch(/color:var\(--ink\)/);
+    expect(hover, 'same accent ring the top bar buttons get on hover')
+      .toMatch(/outline:1px solid var\(--accent\)/);
+    expect(EXTRA, 'the userbox placement is retired')
+      .not.toMatch(/\.userbox a\.gh/);
+  });
+});
+
 describe('topbar CSS contract (EXTRA_CSS overrides, tokens only)', () => {
   it('the pill restyle wins the cascade: surface2 field, full round, hair border', () => {
     /* fragments stay BARE (no trailing \{) — lastRule appends \s*\{ itself;
