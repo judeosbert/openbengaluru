@@ -62,13 +62,13 @@ const USER = { uid: 'u1', displayName: 'Jude', email: 'jude@example.org' };
 const ids = (items) => items.map((i) => i.id);
 
 describe('nav config (pure data, exported)', () => {
-  it('NAV_ITEMS covers exactly the five views, in order, with labels', () => {
+  it('NAV_ITEMS covers exactly the six views, in order, with labels', () => {
     const { NAV_ITEMS } = topbar;
     expect(Array.isArray(NAV_ITEMS), 'NAV_ITEMS must be an array').toBe(true);
     expect(ids(NAV_ITEMS)).toEqual(
-      ['discover', 'contribute', 'dashboard', 'tutorials', 'admin']);
+      ['discover', 'contribute', 'dashboard', 'tutorials', 'privacy', 'admin']);
     expect(NAV_ITEMS.map((i) => i.label)).toEqual(
-      ['Discover', 'Contribute', 'Dashboard', 'Tutorials', 'Admin']);
+      ['Discover', 'Contribute', 'Dashboard', 'Tutorials', 'Privacy', 'Admin']);
     for (const item of NAV_ITEMS) {
       expect(typeof item.show, `${item.id}.show must be a predicate`)
         .toBe('function');
@@ -78,7 +78,7 @@ describe('nav config (pure data, exported)', () => {
   });
 
   it('public views always show; Dashboard/Admin follow user + me', () => {
-    for (const id of ['discover', 'contribute', 'tutorials']) {
+    for (const id of ['discover', 'contribute', 'tutorials', 'privacy']) {
       const item = topbar.NAV_ITEMS.find((i) => i.id === id);
       expect(item.show(null, null), `${id} must be public`).toBe(true);
       expect(item.show(USER, null), `${id} stays public signed in`).toBe(true);
@@ -99,11 +99,12 @@ describe('nav config (pure data, exported)', () => {
 
   it('visibleItems(user, me) filters NAV_ITEMS in config order', () => {
     expect(ids(topbar.visibleItems(null, null)))
-      .toEqual(['discover', 'contribute', 'tutorials']);
+      .toEqual(['discover', 'contribute', 'tutorials', 'privacy']);
     expect(ids(topbar.visibleItems(USER, {})))
-      .toEqual(['discover', 'contribute', 'dashboard', 'tutorials']);
+      .toEqual(['discover', 'contribute', 'dashboard', 'tutorials', 'privacy']);
     expect(ids(topbar.visibleItems(USER, { isAdmin: true })))
-      .toEqual(['discover', 'contribute', 'dashboard', 'tutorials', 'admin']);
+      .toEqual(['discover', 'contribute', 'dashboard', 'tutorials', 'privacy',
+        'admin']);
   });
 });
 
@@ -114,12 +115,12 @@ describe('pillSplit (max 3 visible, active always shown)', () => {
   it('shows the first three items and files the rest under More', () => {
     const { shown, more } = topbar.pillSplit('discover', adminUser());
     expect(ids(shown)).toEqual(['discover', 'contribute', 'dashboard']);
-    expect(ids(more)).toEqual(['tutorials', 'admin']);
+    expect(ids(more)).toEqual(['tutorials', 'privacy', 'admin']);
   });
 
   it('the active view always takes a visible slot, even from deep in More', () => {
     const visible = adminUser();
-    for (const active of ['tutorials', 'dashboard', 'admin']) {
+    for (const active of ['tutorials', 'dashboard', 'admin', 'privacy']) {
       const { shown, more } = topbar.pillSplit(active, visible);
       const shownIds = ids(shown);
       expect(shownIds.length, 'at most 3 pill slots').toBeLessThanOrEqual(3);
@@ -135,10 +136,10 @@ describe('pillSplit (max 3 visible, active always shown)', () => {
     const signedIn = topbar.visibleItems(USER, {});
     const dashboard = topbar.pillSplit('dashboard', signedIn);
     expect(ids(dashboard.shown)).toEqual(['discover', 'contribute', 'dashboard']);
-    expect(ids(dashboard.more)).toEqual(['tutorials']);
+    expect(ids(dashboard.more)).toEqual(['tutorials', 'privacy']);
     const tutorials = topbar.pillSplit('tutorials', signedIn);
     expect(ids(tutorials.shown)).toEqual(['discover', 'tutorials']);
-    expect(ids(tutorials.more)).toEqual(['contribute', 'dashboard']);
+    expect(ids(tutorials.more)).toEqual(['contribute', 'dashboard', 'privacy']);
   });
 
   it('no More menu when everything fits in two slots', () => {

@@ -15,6 +15,7 @@ import { DashboardView } from './DashboardView.js';
 import { AdminView } from './AdminView.js';
 import { ContributeView } from './ContributeView.js';
 import { TutorialsView } from './TutorialsView.js';
+import { PrivacyView } from './PrivacyView.js';
 import { loadSimStream } from '../map/overlay.js';
 import { fetchCatalogStream } from '../api.js';
 
@@ -141,6 +142,7 @@ export function App() {
           store.view === 'admin' ? h(AdminView, { store }) : null,
           store.view === 'contribute' ? h(ContributeView, { store }) : null,
           store.view === 'tutorials' ? h(TutorialsView, { store }) : null,
+          store.view === 'privacy' ? h(PrivacyView, { store }) : null,
           store.exportOpen && map ? h(ExportFlow, {
             map, onClose: store.closeExport,
           }) : null,

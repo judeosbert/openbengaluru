@@ -20,6 +20,7 @@ export const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard',
     show: (user, me) => Boolean(user && me) },
   { id: 'tutorials', label: 'Tutorials', show: () => true },
+  { id: 'privacy', label: 'Privacy', show: () => true },
   { id: 'admin', label: 'Admin',
     show: (user, me) => Boolean(user && me && me.isAdmin) },
 ];
