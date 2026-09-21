@@ -6,24 +6,40 @@
  * base-bundle entries are not manageable and never appear), Reject
  * (comment required), Deactivate (active rows).
  *
+ * Capture moderation (plan: capture-admin-moderation): a SIMS | CAPTURES
+ * section switcher in the head (SIMS default, the status FILTERS hidden on
+ * the captures section). CAPTURES lists every capture newest-first with a
+ * View file action (the admin file route needs the bearer header, so the
+ * bytes are fetched authed -> blob -> object URL — a bare link can never
+ * work) and a reject row (reason required); reject is a server-side HARD
+ * delete + uploader email, so the UI just toasts and reloads.
+ *
  * Full-screen overlay panel over the map (SubmitFlow shell pattern); no
  * router. Admin-only visibility is decided by the store's `me` (GET
  * /api/me); the server enforces the same rule on every action. */
 import React from 'react';
 import {
   fetchSubmissions, fetchSubmission, postComment,
+  fetchAdminCaptures, rejectCapture,
 } from '../api.js';
+import { currentToken } from '../auth/firebase.js';
 import { statusChip } from './DashboardView.js';
 
 import { DATA_SOURCE_LABELS } from '../lib/submit.js';
 
 const h = React.createElement;
 
-const FILTERS = ['all', 'pending', 'active', 'rejected', 'inactive'];
+const FILTERS = ['pending', 'active', 'rejected', 'inactive'];
+
+/* One-line size for the captures meta (clips ride the 100 MB upload cap). */
+const fmtBytes = (n) => n >= 1024 * 1024
+  ? (n / 1048576).toFixed(1) + ' MB'
+  : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B';
 
 export function AdminView({ store }) {
+  const [section, setSection] = React.useState('sims');
   const [rows, setRows] = React.useState(null);
-  const [filter, setFilter] = React.useState('all');
+  const [filter, setFilter] = React.useState('pending');
   const [error, setError] = React.useState(null);
   const [openId, setOpenId] = React.useState(null);
   const [detail, setDetail] = React.useState(null);
@@ -31,6 +47,10 @@ export function AdminView({ store }) {
   const [rejectText, setRejectText] = React.useState('');
   const [supersede, setSupersede] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  /* the captures moderation feed (plan: capture-admin-moderation) */
+  const [captures, setCaptures] = React.useState(null);
+  const [capReject, setCapReject] = React.useState('');
+  const [capBusy, setCapBusy] = React.useState(false);
 
   const loadRows = React.useCallback(() => {
     fetchSubmissions()
@@ -39,6 +59,18 @@ export function AdminView({ store }) {
   }, []);
 
   React.useEffect(() => { loadRows(); }, [loadRows]);
+
+  const loadCaptures = React.useCallback(() => {
+    fetchAdminCaptures()
+      .then((r) => setCaptures(r.captures))
+      .catch((e) => setError(String((e && e.message) || e)));
+  }, []);
+
+  /* the captures feed loads when its section activates (the sims queue
+   * stays the boot cost) */
+  React.useEffect(() => {
+    if (section === 'captures') loadCaptures();
+  }, [section, loadCaptures]);
 
   React.useEffect(() => {
     if (!openId) return undefined;
@@ -51,8 +83,7 @@ export function AdminView({ store }) {
     return () => { live = false; };
   }, [openId]);
 
-  const shown = (rows || []).filter((r) => filter === 'all'
-    || r.status === filter);
+  const shown = (rows || []).filter((r) => r.status === filter);
   /* active DB-managed submissions (supersede targets; excludes the open row) */
   const activeTargets = (rows || []).filter((r) => r.status === 'active'
     && r.id !== openId);
@@ -100,6 +131,46 @@ export function AdminView({ store }) {
   const play = (row) => {
     store.previewSubmission(row.id, row.status);
     store.setView('discover');
+  };
+
+  /* capture moderation actions (plan: capture-admin-moderation) */
+  const rejectCap = async (row) => {
+    const text = capReject.trim();
+    if (!text || capBusy) return;
+    setCapBusy(true);
+    setError(null);
+    try {
+      await rejectCapture(row.id, text);
+      setCapReject('');
+      store.setToast('capture removed');
+      loadCaptures();
+    } catch (e) {
+      setError(String((e && e.message) || e));
+    } finally {
+      setCapBusy(false);
+    }
+  };
+
+  /* the admin file route carries no public URL — the bytes come back only
+   * with the bearer header, so the view fetches authed and opens the blob */
+  const viewFile = async (row) => {
+    setError(null);
+    try {
+      const token = await currentToken();
+      if (!token) throw new Error('not signed in');
+      const res = await fetch('/api/admin/captures/'
+        + encodeURIComponent(row.id) + '/file',
+      { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'HTTP ' + res.status);
+      }
+      const url = URL.createObjectURL(await res.blob());
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      setError(String((e && e.message) || e));
+    }
   };
 
   const renderActions = (row) => {
@@ -182,40 +253,85 @@ export function AdminView({ store }) {
     h('div', { key: 'act', className: 'row-actions' }, renderActions(row)),
   ];
 
+  const renderCaptures = () => [
+    error ? h('div', { className: 'reject' }, error) : null,
+    captures === null && !error
+      ? h('div', { className: 'hint' }, 'Loading…')
+      : null,
+    captures && captures.length === 0
+      ? h('div', { className: 'hint' }, 'Nothing here.')
+      : null,
+    captures && captures.length
+      ? captures.map((c) => h('div', { key: c.id, className: 'row-item' },
+      h('div', { className: 'row-line' },
+        h('span', { className: 'row-title' },
+          c.junction, ' · ', c.method, ' · ',
+          String(c.created_at).slice(0, 10)),
+        h('span', { className: 'meta-inline' },
+          'by ', h('b', null, c.author_name || '—'),
+          ' · ', h('b', null, c.author_email || '—'),
+          ' · ', h('b', null, fmtBytes(c.byte_size)),
+          ' · captured ', h('b', null,
+            c.captured_at ? String(c.captured_at).slice(0, 10) : '—')),
+        h('button', { className: 'ghost',
+          onClick: () => viewFile(c) }, 'View file')),
+      h('div', { className: 'row-actions rejectrow' },
+        h('input', { type: 'text',
+          placeholder: 'Reject reason (required)…', value: capReject,
+          onChange: (ev) => setCapReject(ev.target.value) }),
+        h('button', { className: 'ghost',
+          disabled: !capReject.trim() || capBusy,
+          onClick: () => rejectCap(c) }, 'Reject'))))
+      : null,
+  ];
+
+  const renderSims = () => [
+    error ? h('div', { className: 'reject' }, error) : null,
+    rows === null && !error
+      ? h('div', { className: 'hint' }, 'Loading…')
+      : null,
+    rows && shown.length === 0
+      ? h('div', { className: 'hint' }, 'Nothing here.')
+      : null,
+    shown.map((row) => h('div', { key: row.id, className: 'row-item' },
+      h('div', { className: 'row-line' },
+        h('button', { className: 'ghost row-title',
+          onClick: () => setOpenId(openId === row.id ? null : row.id) },
+          row.title),
+        statusChip(row),
+        h('span', { className: 'meta-inline' },
+          'demand ', h('b', null, row.demand == null ? '—' : row.demand),
+          ' · peak ', h('b', null,
+            row.peak_served == null ? '—' : row.peak_served),
+          ' · proposed ', h('b', null, row.has_proposed ? 'yes' : 'no'),
+          ' · comments ', h('b', null, row.comment_count)),
+        !row.sim_ready && row.status === 'pending'
+          ? h('span', { className: 'status-chip failed' },
+            'PIPELINE FAILED — resubmit to retry') : null),
+      openId === row.id
+        ? h('div', { className: 'row-detail' }, renderDetail(row))
+        : null)),
+  ];
+
   return h('div', { className: 'dash-veil' },
     h('div', { className: 'dash' },
       h('div', { className: 'dash-head' },
         h('h3', null, 'REVIEW QUEUE'),
         h('div', { className: 'filter' },
-          FILTERS.map((f) => h('button', {
+          h('button', { className: section === 'sims' ? 'on' : 'ghost',
+            onClick: () => setSection('sims') }, 'SIMS'),
+          h('button', { className: section === 'captures' ? 'on' : 'ghost',
+            onClick: () => setSection('captures') }, 'CAPTURES'),
+          section === 'sims' && FILTERS.map((f) => h('button', {
             key: f, className: f === filter ? 'on' : 'ghost',
             onClick: () => setFilter(f),
           }, f.toUpperCase())),
           h('button', { className: 'ghost',
-            onClick: () => store.setView('discover') }, 'Close'))),
-      error ? h('div', { className: 'reject' }, error) : null,
-      rows === null && !error
-        ? h('div', { className: 'hint' }, 'Loading…')
-        : null,
-      rows && shown.length === 0
-        ? h('div', { className: 'hint' }, 'Nothing here.')
-        : null,
-      shown.map((row) => h('div', { key: row.id, className: 'row-item' },
-        h('div', { className: 'row-line' },
-          h('button', { className: 'ghost row-title',
-            onClick: () => setOpenId(openId === row.id ? null : row.id) },
-            row.title),
-          statusChip(row),
-          h('span', { className: 'meta-inline' },
-            'demand ', h('b', null, row.demand == null ? '—' : row.demand),
-            ' · peak ', h('b', null,
-              row.peak_served == null ? '—' : row.peak_served),
-            ' · proposed ', h('b', null, row.has_proposed ? 'yes' : 'no'),
-            ' · comments ', h('b', null, row.comment_count)),
-          !row.sim_ready && row.status === 'pending'
-            ? h('span', { className: 'status-chip failed' },
-              'PIPELINE FAILED — resubmit to retry') : null),
-        openId === row.id
-          ? h('div', { className: 'row-detail' }, renderDetail(row))
-          : null))));
+            onClick: () => store.setView('discover') }, 'Close')),
+        section === 'captures'
+          ? h('div', { className: 'hint' },
+            'rejecting a capture deletes it for good and emails the '
+            + 'uploader your reason')
+          : null),
+      section === 'captures' ? renderCaptures() : renderSims()));
 }

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CAPTURE — OpenBengaluru</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* pre-paint shell only; full theme arrives via BALAGERE_CSS_STYLE (public/data.js),
+     which src/main.js injects into a <style> tag at bootstrap. Mirrors the Paper
+     token block in EXTRA_CSS — part of the theme swap point. Same shell as
+     index.html; the only delta is the boot marker below. */
+  html,body{margin:0;height:100%;background:#F7F1E7;color:#2E241C;
+    font-family:"Inter",-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif}
+  #root{height:100%;display:flex;flex-direction:column}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<!-- direct route: boots the app straight into the capture overlay
+     (read by the store's initial view state before any render) -->
+<script>window.__SIMO_VIEW = 'capture';</script>
+<!-- generated data bundle: BALAGERE_CSS_STYLE, LANES_PALETTE, BALAGERE_GEOMETRY,
+     OTHER_SIMS, CATALOG (served from public/). Classic scripts block while
+     module scripts are deferred, so this is guaranteed to run first. -->
+<script src="/data.js"></script>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

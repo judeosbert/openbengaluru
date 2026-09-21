@@ -18,6 +18,7 @@ import {
   createBucketFromEnv,
   putObjects, deleteObjects, getObjectBytes,
   putReviewArtifacts, getReviewStream,
+  putCaptureObject, deleteCaptureObjects,
 } from '../bucket.js';
 
 /* Fresh per-test bucket root in the OS tempdir (real fs, no mocks). */
@@ -189,6 +190,33 @@ it('putObjects rejects invalid ids before touching the filesystem', async () => 
     rmRoot(root);
   }
 });
+
+it('deleteCaptureObjects removes only captures/<id>/ — uploads/ stay intact',
+  async () => {
+    const root = freshRoot();
+    try {
+      const b = createDiskBucket(root);
+      await putObjects(b, 'disk-cap', [
+        { name: 'today.net.xml', text: '<net/>' },
+      ]);
+      await putCaptureObject(b, 'disk-cap', {
+        name: 'disk-cap_a-junction.mp4', contentType: 'video/mp4',
+        bytes: Buffer.from('clip'),
+      });
+      expect(treeKeys(root)).toEqual([
+        'captures/disk-cap/disk-cap_a-junction.mp4',
+        'uploads/disk-cap/today.net.xml',
+      ]);
+      expect(await deleteCaptureObjects(b, 'disk-cap')).toBe(1);
+      /* the capture subtree is gone; the sim uploads are untouched (a
+       * resubmit's deleteObjects must never reach into captures/ and the
+       * reverse) */
+      expect(treeKeys(root)).toEqual(['uploads/disk-cap/today.net.xml']);
+      expect(await deleteCaptureObjects(b, 'disk-cap')).toBe(0);
+    } finally {
+      rmRoot(root);
+    }
+  });
 
 /* --------------------------------------------------------------- send guards */
 

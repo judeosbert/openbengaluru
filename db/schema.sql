@@ -79,6 +79,44 @@ CREATE TABLE IF NOT EXISTS review_comments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Captures (plan: capture-leaderboard page): commuter field-data uploads —
+-- ONE ROW = ONE ACCEPTED CAPTURE = 1 leaderboard point (no review flow;
+-- admin moderation is a HARD delete — the reject route removes the bucket
+-- object + this row (bucket first, retryable; a later DB failure orphans
+-- the object, accepted) and the count(*) leaderboard self-heals; the
+-- reason lives in the uploader email, never in a table). Bytes live in the
+-- bucket under captures/<id>/<name> (bucket.js captureKey — deliberately
+-- NEVER uploads/<id>/, a simulate resubmit's deleteObjects prefix-delete
+-- must not touch them); this table holds attribution + references, never
+-- bytes.
+--   id           server-generated before the bucket put (the object name
+--                embeds it: <capture-id>_<junction-slug>.<ext>)
+--   author_*     Firebase uid + authorFromProfile display name + email
+--   content_hash SHA-256 hex recomputed server-side over the buffered
+--                bytes — the per-author duplicate key (unique index)
+--   geo_lat/lng  nullable, stored RAW (no validation — verification means
+--                a reviewer can inspect the coordinates later)
+CREATE TABLE IF NOT EXISTS captures (
+  id           TEXT PRIMARY KEY CHECK (id ~ '^[a-z0-9][a-z0-9-]*$'),
+  author_uid   TEXT NOT NULL,
+  author_name  TEXT NOT NULL,
+  author_email TEXT,
+  junction     TEXT NOT NULL CHECK (length(trim(junction)) > 0),
+  method       TEXT NOT NULL
+               CONSTRAINT captures_method_check
+               CHECK (method IN
+                 ('snapshot', 'footbridge', 'stopwatch', 'other')),
+  captured_at  TIMESTAMPTZ,
+  content_hash TEXT NOT NULL,
+  object_key   TEXT NOT NULL,
+  file_name    TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  byte_size    BIGINT NOT NULL CHECK (byte_size >= 0),
+  geo_lat      DOUBLE PRECISION,
+  geo_lng      DOUBLE PRECISION,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- --------------------------------------------------------------- evolution
 -- Upgrade path for databases created with the pre-review schema: add the
 -- new columns (existing rows are live today -> backfill status='active'),
@@ -123,3 +161,5 @@ CREATE INDEX IF NOT EXISTS sims_author_uid_idx ON sims (author_uid);
 CREATE INDEX IF NOT EXISTS sims_status_idx ON sims (status);
 CREATE INDEX IF NOT EXISTS review_comments_sim_id_idx
   ON review_comments (sim_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS captures_author_hash_idx
+  ON captures (author_uid, content_hash);

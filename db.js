@@ -361,3 +361,97 @@ export async function activateTx(pool, id, { reviewedBy, supersedes }) {
   }
   return true;
 }
+
+/* ------------------------------------------------------------- captures */
+
+/* putCapture: insert ONE capture row (one accepted capture = one point)
+ * and return { id, points } — the author's total AFTER the insert (the
+ * 201 body). The duplicate prevention is the unique (author_uid,
+ * content_hash) index (the race backstop): a violation is mapped to a
+ * typed error the route turns into 409 — never leak raw pg error text. */
+export async function putCapture(pool, c) {
+  try {
+    await pool.query(
+      'insert into captures (id, author_uid, author_name, author_email,'
+      + ' junction, method, captured_at, content_hash, object_key,'
+      + ' file_name, content_type, byte_size, geo_lat, geo_lng)'
+      + ' values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,'
+      + ' $13, $14)',
+      [c.id, c.authorUid, c.authorName, c.authorEmail ?? null,
+        c.junction, c.method, c.capturedAt ?? null, c.contentHash,
+        c.objectKey, c.fileName, c.contentType, c.byteSize,
+        c.geoLat ?? null, c.geoLng ?? null]);
+  } catch (e) {
+    if (e && e.code === '23505') {
+      throw Object.assign(new Error('already uploaded'),
+        { code: 'CAPTURE_DUPLICATE' });
+    }
+    throw e;
+  }
+  const r = await pool.query(
+    'select count(*) as n from captures where author_uid = $1',
+    [c.authorUid]);
+  return { id: c.id, points: Number(r.rows[0].n) };
+}
+
+/* findCaptureHash: the pre-upload duplicate lookup — the author's row for
+ * this exact content hash, or null (scoped PER AUTHOR: the same bytes from
+ * another commuter are a fresh capture). */
+export async function findCaptureHash(pool, authorUid, contentHash) {
+  const r = await pool.query(
+    'select id from captures where author_uid = $1 and content_hash = $2',
+    [authorUid, contentHash]);
+  return r.rows.length ? r.rows[0] : null;
+}
+
+/* listLeaderboard: all-time totals, ranked by the route (this returns the
+ * ORDERED rows: points desc, tie-break by earliest MAX(created_at) — the
+ * commuter who reached their total first ranks higher). The display name
+ * comes from the author's MOST RECENT row (array_agg ordered inside the
+ * group), so a rename never splits a user into two entries. points is a
+ * number — pg returns count(*) as int8/string otherwise. */
+export async function listLeaderboard(pool, { limit = 50 } = {}) {
+  const lim = Math.max(1, Math.min(500, Number(limit) || 50));
+  const r = await pool.query(
+    'select (array_agg(author_name order by created_at desc))[1] as name,'
+    + ' count(*) as points from captures'
+    + ' group by author_uid'
+    + ' order by count(*) desc, max(created_at) asc limit $1',
+    [lim]);
+  return r.rows.map((row) => ({
+    name: row.name, points: Number(row.points),
+  }));
+}
+
+/* -------------------------------------------------- capture moderation */
+
+/* listCaptures: the admin moderation feed — every capture, newest first.
+ * byte_size is normalized to a number (pg int8 arrives as a string, which
+ * would poison the UI's size rendering — same guard as getUploadRef).
+ * object_key/content_hash stay out of the list: internal columns ride on
+ * getCapture only. */
+export async function listCaptures(pool, { limit = 100 } = {}) {
+  const lim = Math.max(1, Math.min(500, Number(limit) || 100));
+  const r = await pool.query(
+    'select id, author_uid, author_name, author_email, junction, method,'
+    + ' captured_at, file_name, content_type, byte_size, geo_lat, geo_lng,'
+    + ' created_at from captures order by created_at desc limit $1',
+    [lim]);
+  return r.rows.map((row) => ({ ...row, byte_size: Number(row.byte_size) }));
+}
+
+/* getCapture: the full row (object_key + content_type feed the file proxy)
+ * or null when absent (route maps that to 404). */
+export async function getCapture(pool, id) {
+  const r = await pool.query('select * from captures where id = $1', [id]);
+  return r.rows.length ? r.rows[0] : null;
+}
+
+/* deleteCapture: the hard delete — one row IS one leaderboard point, so
+ * removing it self-heals the count(*) leaderboard (an author's last row
+ * removes them entirely). No status/soft-delete: the reason lives in the
+ * uploader email, not in any table. Returns whether a row was removed. */
+export async function deleteCapture(pool, id) {
+  const r = await pool.query('delete from captures where id = $1', [id]);
+  return r.rowCount > 0;
+}

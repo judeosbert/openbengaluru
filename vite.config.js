@@ -1,9 +1,21 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
 // One config for Vite (dev server + build) and vitest (node environment —
 // the DOM-free guarantee: lib logic is tested without jsdom, exactly like
 // the retired phase1 vm harness ran it).
 export default defineConfig({
+  /* Multi-page build: index.html (the map player) + capture.html (the
+   * direct capture deep link; both load the same /src/main.js entry).
+   * Dev serves capture.html without any config. */
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        capture: fileURLToPath(new URL('./capture.html', import.meta.url)),
+      },
+    },
+  },
   test: {
     environment: 'node',
     /* db_uploads truncates the shared Postgres test db while the endpoint

@@ -188,3 +188,62 @@ export async function getReviewStream(client, id) {
     throw e;
   }
 }
+
+/* -------------------------------------------------------- capture uploads */
+
+/* Capture uploads (plan: capture-leaderboard page): commuter clips/photos
+ * live under captures/<id>/<name> — deliberately NOT uploads/<id>/ (a
+ * simulate resubmit's deleteObjects prefix-delete must never touch them).
+ * The name is SERVER-built <capture-id>_<junction-slug>.<ext> — guarded
+ * like the route-level validName (no slashes, no leading dots) on top of
+ * the ID_RE id guard, before any SDK call. */
+export function captureKey(id, name) {
+  validId(id);
+  if (typeof name !== 'string' || !name.length
+      || name.startsWith('.') || /[/\\]/.test(name)) {
+    throw new Error('invalid name');
+  }
+  return 'captures/' + id + '/' + name;
+}
+
+/* putCaptureObject: one PutObject for a capture clip/photo; resolves to
+ * the same ref shape putObjects feeds db.js with. ContentType is stored
+ * so the object's media type survives the bucket round-trip. */
+export async function putCaptureObject(client, id,
+  { name, contentType, bytes }) {
+  const key = captureKey(id, name);
+  const body = Buffer.from(bytes);
+  await client.send(new PutObjectCommand({
+    Bucket: client.bucket,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  }));
+  return {
+    name,
+    object_key: key,
+    object_url: 's3://' + client.bucket + '/' + key,
+    size_bytes: body.length,
+  };
+}
+
+/* deleteCaptureObjects: the captures/ twin of deleteObjects — moderation
+ * hard-delete clears EVERYTHING under captures/<id>/ (and nothing under
+ * uploads/: the prefix isolation runs both ways — a resubmit's
+ * deleteObjects never touches captures, this never touches sim sources).
+ * Same list-then-batch contract; returns the number of keys queued. */
+export async function deleteCaptureObjects(client, id) {
+  validId(id);
+  const listed = await client.send(new ListObjectsV2Command({
+    Bucket: client.bucket,
+    Prefix: 'captures/' + id + '/',
+  }));
+  const keys = (listed.Contents || []).map((o) => o.Key)
+    .filter((k) => typeof k === 'string');
+  if (!keys.length) return 0;
+  await client.send(new DeleteObjectsCommand({
+    Bucket: client.bucket,
+    Delete: { Objects: keys.map((k) => ({ Key: k })) },
+  }));
+  return keys.length;
+}

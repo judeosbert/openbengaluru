@@ -119,3 +119,56 @@ export function fetchFileText(id, name) {
   return call('/api/files/' + encodeURIComponent(id) + '/'
     + encodeURIComponent(name));
 }
+
+/* Capture upload (plan: capture-leaderboard page): the RAW file bytes ride
+ * as the request body — no multipart parser — and the metadata rides as
+ * URI-encoded query params. The file's MIME type is the Content-Type (the
+ * server accepts video/*|image/* only). meta keys map 1:1 to query params:
+ * junction, method, capturedAt, lat, lng, hash (the client's crypto.subtle
+ * short-circuit — the server recomputes anyway). A 409 duplicate comes
+ * back as 'already uploaded' through the standard body.error path. */
+export async function uploadCapture(file, meta) {
+  const token = await currentToken();
+  if (!token) throw new Error('sign in to upload');
+  const parts = [];
+  for (const [k, v] of Object.entries(meta || {})) {
+    if (v == null || v === '') continue;
+    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v));
+  }
+  let res;
+  try {
+    res = await fetch('/api/captures?' + parts.join('&'), {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    });
+  } catch (e) {
+    throw new Error('upload needs the player server (npm start) — '
+      + 'fetch failed: ' + (e && e.message));
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'HTTP ' + res.status);
+  }
+  return res.json();
+}
+
+/* Public all-time leaderboard: { entries: [{ rank, name, points }] }. */
+export function fetchLeaderboard() {
+  return call('/api/captures/leaderboard', { authed: false });
+}
+
+/* Admin capture moderation (plan: capture-admin-moderation): the
+ * AdminView CAPTURES feed and the hard-delete reject (the server requires
+ * a non-empty reason and emails it to the uploader). */
+export function fetchAdminCaptures() {
+  return call('/api/admin/captures');
+}
+
+export function rejectCapture(id, reason) {
+  return call('/api/admin/captures/' + encodeURIComponent(id) + '/reject',
+    { method: 'POST', body: { reason } });
+}

@@ -106,11 +106,67 @@
  * seam swaps the whole mailer for tests. SIMO_PUBLIC_BASE_URL (optional)
  * appends a View link (the client has no deep links — Dashboard/Admin are
  * overlays).
- */
+ *
+  * Captures (plan: capture-leaderboard page): signed-in commuters upload
+  * field clips/photos as RAW request bytes; metadata rides as URI-encoded
+  * query params. The route owns its body cap (MAX_CAPTURE_BYTES = 100 MB —
+  * NOT the global JSON guard), recomputes SHA-256 over the buffered bytes
+  * (the client `hash` is a short-circuit only, never trusted), rejects
+  * per-author duplicates BEFORE any storage write, then PUTs the object to
+  * the SAME bucket backend under captures/<id>/<name> (never uploads/<id>/
+  * — a resubmit's deleteObjects must not touch captures) and inserts the
+  * captures row (one row = one accepted capture = 1 leaderboard point; no
+  * review flow — admin moderation is hard delete, see the routes below).
+  *   POST /api/captures ?junction=&method=&capturedAt=&lat=&lng=&hash=
+ *     Authorization: Bearer <Firebase ID token> REQUIRED — verified
+ *     BEFORE the body is read; the author comes from the verified claims
+ *     (authorFromProfile), lat/lng when present must be finite numbers
+ *     and are stored RAW (geo_lat/geo_lng), capturedAt parses as a date.
+ *   201 { id, points }   points = the author's total AFTER the insert
+ *   401 { error }        missing/invalid token (checked before the body)
+ *   400 { error }        junction (required, <= 200 chars) | method (one
+ *                        of src/lib/capture.js METHODS) | content type
+ *                        (video/*|image/*) | capturedAt | lat/lng | the
+ *                        client hash disagreeing with the recomputed
+ *                        SHA-256
+ *   413 { error }        body over MAX_CAPTURE_BYTES (opts.captureMaxBytes
+ *                        test seam)
+ *   409 { error: 'already uploaded' }  same author + same content hash —
+ *                        checked BEFORE the bucket put, so a duplicate
+ *                        never creates an object; the unique
+ *                        (author_uid, content_hash) index is the race
+ *                        backstop (23505 -> same 409)
+ *   500 { error }        bucket put ('capture storage failed: …') or DB
+ *                        persist ('capture persist failed: …') — a
+ *                        bucket object may orphan if the DB write fails
+ *                        (accepted; cleanup manual)
+  *   GET /api/captures/leaderboard  (PUBLIC) { entries: [{ rank, name,
+  *                        points }] } — all-time, points DESC, ties by
+  *                        earliest latest-capture, name from the author's
+  *                        most recent row, top 50.
+  *
+  * Capture moderation (plan: capture-admin-moderation): admin-only routes
+  * over the captures table (401 anon / 403 non-admin, the review-gate
+  * pattern). Reject is a HARD delete — bucket object first (retryable 500,
+  * row intact), then the row (a later DB failure orphans the object,
+  * accepted) — so the count(*) leaderboard self-heals; the reason lives in
+  * the fire-and-forget uploader email (skipped when author_email IS NULL),
+  * never in a table.
+  *   GET  /api/admin/captures           (admin) { captures: [...] }
+  *                                      newest-first moderation feed
+  *   GET  /api/admin/captures/:id/file  (admin) proxied bytes with the
+  *                                      stored content type — 400 bad id /
+  *                                      404 unknown; bearer-gated, so a
+  *                                      bare client link can never work
+  *   POST /api/admin/captures/:id/reject { reason } (admin) — 400 blank/
+  *                                      oversize reason, 404 unknown,
+  *                                      200 { ok, id }; 405 wrong methods
+  */
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
 import { createPool, runProcess } from './pool.js';
 import { fileURLToPath } from 'node:url';
 import { findSumo, findNetconvert, geoLock, sumoDataHome }
@@ -120,8 +176,10 @@ import * as bucketStore from './bucket.js';
 import { buildEntry } from './tools/dev_inject.js';
 import { createVerifyIdTokenFromEnv } from './verifyToken.js';
 import { createMailerFromEnv, buildCommentEmail, buildRejectedEmail,
-  buildSupersededEmail } from './mailer.js';
+  buildSupersededEmail, buildCaptureRejectedEmail } from './mailer.js';
 import { authorFromProfile } from './src/lib/profile.js';
+import { METHODS } from './src/lib/capture.js';
+import { slugTitle } from './src/lib/draft.js';
 import { DATA_SOURCES, validSourceUrl } from './src/lib/submit.js';
 import { osmApiUrl, validateBbox, sanitizeAreaName }
   from './src/lib/areaExport.js';
@@ -132,6 +190,11 @@ const SERVER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 export const MAX_BODY_BYTES = 25 * 1024 * 1024;
 export const SIMULATE_TIMEOUT_MS = 5 * 60 * 1000;
 export const CONVERT_TIMEOUT_MS = 2 * 60 * 1000;
+/* Capture uploads get their own RAW-body cap — an order of magnitude
+ * above MAX_BODY_BYTES (clips are large; no multipart parser, so the body
+ * is buffered whole). opts.captureMaxBytes is the test seam. */
+export const MAX_CAPTURE_BYTES = 100 * 1024 * 1024;
+const MAX_JUNCTION_CHARS = 200;
 
 /* Pool sizing (plan: area export + worker pool): SIMO_WORKER_COUNT
  * (default cpus-1, min 1) slots, SIMO_WORKER_QUEUE_MAX (default 32) queued
@@ -250,6 +313,12 @@ function makeDbApi(pool) {
     setStatus: (id, s) => dbStore.setStatus(pool, id, s),
     activateTx: (id, o) => dbStore.activateTx(pool, id, o),
     finalizeSim: (id, o) => dbStore.finalizeSim(pool, id, o),
+    putCapture: (c) => dbStore.putCapture(pool, c),
+    findCaptureHash: (uid, h) => dbStore.findCaptureHash(pool, uid, h),
+    listLeaderboard: (o) => dbStore.listLeaderboard(pool, o),
+    listCaptures: (o) => dbStore.listCaptures(pool, o),
+    getCapture: (id) => dbStore.getCapture(pool, id),
+    deleteCapture: (id) => dbStore.deleteCapture(pool, id),
   };
 }
 
@@ -261,6 +330,10 @@ function makeBucketApi(s3) {
     putReviewArtifacts: (id, arts) =>
       bucketStore.putReviewArtifacts(s3, id, arts),
     getReviewStream: (id) => bucketStore.getReviewStream(s3, id),
+    putCaptureObject: (id, file) =>
+      bucketStore.putCaptureObject(s3, id, file),
+    deleteCaptureObjects: (id) =>
+      bucketStore.deleteCaptureObjects(s3, id),
   };
 }
 
@@ -311,6 +384,7 @@ export function createSimServer(opts = {}) {
   const distDir = opts.distDir || path.join(rootDir, 'dist');
   const resolveSumo = opts.sumoResolver || findSumo;
   const maxBodyBytes = opts.maxBodyBytes || MAX_BODY_BYTES;
+  const captureMaxBytes = opts.captureMaxBytes || MAX_CAPTURE_BYTES;
   const timeoutMs = opts.timeoutMs || SIMULATE_TIMEOUT_MS;
   /* DB backend: an injected opts.db (test seam) swaps everything — no
    * provisioning. The default env pool self-provisions at startup:
@@ -386,6 +460,9 @@ export function createSimServer(opts = {}) {
     let p = pathname;
     try { p = decodeURIComponent(p); } catch { /* keep raw */ }
     if (p === '/') p = '/index.html';
+    /* direct capture deep link: /capture serves the capture.html MPA
+     * entry (boots the app straight into the capture overlay) */
+    if (p === '/capture') p = '/capture.html';
     /* player dir first: data.js + streams/ are live-injected between
      * builds; dist/ holds the built app assets */
     for (const base of [playerDir, distDir]) {
@@ -766,6 +843,322 @@ export function createSimServer(opts = {}) {
       res.end(zip);
     } finally {
       fs.rmSync(td, { recursive: true, force: true });
+    }
+  }
+
+  /* sha256Hex over buffered bytes — the server ALWAYS recomputes the
+   * content hash from the real bytes; the client `hash` query param is a
+   * UX short-circuit only and must match or the request dies 400. */
+  function sha256Hex(buf) {
+    return createHash('sha256').update(buf).digest('hex');
+  }
+
+  /* POST /api/captures — the capture upload (plan: capture-leaderboard
+   * page). RAW bytes body; metadata in query params. Order: auth ->
+   * validate metadata -> buffer (route-owned cap) -> recompute SHA-256 ->
+   * per-author dup check (409 BEFORE any write) -> bucket put (500) ->
+   * DB row (500; unique-index race -> same 409) -> 201 { id, points }.
+   * Pure async I/O — no pool slot, like the review routes. */
+  async function handleCaptures(req, res, u) {
+    const started = Date.now();
+    const respond = (status, body) => {
+      process.stdout.write(`POST /api/captures -> ${status} `
+        + `${Date.now() - started}ms`
+        + (status >= 400
+          ? ' — ' + String(body.error || '').split('\n')[0].slice(0, 200)
+          : '') + '\n');
+      sendJson(res, status, body);
+    };
+    /* auth FIRST — a 401 must not depend on params or the body, and
+     * verifying the ~1 KB token beats reading a 100 MB clip. */
+    const claims = await authClaims(req);
+    if (!claims) {
+      return respond(401, { error: 'authentication failed' });
+    }
+    const authorUid = claims.uid;
+    const authorName = authorFromProfile(claims);
+    const authorEmail = typeof claims.email === 'string'
+      ? claims.email : null;
+
+    /* metadata validation BEFORE the body is buffered */
+    const q = u.searchParams;
+    const junction = (q.get('junction') || '').trim();
+    if (!junction) {
+      return respond(400, { error: 'junction is required' });
+    }
+    if (junction.length > MAX_JUNCTION_CHARS) {
+      return respond(400, { error: 'junction too long (max '
+        + MAX_JUNCTION_CHARS + ' chars)' });
+    }
+    const method = q.get('method') || '';
+    if (!METHODS.includes(method)) {
+      return respond(400, { error: 'method must be one of: '
+        + METHODS.join(', ') });
+    }
+    const contentType = String(req.headers['content-type'] || '');
+    if (!/^(video|image)\//.test(contentType)) {
+      return respond(400,
+        { error: 'content type must be video/* or image/*' });
+    }
+    let capturedAt = null;
+    if (q.get('capturedAt')) {
+      capturedAt = new Date(q.get('capturedAt'));
+      if (Number.isNaN(capturedAt.getTime())) {
+        return respond(400,
+          { error: 'capturedAt must be an ISO date' });
+      }
+    }
+    const parseGeo = (v) => {
+      if (v == null || v === '') return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : NaN;
+    };
+    const geoLat = parseGeo(q.get('lat'));
+    const geoLng = parseGeo(q.get('lng'));
+    if (Number.isNaN(geoLat) || Number.isNaN(geoLng)) {
+      return respond(400, { error: 'lat/lng, when sent, must be finite '
+        + 'numbers' });
+    }
+
+    /* buffer the RAW body under the ROUTE-OWNED cap (this branch never
+     * touches the JSON readers) — same running-size guard shape as the
+     * simulate handler */
+    const chunks = [];
+    let size = 0;
+    const bytes = await new Promise((resolve) => {
+      let dead = false;
+      req.on('data', (c) => {
+        if (dead) return;
+        size += c.length;
+        if (size > captureMaxBytes) {
+          dead = true;
+          respond(413, { error: 'body too large (max ' + captureMaxBytes
+            + ' bytes)' });
+          req.destroy();
+          resolve(null);
+          return;
+        }
+        chunks.push(c);
+      });
+      req.on('error', () => { if (!dead) { dead = true; resolve(null); } });
+      req.on('end', () => {
+        if (dead) return;
+        resolve(Buffer.concat(chunks));
+      });
+    });
+    if (bytes === null) return;   // 413 / aborted — already answered
+    if (!bytes.length) {
+      return respond(400, { error: 'capture body is empty' });
+    }
+
+    /* recompute — never trust the client hash (it only ever fast-fails) */
+    const contentHash = sha256Hex(bytes);
+    const clientHash = q.get('hash');
+    if (clientHash && clientHash !== contentHash) {
+      return respond(400, { error: 'client hash does not match the '
+        + 'uploaded bytes' });
+    }
+
+    /* per-author duplicate check BEFORE any write — a duplicate never
+     * creates a bucket object */
+    let dup = null;
+    try {
+      dup = await dbApi.findCaptureHash(authorUid, contentHash);
+    } catch (e) {
+      return respond(500, { error: 'duplicate check failed: '
+        + String((e && e.message) || e) });
+    }
+    if (dup) {
+      return respond(409, { error: 'already uploaded' });
+    }
+
+    /* id BEFORE the put: the object name embeds it */
+    const id = 'cap-' + Date.now().toString(36) + '-'
+      + randomBytes(4).toString('hex');
+    const ext = String(contentType.split('/')[1] || '')
+      .replace(/[^a-z0-9]/g, '') || 'bin';
+    const name = id + '_' + slugTitle(junction) + '.' + ext;
+
+    let ref;
+    try {
+      ref = await bucketApi.putCaptureObject(id,
+        { name, contentType, bytes });
+    } catch (e) {
+      return respond(500, { error: 'capture storage failed: '
+        + String((e && e.message) || e) });
+    }
+
+    try {
+      const saved = await dbApi.putCapture({
+        id,
+        authorUid, authorName, authorEmail,
+        junction, method, capturedAt,
+        contentHash,
+        objectKey: ref.object_key,
+        fileName: name,
+        contentType,
+        byteSize: bytes.length,
+        geoLat, geoLng,
+      });
+      return respond(201, { id, points: saved.points });
+    } catch (e) {
+      if (e && e.code === 'CAPTURE_DUPLICATE') {
+        /* lost the race against a concurrent identical upload — the
+         * bucket object is orphaned (accepted; cleanup manual) */
+        return respond(409, { error: 'already uploaded' });
+      }
+      return respond(500, { error: 'capture persist failed: '
+        + String((e && e.message) || e) });
+    }
+  }
+
+  /* GET /api/captures/leaderboard — PUBLIC: ranked all-time totals
+   * (points DESC, ties by earliest latest-capture; the route assigns the
+   * 1-based ranks, db.js returns the ordered rows). */
+  async function handleLeaderboard(res) {
+    try {
+      const rows = await dbApi.listLeaderboard({ limit: 50 });
+      return sendJson(res, 200, {
+        entries: rows.map((r, i) => ({
+          rank: i + 1, name: r.name, points: r.points,
+        })),
+      });
+    } catch (e) {
+      return sendJson(res, 500, { error: String((e && e.message) || e) });
+    }
+  }
+
+  /* Admin capture moderation (plan: capture-admin-moderation) — one
+   * dispatcher for the three admin-gated routes (list / file proxy /
+   * reject). Auth gate mirrors the sims review routes; every response
+   * path logs exactly one line. Reject = HARD delete mirroring the upload
+   * path's ordering: bucket delete FIRST (a storage failure leaves the row
+   * intact and retryable), then the row (a later DB failure orphans the
+   * object — accepted). The reason survives in the uploader email only. */
+  async function handleAdminCaptures(pathname, req, res) {
+    const started = Date.now();
+    const respond = (status, headers, payload) => {
+      process.stdout.write(`${req.method} ${pathname} -> ${status} `
+        + `${Date.now() - started}ms\n`);
+      if (headers) {
+        res.writeHead(status, headers);
+        res.end(payload);
+      } else {
+        sendJson(res, status, payload);
+      }
+    };
+    const decode = (s) => {
+      try { return decodeURIComponent(s); } catch { return null; }
+    };
+    const gate = async () => {
+      const claims = await authClaims(req);
+      if (!claims) {
+        respond(401, null, { error: 'authentication failed' });
+        return null;
+      }
+      if (!isAdmin(claims)) {
+        respond(403, null, { error: 'admin only' });
+        return null;
+      }
+      return claims;
+    };
+
+    /* GET /api/admin/captures — the moderation feed */
+    if (pathname === '/api/admin/captures') {
+      if (req.method !== 'GET') {
+        return respond(405, null, { error: 'method not allowed' });
+      }
+      if (!await gate()) return;
+      try {
+        const rows = await dbApi.listCaptures({ limit: 100 });
+        return respond(200, null, { captures: rows });
+      } catch (e) {
+        return respond(500, null, { error: String((e && e.message) || e) });
+      }
+    }
+
+    const segs = pathname.split('/').filter(Boolean).slice(3);
+    if (segs.length !== 2 || (segs[1] !== 'file' && segs[1] !== 'reject')) {
+      return respond(404, null, { error: 'not found' });
+    }
+    const id = decode(segs[0]);
+    if (typeof id !== 'string' || !bucketStore.ID_RE.test(id)) {
+      return respond(400, null, { error: 'invalid id' });
+    }
+    if (!await gate()) return;
+
+    /* GET /api/admin/captures/:id/file — proxied bytes with the STORED
+     * content type (row.content_type, not the extension map). Admin-only
+     * buffering-whole mirrors handleFiles; the row's object_key is the
+     * guarded key stored at upload time. */
+    if (segs[1] === 'file') {
+      if (req.method !== 'GET') {
+        return respond(405, null, { error: 'method not allowed' });
+      }
+      let row = null;
+      try {
+        row = await dbApi.getCapture(id);
+      } catch (e) {
+        return respond(500, null, { error: String((e && e.message) || e) });
+      }
+      if (!row) {
+        return respond(404, null, { error: 'not found: ' + id });
+      }
+      let buf;
+      try {
+        buf = await bucketApi.getObjectBytes(row.object_key);
+      } catch (e) {
+        return respond(500, null, { error: String((e && e.message) || e) });
+      }
+      return respond(200, {
+        'Content-Type': row.content_type || 'application/octet-stream',
+        'Content-Length': buf.length,
+      }, buf);
+    }
+
+    /* POST /api/admin/captures/:id/reject — { reason } required, trimmed
+     * non-empty <= the comment cap (same 4 KB as the sims reject route) */
+    if (req.method !== 'POST') {
+      return respond(405, null, { error: 'method not allowed' });
+    }
+    const body = await readJsonBody(req);
+    const reason = body && typeof body.reason === 'string'
+      ? body.reason.trim() : '';
+    if (!reason) {
+      return respond(400, null, { error: 'reason is required to reject' });
+    }
+    if (reason.length > MAX_COMMENT_CHARS) {
+      return respond(400, null, { error: 'reason too long (max '
+        + MAX_COMMENT_CHARS + ' chars)' });
+    }
+    let row = null;
+    try {
+      row = await dbApi.getCapture(id);
+    } catch (e) {
+      return respond(500, null, { error: String((e && e.message) || e) });
+    }
+    if (!row) {
+      return respond(404, null, { error: 'not found: ' + id });
+    }
+    try {
+      await bucketApi.deleteCaptureObjects(id);
+    } catch (e) {
+      return respond(500, null, { error: 'capture storage failed: '
+        + String((e && e.message) || e) });
+    }
+    try {
+      await dbApi.deleteCapture(id);
+    } catch (e) {
+      return respond(500, null, { error: 'capture persist failed: '
+        + String((e && e.message) || e) });
+    }
+    respond(200, null, { ok: true, id });
+    /* fire-and-forget AFTER the response — the row is gone, so the email
+     * is where the reason lives; legacy rows (author_email null) have no
+     * address and skip (one log line already went out above) */
+    if (row.author_email) {
+      notify({ to: [row.author_email], ...buildCaptureRejectedEmail({
+        capture: row, reason, baseUrl: mailer.baseUrl }) });
     }
   }
 
@@ -1198,6 +1591,37 @@ export function createSimServer(opts = {}) {
     }
     if (req.method === 'POST' && u.pathname === '/api/export-net') {
       handleExportNet(req, res).catch((e) => {
+        if (!res.headersSent) {
+          sendJson(res, 500, { error: String((e && e.message) || e) });
+        }
+      });
+      return;
+    }
+    if (u.pathname === '/api/captures/leaderboard') {
+      if (req.method !== 'GET') {
+        return sendJson(res, 405, { error: 'method not allowed' });
+      }
+      handleLeaderboard(res).catch((e) => {
+        if (!res.headersSent) {
+          sendJson(res, 500, { error: String((e && e.message) || e) });
+        }
+      });
+      return;
+    }
+    if (u.pathname === '/api/captures') {
+      if (req.method !== 'POST') {
+        return sendJson(res, 405, { error: 'method not allowed' });
+      }
+      handleCaptures(req, res, u).catch((e) => {
+        if (!res.headersSent) {
+          sendJson(res, 500, { error: String((e && e.message) || e) });
+        }
+      });
+      return;
+    }
+    if (u.pathname === '/api/admin/captures'
+        || u.pathname.startsWith('/api/admin/captures/')) {
+      handleAdminCaptures(u.pathname, req, res).catch((e) => {
         if (!res.headersSent) {
           sendJson(res, 500, { error: String((e && e.message) || e) });
         }

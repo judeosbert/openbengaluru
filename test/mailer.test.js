@@ -10,6 +10,7 @@ import { it, expect } from 'vitest';
 import {
   SMTP_VARS, createMailer, createMailerFromEnv,
   buildCommentEmail, buildRejectedEmail, buildSupersededEmail,
+  buildCaptureRejectedEmail,
 } from '../mailer.js';
 
 /* ------------------------------------------------------------- constants --- */
@@ -223,5 +224,30 @@ it('buildSupersededEmail: subject pins the OLD title, body names the new sim', (
   expect(mail.text).toContain('sim-1');
   expect(mail.text).toContain('sim-2');
   expect(mail.text).toContain('New sim');
+  expect(mail.text).toContain('View: https://app.test');
+});
+
+it('buildCaptureRejectedEmail: subject pins the junction, body carries the '
+  + 'reason verbatim', () => {
+  const capture = { id: 'cap-1', junction: 'Silk Board Junction',
+    method: 'snapshot', captured_at: '2026-01-02T03:04:05.000Z' };
+  const mail = buildCaptureRejectedEmail({
+    capture, reason: 'not a real junction',
+    baseUrl: null });
+  expect(Object.keys(mail).sort()).toEqual(['subject', 'text']);
+  expect(mail.subject)
+    .toBe('[OpenBengaluru] Your capture at "Silk Board Junction" was removed');
+  expect(mail.text).toContain('Silk Board Junction');
+  expect(mail.text).toContain('snapshot');
+  expect(mail.text).toContain('2026-01-02');
+  expect(mail.text).toContain('not a real junction');
+  expect(mail.text).not.toContain('View:');
+});
+
+it('buildCaptureRejectedEmail: baseUrl appends a View line', () => {
+  const mail = buildCaptureRejectedEmail({
+    capture: { id: 'cap-1', junction: 'A', method: 'other',
+      captured_at: null },
+    reason: 'blurry', baseUrl: 'https://app.test' });
   expect(mail.text).toContain('View: https://app.test');
 });

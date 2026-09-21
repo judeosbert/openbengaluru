@@ -17,6 +17,7 @@ const h = React.createElement;
 export const NAV_ITEMS = [
   { id: 'discover', label: 'Discover', show: () => true },
   { id: 'contribute', label: 'Contribute', show: () => true },
+  { id: 'capture', label: 'Capture', show: () => true },
   { id: 'dashboard', label: 'Dashboard',
     show: (user, me) => Boolean(user && me) },
   { id: 'tutorials', label: 'Tutorials', show: () => true },

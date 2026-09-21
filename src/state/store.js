@@ -24,7 +24,13 @@ export const MapOverlayProvider = React.createContext(null);
 export function useTrafficStore() {
   const { useState, useCallback, useEffect } = React;
 
-  const [view, setView] = useState('discover');
+  /* Direct-route boot: capture.html sets window.__SIMO_VIEW = 'capture'
+   * before the module loads, so the deep link opens the capture page
+   * immediately; index.html (and file://) never set the marker -> the
+   * plain 'discover' start. */
+  const [view, setView] = useState(() => (
+    typeof window !== 'undefined' && window.__SIMO_VIEW === 'capture'
+      ? 'capture' : 'discover'));
   const [catalog, setCatalog] = useState(() => CATALOG || []);
   const [activeSimId, setActiveSimId] = useState(null);
   const [activeScenario, setActiveScenario] = useState('today');

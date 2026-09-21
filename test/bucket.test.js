@@ -4,14 +4,17 @@
  * keys built ONLY from the fixed FILE_NAMES constants + an ID_RE-validated
  * id, createS3FromEnv fail-fast listing missing SIMO_S3_* vars, putObjects
  * returning the exact DB ref shape, deleteObjects list-then-batch,
- * getObjectBytes draining the Body to bytes.
+ * getObjectBytes draining the Body to bytes. The capture storage ops
+ * (captureKey + putCaptureObject, plan: capture-leaderboard page) live
+ * under their own captures/<id>/ prefix — never uploads/<id>/.
  */
 import { it, expect } from 'vitest';
 import { Readable } from 'node:stream';
 import {
-  ID_RE, FILE_NAMES, objectKey, reviewKey, createS3FromEnv,
+  ID_RE, FILE_NAMES, objectKey, reviewKey, captureKey, createS3FromEnv,
   putObjects, deleteObjects, getObjectBytes,
-  putReviewArtifacts, getReviewStream,
+  putReviewArtifacts, getReviewStream, putCaptureObject,
+  deleteCaptureObjects,
 } from '../bucket.js';
 
 /* ------------------------------------------------------------- constants --- */
@@ -296,4 +299,101 @@ it('getReviewStream surfaces non-NoSuchKey errors', async () => {
   });
   await expect(getReviewStream(s3, 'bkt-rev-err'))
     .rejects.toThrow(/network down/);
+});
+
+/* -------------------------------------------------------- capture uploads --- */
+/* Capture uploads (plan: capture-leaderboard page): commuter clips/photos
+ * live under captures/<id>/<name> — deliberately NOT uploads/<id>/ (a
+ * simulate resubmit's deleteObjects prefix-delete must never touch them).
+ * The name is server-built <id>_<junction-slug>.<ext>; same guard style as
+ * objectKey (ID_RE id; no slashes, no leading dots in the name). */
+
+it('captureKey builds captures/<id>/<name> only from validated parts', () => {
+  expect(captureKey('cap-1', 'cap-1_silk-board.mp4'))
+    .toBe('captures/cap-1/cap-1_silk-board.mp4');
+  expect(captureKey('cap-1', 'x.mp4').startsWith('uploads/')).toBe(false);
+  for (const bad of ['', '../evil', 'UPPER', '-lead', 'a b', '.dot', null]) {
+    expect(() => captureKey(bad, 'x.mp4'), JSON.stringify(bad))
+      .toThrow(/invalid id/);
+  }
+  for (const bad of ['../evil', 'a/b', 'a\\b', '.hidden', '', null,
+    undefined, 42]) {
+    expect(() => captureKey('cap-1', bad), JSON.stringify(bad))
+      .toThrow(/invalid name/);
+  }
+});
+
+it('putCaptureObject sends one PutObject (ContentType) and the DB ref shape',
+  async () => {
+    const s3 = fakeS3();
+    const bytes = Buffer.from('fake-clip-bytes');
+    const ref = await putCaptureObject(s3, 'cap-put', {
+      name: 'cap-put_silk-board.mp4', contentType: 'video/mp4', bytes,
+    });
+    expect(s3.sent.length).toBe(1);
+    expect(s3.sent[0].input).toEqual({
+      Bucket: 'fake-bkt',
+      Key: 'captures/cap-put/cap-put_silk-board.mp4',
+      Body: bytes,
+      ContentType: 'video/mp4',
+    });
+    expect(ref).toEqual({
+      name: 'cap-put_silk-board.mp4',
+      object_key: 'captures/cap-put/cap-put_silk-board.mp4',
+      object_url: 's3://fake-bkt/captures/cap-put/cap-put_silk-board.mp4',
+      size_bytes: bytes.length,
+    });
+  });
+
+it('putCaptureObject rejects invalid ids before any SDK call', async () => {
+  const s3 = fakeS3();
+  await expect(putCaptureObject(s3, '../evil', {
+    name: 'x.mp4', contentType: 'video/mp4', bytes: Buffer.alloc(1),
+  })).rejects.toThrow(/invalid id/);
+  expect(s3.sent).toEqual([]);
+});
+
+/* ------------------------------------------- capture moderation (hard delete) --- */
+/* Reject = hard delete: list everything under captures/<id>/ then
+ * batch-delete — the captures/ twin of deleteObjects (never uploads/, a
+ * simulate resubmit's prefix-delete must not touch captures). */
+
+it('deleteCaptureObjects lists the captures/<id>/ prefix then batch-deletes',
+  async () => {
+    const s3 = fakeS3({
+      ListObjectsV2Command: () => ({
+        Contents: [
+          { Key: 'captures/cap-del/cap-del_a-junction.mp4' },
+          { Key: 'captures/cap-del/extra.bin' },
+        ],
+      }),
+    });
+    const n = await deleteCaptureObjects(s3, 'cap-del');
+    expect(n).toBe(2);
+    expect(s3.sent.length).toBe(2);
+    expect(s3.sent[0].input.Bucket).toBe('fake-bkt');
+    expect(s3.sent[0].input.Prefix).toBe('captures/cap-del/');
+    expect(s3.sent[1].input).toEqual({
+      Bucket: 'fake-bkt',
+      Delete: {
+        Objects: [
+          { Key: 'captures/cap-del/cap-del_a-junction.mp4' },
+          { Key: 'captures/cap-del/extra.bin' },
+        ],
+      },
+    });
+  });
+
+it('deleteCaptureObjects with nothing listed sends no delete (count 0)',
+  async () => {
+    const s3 = fakeS3({ ListObjectsV2Command: () => ({}) });
+    expect(await deleteCaptureObjects(s3, 'cap-empty')).toBe(0);
+    expect(s3.sent.length).toBe(1);
+  });
+
+it('deleteCaptureObjects rejects invalid ids before any SDK call', async () => {
+  const s3 = fakeS3();
+  await expect(deleteCaptureObjects(s3, '../evil'))
+    .rejects.toThrow(/invalid id/);
+  expect(s3.sent).toEqual([]);
 });

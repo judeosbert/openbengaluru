@@ -104,7 +104,7 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
 ## Layout
 
 - `src/lib/` — pure logic (engine, netxml, geo, draft, submit, areaExport,
-  util, profile, catalogMerge, ingestSlot, introScene). **Must stay DOM-free and
+  util, profile, catalogMerge, ingestSlot, introScene, capture). **Must stay DOM-free and
   react/leaflet-free** — enforced by `test/lib-purity.test.js`. New pure
   logic goes here so vitest's node environment can run it directly.
   `engine.js` decodes BLGR frames/stats ONLY — the synthetic-traffic
@@ -124,6 +124,14 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   reduces to the original full-viewport fraction math, so desktop intro
   rendering is unchanged; portrait phones get the scene cut at the sides
   instead of squished (locked by test/intro-scene.test.js).
+  `capture.js` is the Capture page's pure copy module (plan:
+  capture-leaderboard page): `GUIDE_METHODS` (4 locked-roster pedestrian
+  capture-method cards), `METHODS` (the server-validated enum
+  ['snapshot','footbridge','stopwatch','other']), `LEADERBOARD_NOTE`
+  (scoring copy) and `sha256Hex` (client SHA-256 short-circuit via
+  crypto.subtle — the server recomputes over the received bytes; the
+  lib-purity regex bans the word `window` even in prose, so copy must
+  avoid it).
 - `src/data.js` — adapter over the classic-script bundle `public/data.js`.
   `index.html` loads `/data.js` as a classic script BEFORE the module entry
   (classic blocks, modules defer — order is guaranteed). Script-level `const`
@@ -180,13 +188,35 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   unchanged). App's `fitPadding` gives the open-snap effect
   `paddingBottomRight` = 62% of the map height <=900px, so the opened
   sheet never covers the sim.
-  `DashboardView` (user) + `AdminView` (review queue) are full-screen
-  overlay panels over the map, fed by `src/api.js` wrappers; TopBar shows
-  Dashboard/Admin only when signed in AND `me` resolved (`me.isAdmin`).
+   `DashboardView` (user) + `AdminView` (review queue) are full-screen
+   overlay panels over the map, fed by `src/api.js` wrappers; TopBar shows
+   Dashboard/Admin only when signed in AND `me` resolved (`me.isAdmin`).
+   AdminView has a SIMS | CAPTURES section switcher (SIMS default; the
+   status FILTERS `['pending','active','rejected','inactive']` — the ALL
+   chip is gone, default filter `pending` — hidden while CAPTURES is
+   active; plan: capture-admin-moderation): the CAPTURES section loads via
+   `fetchAdminCaptures` on activation, renders rows (junction · method ·
+   date + author name/email + size + captured_at) with **View file**
+   (authed blob fetch → `URL.createObjectURL` — the admin file route needs
+   the bearer header, so a bare link can never work) and a reject row
+   (reason input + Reject disabled until non-empty, mirroring the sims
+   reject UI); success → `setToast('capture removed')` + reload (the
+   server hard-deletes + emails the uploader the reason).
   `ContributeView` is a static full-screen overlay panel (public, no API
   calls) rendering the 6-track/16-role guide copy from the pure
   `src/lib/contribute.js` (`TRACKS` + `LEVELING_UP`; shape locked by
   test/contribute.test.js).
+  `CaptureView` (plan: capture-leaderboard page) is a PUBLIC overlay panel
+  with LIVE calls through `src/api.js` (`uploadCapture` raw-body + query
+  params, `fetchLeaderboard` public): fixed section order upload widget →
+  guide cards → leaderboard (locked by test/capture.test.js), sign-in
+  gated via `store.signIn`, method radio-chips from `METHODS`,
+  `accept="video/*,image/*"` with NO forced `capture` attr, datetime-local
+  prefilled from `file.lastModified`, geo requested ONLY on the upload tap
+  (chip 'location captured'/'no location'), leaderboard top 10 + 'show
+  all' expand + quiet 'leaderboard unavailable' failure; page CSS lives in
+  `EXTRA_CSS` (token-only). TopBar `NAV_ITEMS` gains the public 'capture'
+  entry after 'contribute' (all topbar.test.js arrays re-pinned).
   App's lazy-stream loader branches on `entry.apiStream`:
   `/api/catalog/:id/stream` for API entries, JSONP `streams/<id>.js` for
   the base bundle. Stream failure (fetch reject or JSONP null) is honest:
@@ -244,9 +274,40 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
    `<name>.net.xml` (with `<!-- simo:zoom=N -->` on line 2) +
    `<name>.osm.xml` (the fetched OSM, zoom-stamped; src/lib/zip.js
    writer). Tempdir removed on every path. Seams:
-  `fetchOsm` / `netconvertResolver` / `convertTimeoutMs`
-  (test/endpoint_export.test.js, fixture test/fixtures/mini.osm.xml).
-  Review flow (Postgres + bucket; no filesystem writes): submissions stay
+`fetchOsm` / `netconvertResolver` / `convertTimeoutMs`
+   (test/endpoint_export.test.js, fixture test/fixtures/mini.osm.xml).
+   Captures (plan: capture-leaderboard page): `POST /api/captures`
+   ?junction=&method=&capturedAt=&lat=&lng=&hash= — RAW bytes body (the
+   route's OWN guard: `MAX_CAPTURE_BYTES` 100 MB → 413, `opts.captureMaxBytes`
+   test seam; never the JSON readers), auth-first like simulate (401
+   before body), metadata → 400, recomputed SHA-256 vs the client `hash`
+   → 400, per-author dup check → 409 'already uploaded' BEFORE any write,
+   then `bucketApi.putCaptureObject` (500 'capture storage failed: …') →
+   `dbApi.putCapture` (CAPTURE_DUPLICATE → 409; other failure → 500
+   'capture persist failed: …' — a bucket object may orphan, accepted) →
+   201 `{ id, points }` (author total after insert). Geo lat/lng, when
+   present, must be finite and are stored RAW. `GET /api/captures/leaderboard`
+   (PUBLIC) → `{ entries: [{ rank, name, points }] }` top 50. Wrong
+   methods → 405 on both. Pure async I/O — no pool slot. No new env: the
+   SAME bucket backend (`createBucketFromEnv`) stores the bytes.
+   Capture moderation (plan: capture-admin-moderation): three admin-gated
+   routes in ONE dispatcher `handleAdminCaptures` (401 anon / 403
+   non-admin via `authClaims`+`isAdmin`, one log line per response):
+   `GET /api/admin/captures` → `{ captures: [...] }` newest-first feed
+   (db.js `listCaptures`, byte_size normalized); `GET
+   /api/admin/captures/:id/file` → proxied bytes with the STORED
+   `content_type` (400 invalid id, 404 unknown; bearer-gated — a bare
+   client link can never work, the UI fetches blob → objectURL);
+   `POST /api/admin/captures/:id/reject { reason }` → 400 blank/oversize
+   (same 4 KB cap as the sims reject), 404 unknown, 200 `{ ok, id }` —
+   HARD delete mirroring the upload's ordering: `bucketApi.deleteCaptureObjects`
+   FIRST (500 'capture storage failed: …', row intact, retryable) then
+   `dbApi.deleteCapture` (500 'capture persist failed: …', orphaned object
+   accepted) — the count(*) leaderboard self-heals. Fire-and-forget
+   `buildCaptureRejectedEmail` to `[author_email]` AFTER the response
+   (skipped when null — the email + the log line are where the reason
+   lives, no table column). 405 wrong methods.
+   Review flow (Postgres + bucket; no filesystem writes): submissions stay
   `pending` until an admin activates them — the public catalog is the base
   bundle PLUS `GET /api/catalog` (active entry_json rows, replace-by-id in
   the client merge). Admin identity: SIMO_ADMIN_EMAILS (comma-separated,
@@ -307,7 +368,14 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   `bucket_disk.js` (a `{ bucket, send }` seam twin over a local directory
   under `SIMO_BUCKET_DISK_DIR` — dev storage, no SIMO_S3_* needed; wins
   over SIMO_S3_* when both set) when that var is set; the disk send
-  re-guards keys and maps missing reads to `NoSuchKey`); Postgres holds refs + metadata
+  re-guards keys and maps missing reads to `NoSuchKey`); capture clips
+   land under `captures/<id>/<name>` via `captureKey` + `putCaptureObject`
+  (same `{ bucket, send }` seam; name `<capture-id>_<junction-slug>.<ext>`
+  server-built — deliberately NEVER `uploads/<id>/`, a simulate resubmit's
+  `deleteObjects` prefix-delete must not touch captures), with
+  `deleteCaptureObjects` as the moderation hard-delete twin (same
+  list-then-batch over the `captures/<id>/` prefix only — the prefix
+  isolation runs both ways); Postgres holds refs + metadata
   only (`db.js`: `sims` row + `sim_files` rows — object key/url/size,
   never bytes; all queries parameterized; `putUploadRefs` is a single
   replace-on-resimulate transaction that touches metadata + author fields
@@ -316,11 +384,24 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   (pending-first, comment_count), `listActiveEntries`, `listComments`/
   `addComment` (is_admin stamped by callers), `setStatus`,
   `activateTx` (activation + supersede in ONE tx with a non-active-target
-  rollback guard)). `test/bucket.test.js` locks key guards + the
-  `{ bucket, send }` client seam; `test/bucket_disk.test.js` locks the
+   rollback guard); captures API: `putCapture` (one row = one point —
+  returns `{ id, points }`, the author total AFTER the insert; the PG
+  23505 unique violation maps to a typed
+  `code: 'CAPTURE_DUPLICATE'` error), `findCaptureHash` (per-author
+  pre-upload dup lookup), `listLeaderboard` (points DESC + earliest
+  MAX(created_at) tie-break, name from the author's MOST RECENT row,
+  count() normalized to a number, limit default 50)), plus the moderation
+  trio (plan: capture-admin-moderation): `listCaptures` (admin feed,
+  newest-first, byte_size normalized to a number, limit clamp 1..500
+  default 100), `getCapture` (full row for the file proxy / null),
+  `deleteCapture` (hard delete — the count(*) leaderboard self-heals).
+  `test/bucket.test.js` locks key guards + the
+  `{ bucket, send }` client seam (+ `captureKey`/`putCaptureObject`);
+  `test/bucket_disk.test.js` locks the
   disk backend through the real bucket.js ops (refs shape, recursive
   delete, NoSuchKey, escape guards, env dispatch); `test/db_uploads.test.js` +
-  `test/db_review.test.js` lock the DB API on real Postgres.
+  `test/db_review.test.js` lock the DB API on real Postgres;
+  `test/db_captures.test.js` locks the captures API on real Postgres.
 - `db/schema.sql` — idempotent DDL applied by `tools/db_setup.js` (npm run
   db:setup) and by the test harness (`test/helpers/pgTest.js`: requires
   all five PG* vars, creates `${PGDATABASE}_test` if missing, applies the
@@ -328,7 +409,11 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   pre-review schema is upgraded by ALTER TABLE IF NOT EXISTS columns +
   a `DO $$ … pg_constraint $$` block for the status CHECK (Postgres has
   no ADD CONSTRAINT IF NOT EXISTS); legacy rows backfill status='active',
-  fresh rows default 'pending'.
+  fresh rows default 'pending'. The `captures` table (plan:
+  capture-leaderboard page) is a plain CREATE TABLE IF NOT EXISTS with a
+  unique (author_uid, content_hash) index — one row = one accepted
+  capture = 1 leaderboard point, no review flow (admin moderation is a
+  HARD delete — plan: capture-admin-moderation; no table changes needed).
 - `test/` — vitest suites + `helpers/{streamPayload,dataConsts,pgTest}.js`;
   fixtures in `test/fixtures/` (sample.net.xml has the -1e10 sentinel
   origBoundary; mini.net.xml/mini.rou.xml are a real SUMO-runnable pair

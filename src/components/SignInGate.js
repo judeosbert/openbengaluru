@@ -8,8 +8,9 @@ import React from 'react';
 
 const h = React.createElement;
 
-/* The four-color Google "G" (standard sign-in button mark, 48 viewBox). */
-const G_MARK = h('svg', {
+/* The four-color Google "G" (standard sign-in button mark, 48 viewBox).
+ * Exported — the Capture page's sign-in sheet reuses the same mark. */
+export const G_MARK = h('svg', {
   viewBox: '0 0 48 48', width: 18, height: 18, 'aria-hidden': 'true',
 },
 h('path', {

@@ -110,3 +110,21 @@ export function buildSupersededEmail({ sim, by, baseUrl }) {
       + viewLine(baseUrl),
   };
 }
+
+/* Capture moderation (plan: capture-admin-moderation): the capture row is
+ * HARD-deleted, so this email (plus one stdout log line) is where the
+ * admin's reason survives for the uploader. `capture` is the captures DB
+ * row (junction/method/captured_at/captured_at nullable). */
+export function buildCaptureRejectedEmail({ capture, reason, baseUrl }) {
+  const when = capture.captured_at
+    ? '\nCaptured: ' + capture.captured_at : '';
+  return {
+    subject: '[OpenBengaluru] Your capture at "' + capture.junction
+      + '" was removed',
+    text: 'Your capture at "' + capture.junction + '" (' + capture.id
+      + ') was removed by a reviewer and no longer counts toward the '
+      + 'leaderboard.\n\n'
+      + 'Method: ' + capture.method + when
+      + '\n\nReviewer reason:\n' + reason + viewLine(baseUrl),
+  };
+}

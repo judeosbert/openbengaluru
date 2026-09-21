@@ -1,7 +1,10 @@
 /* Top bar redesign — Figma-style centered pill (max 3 visible views, always
  * including the active one) + a "More" dropdown, account-only avatar menu,
  * ghost actions + single accent CTA (plan:
- * .kilo/plans/1789320892907-topbar-redesign-plan.md).
+ * .kilo/plans/1789320892907-topbar-redesign-plan.md). The public 'capture'
+ * nav entry (after Contribute) was added by the capture-leaderboard plan
+ * (.kilo/plans/1789982353337-capture-leaderboard-page.md) and is pinned in
+ * every array below.
  *
  * The vitest env is node (no DOM), so three pinning layers:
  * - the pure nav logic is EXPORTED from the component module and tested
@@ -62,13 +65,15 @@ const USER = { uid: 'u1', displayName: 'Jude', email: 'jude@example.org' };
 const ids = (items) => items.map((i) => i.id);
 
 describe('nav config (pure data, exported)', () => {
-  it('NAV_ITEMS covers exactly the six views, in order, with labels', () => {
+  it('NAV_ITEMS covers exactly the seven views, in order, with labels', () => {
     const { NAV_ITEMS } = topbar;
     expect(Array.isArray(NAV_ITEMS), 'NAV_ITEMS must be an array').toBe(true);
     expect(ids(NAV_ITEMS)).toEqual(
-      ['discover', 'contribute', 'dashboard', 'tutorials', 'privacy', 'admin']);
+      ['discover', 'contribute', 'capture', 'dashboard', 'tutorials',
+        'privacy', 'admin']);
     expect(NAV_ITEMS.map((i) => i.label)).toEqual(
-      ['Discover', 'Contribute', 'Dashboard', 'Tutorials', 'Privacy', 'Admin']);
+      ['Discover', 'Contribute', 'Capture', 'Dashboard', 'Tutorials',
+        'Privacy', 'Admin']);
     for (const item of NAV_ITEMS) {
       expect(typeof item.show, `${item.id}.show must be a predicate`)
         .toBe('function');
@@ -78,7 +83,8 @@ describe('nav config (pure data, exported)', () => {
   });
 
   it('public views always show; Dashboard/Admin follow user + me', () => {
-    for (const id of ['discover', 'contribute', 'tutorials', 'privacy']) {
+    for (const id of ['discover', 'contribute', 'capture', 'tutorials',
+      'privacy']) {
       const item = topbar.NAV_ITEMS.find((i) => i.id === id);
       expect(item.show(null, null), `${id} must be public`).toBe(true);
       expect(item.show(USER, null), `${id} stays public signed in`).toBe(true);
@@ -99,12 +105,13 @@ describe('nav config (pure data, exported)', () => {
 
   it('visibleItems(user, me) filters NAV_ITEMS in config order', () => {
     expect(ids(topbar.visibleItems(null, null)))
-      .toEqual(['discover', 'contribute', 'tutorials', 'privacy']);
+      .toEqual(['discover', 'contribute', 'capture', 'tutorials', 'privacy']);
     expect(ids(topbar.visibleItems(USER, {})))
-      .toEqual(['discover', 'contribute', 'dashboard', 'tutorials', 'privacy']);
+      .toEqual(['discover', 'contribute', 'capture', 'dashboard', 'tutorials',
+        'privacy']);
     expect(ids(topbar.visibleItems(USER, { isAdmin: true })))
-      .toEqual(['discover', 'contribute', 'dashboard', 'tutorials', 'privacy',
-        'admin']);
+      .toEqual(['discover', 'contribute', 'capture', 'dashboard', 'tutorials',
+        'privacy', 'admin']);
   });
 });
 
@@ -114,13 +121,14 @@ describe('pillSplit (max 3 visible, active always shown)', () => {
 
   it('shows the first three items and files the rest under More', () => {
     const { shown, more } = topbar.pillSplit('discover', adminUser());
-    expect(ids(shown)).toEqual(['discover', 'contribute', 'dashboard']);
-    expect(ids(more)).toEqual(['tutorials', 'privacy', 'admin']);
+    expect(ids(shown)).toEqual(['discover', 'contribute', 'capture']);
+    expect(ids(more)).toEqual(['dashboard', 'tutorials', 'privacy', 'admin']);
   });
 
   it('the active view always takes a visible slot, even from deep in More', () => {
     const visible = adminUser();
-    for (const active of ['tutorials', 'dashboard', 'admin', 'privacy']) {
+    for (const active of ['capture', 'tutorials', 'dashboard', 'admin',
+      'privacy']) {
       const { shown, more } = topbar.pillSplit(active, visible);
       const shownIds = ids(shown);
       expect(shownIds.length, 'at most 3 pill slots').toBeLessThanOrEqual(3);
@@ -134,12 +142,20 @@ describe('pillSplit (max 3 visible, active always shown)', () => {
 
   it('a visible active view keeps its positional slot; a deep one swaps into slot 2', () => {
     const signedIn = topbar.visibleItems(USER, {});
+    /* capture sits in the first three — it keeps its positional slot */
+    const capture = topbar.pillSplit('capture', signedIn);
+    expect(ids(capture.shown)).toEqual(['discover', 'contribute', 'capture']);
+    expect(ids(capture.more)).toEqual(['dashboard', 'tutorials', 'privacy']);
+    /* dashboard moved past slot 2 (Capture took index 2) -> it now swaps
+     * into slot 2 beside Discover */
     const dashboard = topbar.pillSplit('dashboard', signedIn);
-    expect(ids(dashboard.shown)).toEqual(['discover', 'contribute', 'dashboard']);
-    expect(ids(dashboard.more)).toEqual(['tutorials', 'privacy']);
+    expect(ids(dashboard.shown)).toEqual(['discover', 'dashboard']);
+    expect(ids(dashboard.more)).toEqual(
+      ['contribute', 'capture', 'tutorials', 'privacy']);
     const tutorials = topbar.pillSplit('tutorials', signedIn);
     expect(ids(tutorials.shown)).toEqual(['discover', 'tutorials']);
-    expect(ids(tutorials.more)).toEqual(['contribute', 'dashboard', 'privacy']);
+    expect(ids(tutorials.more)).toEqual(
+      ['contribute', 'capture', 'dashboard', 'privacy']);
   });
 
   it('no More menu when everything fits in two slots', () => {
