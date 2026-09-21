@@ -116,7 +116,9 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   shared upload-ingest core used by SubmitFlow's FileReader path AND the
   resubmit prefill. `areaExport.js` is the server-consumed export head:
   `osmApiUrl` + `validateBbox` (shape/range/min<max/0.25° OSM cap) +
-  `sanitizeAreaName` — the client-side convert.sh era is gone.
+  `sanitizeAreaName` — the client-side convert.sh era is gone. `zip.js`
+  is the minimal deterministic zip writer bundling the export's
+  net+xml into one attachment (round-trips through the system `unzip`).
   `introScene.js` is the intro canvas scene mapping: cover-fit of a fixed
   16:9 reference box (uniform scale, crop overflow) — at exactly 16:9 it
   reduces to the original full-viewport fraction math, so desktop intro
@@ -237,9 +239,11 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   → netconvert via `opts.netconvertResolver` (`findNetconvert`, same
   candidate list as findSumo; null → 500) in a pool slot with the retired
   convert.sh flags (incl. `--junctions.corner-detail 5`) and
-  `SIMO_CONVERT_TIMEOUT_MS` (default 120 s → 504; nonzero → 422 stderr
-  tail) → 200 `text/xml` attachment `<name>.net.xml` with
-  `<!-- simo:zoom=N -->` on line 2. Tempdir removed on every path. Seams:
+   `SIMO_CONVERT_TIMEOUT_MS` (default 120 s → 504; nonzero → 422 stderr
+   tail) → 200 `application/zip` attachment `<name>.zip` bundling
+   `<name>.net.xml` (with `<!-- simo:zoom=N -->` on line 2) +
+   `<name>.osm.xml` (the fetched OSM, zoom-stamped; src/lib/zip.js
+   writer). Tempdir removed on every path. Seams:
   `fetchOsm` / `netconvertResolver` / `convertTimeoutMs`
   (test/endpoint_export.test.js, fixture test/fixtures/mini.osm.xml).
   Review flow (Postgres + bucket; no filesystem writes): submissions stay

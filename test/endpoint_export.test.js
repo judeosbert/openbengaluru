@@ -14,13 +14,17 @@
  *   502 other OSM status / fetch failure
  *   503 pool busy (POOL_BUSY) + OSM 429/509 (rate-limited)
  *   504 netconvert timeout
- *   200 text/xml attachment "<name>.net.xml" with '<!-- simo:zoom=N -->'
- *   as line 2 (the convert.sh awk step)
+ *   200 application/zip attachment "<name>.zip" holding BOTH files:
+ *   "<name>.net.xml" (with '<!-- simo:zoom=N -->' as line 2, the
+ *   convert.sh awk step) AND "<name>.osm.xml" (the same fetched OSM the
+ *   conversion consumed, zoom-stamped) — one request, both artifacts,
+ *   verified through the system unzip.
  *
  * Skips the netconvert-running cases when the binary is undiscoverable
  * (mirrors test/endpoint.test.js's SUMO skip-guard).
  */
 import { it, expect, afterAll } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -31,6 +35,14 @@ import { PLAYER_ROOT } from './helpers/dataConsts.js';
 const FIXDIR = path.join(PLAYER_ROOT, 'test', 'fixtures');
 const OSM_XML = fs.readFileSync(path.join(FIXDIR, 'mini.osm.xml'), 'utf8');
 const NETCONVERT = findNetconvert();
+const UNZIP = (() => {
+  try {
+    execFileSync('unzip', ['-v'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
 
 function fakeVerifyToken(token) {
   if (token === 'tok-qa') {
@@ -44,6 +56,7 @@ function osmResponse(status, text) {
 }
 
 const created = [];
+const ZIPDIRS = [];
 
 function startServer(opts = {}) {
   const td = fs.mkdtempSync(path.join(os.tmpdir(), 'simo-expp-'));
@@ -79,6 +92,9 @@ afterAll(async () => {
     server.close();
     fs.rmSync(td, { recursive: true, force: true });
   }
+  for (const td of ZIPDIRS) {
+    fs.rmSync(td, { recursive: true, force: true });
+  }
 });
 
 function exportReq(base, body, token = 'tok-qa') {
@@ -90,6 +106,17 @@ function exportReq(base, body, token = 'tok-qa') {
     },
     body: typeof body === 'string' ? body : JSON.stringify(body),
   });
+}
+
+/* The system unzip reads the zip back — a wrong CRC or a broken central
+ * directory fails against the real tool, not a reimplementation. */
+async function saveZip(res) {
+  const buf = Buffer.from(await res.arrayBuffer());
+  const td = fs.mkdtempSync(path.join(os.tmpdir(), 'simo-expp-zip-'));
+  ZIPDIRS.push(td);
+  const p = path.join(td, 'out.zip');
+  fs.writeFileSync(p, buf);
+  return p;
 }
 
 /* ------------------------------------------------------------------ tests */
@@ -197,7 +224,7 @@ it('a full pool -> 503 server busy (same body as simulate)', async () => {
   expect((await res.json()).error).toBe('server busy — try again shortly');
 });
 
-it.skipIf(!NETCONVERT)('happy path: real netconvert -> 200 .net.xml attachment with the zoom stamp on line 2', async () => {
+it.skipIf(!NETCONVERT || !UNZIP)('happy path: 200 zip attachment carrying BOTH the .net.xml and the .osm.xml', async () => {
   const { base } = await startServer();
   const res = await exportReq(base, {
     bbox: [12.94, 77.71, 12.95, 77.72],
@@ -205,15 +232,28 @@ it.skipIf(!NETCONVERT)('happy path: real netconvert -> 200 .net.xml attachment w
     zoom: 14,
   });
   expect(res.status).toBe(200);
-  expect(res.headers.get('content-type')).toMatch(/text\/xml/);
+  expect(res.headers.get('content-type')).toBe('application/zip');
   expect(res.headers.get('content-disposition'))
-    .toBe('attachment; filename="test-area.net.xml"');
-  const body = await res.text();
-  expect(body).toContain('<net ');
-  expect(body.split('\n')[1], 'zoom stamp must be line 2 (convert.sh awk '
-    + 'step: NR==1 print + comment)').toBe('<!-- simo:zoom=14 -->');
+    .toBe('attachment; filename="test-area.zip"');
+  const p = await saveZip(res);
+  const names = execFileSync('unzip', ['-Z1', p]).toString('utf8')
+    .split('\n').filter(Boolean).sort();
+  expect(names).toEqual(['test-area.net.xml', 'test-area.osm.xml']);
+
+  /* the net file: today's contract, unchanged — zoom stamp on line 2 */
+  const net = execFileSync('unzip', ['-p', p, 'test-area.net.xml'])
+    .toString('utf8');
+  expect(net).toContain('<net ');
+  expect(net.split('\n')[1], 'zoom stamp must be line 2 (convert.sh '
+    + 'awk step: NR==1 print + comment)').toBe('<!-- simo:zoom=14 -->');
   /* real net output: SUMO location element with the fixture's bounds */
-  expect(body).toContain('<location ');
+  expect(net).toContain('<location ');
+
+  /* the osm file: the SAME fetched OSM the conversion consumed */
+  const osm = execFileSync('unzip', ['-p', p, 'test-area.osm.xml'])
+    .toString('utf8');
+  expect(osm).toContain('<bounds ');
+  expect(osm).toContain('<!-- simo:zoom=14 -->');
 });
 
 it.skipIf(!NETCONVERT)('garbage OSM -> 422 with the netconvert stderr tail', async () => {
@@ -229,14 +269,16 @@ it.skipIf(!NETCONVERT)('garbage OSM -> 422 with the netconvert stderr tail', asy
   expect(body.error.length).toBeGreaterThan(0);
 });
 
-it.skipIf(!NETCONVERT)('zoom is clamped into 3..19', async () => {
+it.skipIf(!NETCONVERT || !UNZIP)('zoom is clamped into 3..19 (stamped inside the zip)', async () => {
   const { base } = await startServer();
   for (const [zoom, stamped] of [[25, 19], [1, 3]]) {
     const res = await exportReq(base, {
       bbox: [12.94, 77.71, 12.95, 77.72], zoom,
     });
     expect(res.status).toBe(200);
-    const body = await res.text();
-    expect(body.split('\n')[1]).toBe('<!-- simo:zoom=' + stamped + ' -->');
+    const p = await saveZip(res);
+    const net = execFileSync('unzip', ['-p', p, 'area.net.xml'])
+      .toString('utf8');
+    expect(net.split('\n')[1]).toBe('<!-- simo:zoom=' + stamped + ' -->');
   }
 });

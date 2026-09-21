@@ -1,7 +1,8 @@
 /* Area export helpers. The pure head shared by the client and the server:
  * osmApiUrl builds the OSM /api/0.6/map request the SERVER now performs
- * (POST /api/export-net fetches OSM, runs netconvert, returns a finished
- * .net.xml); validateBbox + sanitizeAreaName gate that request. */
+ * (POST /api/export-net fetches OSM, runs netconvert, answers ONE .zip
+ * holding the finished .net.xml + the fetched .osm.xml); validateBbox +
+ * sanitizeAreaName gate that request. */
 
 /* bbox = [minLat, minLng, maxLat, maxLng] ->
  * OSM bbox=minLng,minLat,maxLng,maxLat */

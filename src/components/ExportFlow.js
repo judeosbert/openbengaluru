@@ -1,6 +1,7 @@
 /* Export-area modal: draw a box on the map, the SERVER fetches the OSM
- * roads + runs netconvert and returns the finished .net.xml (POST
- * /api/export-net via the authed exportNet wrapper). Draw UX:
+ * roads + runs netconvert and answers ONE .zip holding the finished
+ * .net.xml + the fetched .osm.xml (POST /api/export-net via the authed
+ * exportNet wrapper). Draw UX:
  *   modal (idle) -> 'Draw a box' arms draw mode (minimizes to the
  *   anchor-bar) -> click-drag on the map draws an arbitrary rect ->
  *   drawn (bar: Redraw / Use this box / Cancel; drag inside the box
@@ -54,6 +55,7 @@ export function ExportFlow({ store, map, onClose }) {
     if (map.boxZoom) map.boxZoom.disable();
 
     const el = map.getContainer();
+    if (mode === 'armed') el.style.cursor = 'crosshair';
     const styleOpts = {
       /* token-styled via .export-bbox (EXTRA_CSS); dashArray is a
        * non-color presentation option and stays here */
@@ -82,7 +84,8 @@ export function ExportFlow({ store, map, onClose }) {
       if (gesture) return;
       if (mode === 'armed') {
         const ll = map.mouseEventToLatLng(ev);
-        /* redraw: the old box goes away only when the new draw starts */
+        /* a box can still be on display here (re-entering draw after
+         * "Use this box") — the new draw starts by replacing it */
         if (boxRef.current) map.removeLayer(boxRef.current);
         boxRef.current =
           L.rectangle(L.latLngBounds(ll, ll), styleOpts).addTo(map);
@@ -90,7 +93,6 @@ export function ExportFlow({ store, map, onClose }) {
         ev.preventDefault();
         map.dragging.disable();
         map.scrollWheelZoom.disable();
-        el.style.cursor = 'crosshair';
       } else if (boxRef.current && insideBox(ev)) {
         gesture = {
           kind: 'move',
@@ -105,7 +107,9 @@ export function ExportFlow({ store, map, onClose }) {
     const mv = (ev) => {
       const rect = boxRef.current;
       if (!gesture) {
-        el.style.cursor = (mode === 'drawn' && insideBox(ev)) ? 'move' : '';
+        el.style.cursor = (mode === 'drawn' && insideBox(ev))
+          ? 'move'
+          : (mode === 'armed' ? 'crosshair' : '');
         return;
       }
       const ll = map.mouseEventToLatLng(ev);
@@ -183,8 +187,9 @@ export function ExportFlow({ store, map, onClose }) {
     try {
       const blob = await exportNet(bbox,
         { name: nm, zoom: map.getZoom() });
-      downloadBlob(nm + '.net.xml', blob);
-      setStatus('saved ' + nm + '.net.xml — Edit,Simulate and Submit the Simulation');
+      downloadBlob(nm + '.zip', blob);
+      setStatus('saved ' + nm + '.zip (the .net.xml + the .osm.xml) — '
+        + 'Edit,Simulate and Submit the Simulation');
     } catch (e) {
       const msg = String((e && e.message) || e);
       if (msg === 'not signed in' || /auth/i.test(msg)) {
@@ -215,7 +220,13 @@ export function ExportFlow({ store, map, onClose }) {
       h('div', { className: 'ab-row' },
         mode === 'drawn'
           ? h('button', { className: 'ghost',
-            onClick: () => setMode('armed') }, 'Redraw')
+            onClick: () => {
+              if (boxRef.current) {
+                map.removeLayer(boxRef.current);
+                boxRef.current = null;
+              }
+              setMode('armed');
+            } }, 'Redraw')
           : null,
         mode === 'drawn'
           ? h('button', { className: 'ghost',
@@ -233,8 +244,9 @@ export function ExportFlow({ store, map, onClose }) {
       h('h3', null, 'Get the real road network'),
       h('div', { className: 'hint' },
         'The player server downloads the OpenStreetMap roads for your box '
-        + 'and runs netconvert for you — you get a SUMO .net.xml ready to '
-        + 'upload in the Submit wizard.'),
+        + 'and runs netconvert for you — you get one .zip holding the OSM '
+        + 'extract and a SUMO .net.xml ready to upload in the Submit '
+        + 'wizard.'),
       h('input', {
         type: 'text', defaultValue: name.current, placeholder: 'area name',
         onChange: (ev) => { name.current = ev.target.value || 'area'; },
@@ -252,6 +264,6 @@ export function ExportFlow({ store, map, onClose }) {
       h('div', { className: 'row' },
         h('button', { className: 'ghost', onClick: onClose }, 'Cancel'),
         h('button', { onClick: doExport, disabled: busy },
-          'Download .net.xml')),
+          'Download .zip (net + osm)')),
       status ? h('div', { className: 'hint' }, status) : null));
 }

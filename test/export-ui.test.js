@@ -1,15 +1,18 @@
 /* Export flow + exportNet API source pins (plan: area export + worker
- * pool, phase 3). The node vitest env has no DOM (no jsdom, deliberately),
- * so UI behavior is pinned at source level — the established pattern
- * (signin-gate / zones-ui / html). Pins:
+ * pool, phase 3; two-file export: export-both-files). The node vitest
+ * env has no DOM (no jsdom, deliberately), so UI behavior is pinned at
+ * source level — the established pattern (signin-gate / zones-ui /
+ * html). Pins:
  *
  *   - the client-side convert.sh path is GONE (no convert.sh button, no
  *     convertScript/osmApiUrl references in the component; the lib module
  *     exports only the pure head the server also uses)
  *   - the component calls the authed /api/export-net wrapper (exportNet)
  *     and offers the draw-draw UX: armed draw mode, Redraw, Use this box
+ *   - ONE request now returns BOTH files as a .zip (net + osm, built by
+ *     the shared src/lib/zip.js): exportNet hands back the Blob and the
+ *     component saves it as one download
  *   - failures surface server errors verbatim + the player-server hint
- *   - api.js exportNet: authed POST, Blob response, body.error throws
  */
 import { it, expect } from 'vitest';
 import fs from 'node:fs';
@@ -32,7 +35,7 @@ it('areaExport lib: pure export head only — convertScript is deleted', async (
 
 /* --------------------------------------------------------------- api.js */
 
-it('api.exportNet: authed POST to /api/export-net returning a Blob', () => {
+it('api.exportNet: authed POST to /api/export-net returning the zip Blob', () => {
   const src = fs.readFileSync(API, 'utf8');
   expect(src, 'exportNet wrapper exists').toMatch(/export\s+async\s+function\s+exportNet\s*\(/);
   expect(src, 'hits the server route').toMatch(/\/api\/export-net/);
@@ -49,26 +52,28 @@ it('api.exportNet: authed POST to /api/export-net returning a Blob', () => {
 
 /* ------------------------------------------------------ ExportFlow pins */
 
-it('ExportFlow: the client-side OSM/convert.sh path is gone', () => {
+it('ExportFlow: the client-side OSM/convert.sh path is still gone', () => {
   const src = fs.readFileSync(EF, 'utf8');
   expect(src, 'no convert.sh anywhere').not.toMatch(/convert\.sh/);
   expect(src, 'no convertScript import/call').not.toMatch(/convertScript/);
   expect(src, 'no client-side OSM fetch (server owns osmApiUrl now)')
     .not.toMatch(/osmApiUrl/);
-  expect(src, "no 'Download .osm.xml' button")
-    .not.toMatch(/Download \.osm\.xml/);
+  /* the OSM bytes still never touch the client before the server hands
+   * them over — the .osm.xml arrives IN the /api/export-net zip */
 });
 
-it('ExportFlow: downloads the server-built .net.xml via exportNet', () => {
+it('ExportFlow: downloads the server-built zip (net + osm) via exportNet', () => {
   const src = fs.readFileSync(EF, 'utf8');
   expect(src, 'imports the api wrapper').toMatch(
     /import\s*\{[^}]*exportNet[^}]*\}\s*from\s*'\.\.\/api\.js'/);
-  expect(src, "primary action is the finished net download")
-    .toMatch(/Download \.net\.xml/);
+  expect(src, 'primary action is the zip bundle (net + osm)')
+    .toMatch(/Download \.zip \(net \+ osm\)/);
   expect(src, 'calls exportNet(bbox, { name, zoom })')
     .toMatch(/exportNet\(\s*bbox\s*,\s*\{[^}]*zoom/);
-  expect(src, 'saves the returned Blob via the generalized download')
-    .toMatch(/downloadBlob\(/);
+  expect(src, 'saves the returned zip Blob via the generalized download')
+    .toMatch(/downloadBlob\(\s*nm \+ '\.zip'/);
+  expect(src, 'the saved-status names both artifacts inside the zip')
+    .toMatch(/\.net\.xml[\s\S]{0,120}\.osm\.xml/);
 });
 
 it('ExportFlow: drag-draw state machine (armed -> drawn) with move + redraw', () => {
@@ -105,9 +110,13 @@ it('ExportFlow: the drawn box is torn down only on flow unmount', () => {
     .toMatch(/React\.useEffect\(\(\) => \(\) => \{[\s\S]{0,300}removeLayer[\s\S]{0,300}\}, \[map\]\);/);
 });
 
-it('ExportFlow: a redraw removes the old box only when the new draw starts', () => {
+it('ExportFlow: Redraw clears the drawn box from the map immediately', () => {
   const src = fs.readFileSync(EF, 'utf8');
-  expect(src, 'the new draw starts by replacing the old box')
+  expect(src, 'the Redraw button removes the rect (and nulls the ref) '
+    + 'right at the click — the old box never survives into armed mode')
+    .toMatch(/onClick: \(\) => \{\s*if \(boxRef\.current\) \{\s*map\.removeLayer\(boxRef\.current\);\s*boxRef\.current = null;\s*\}\s*setMode\('armed'\);\s*\}/);
+  expect(src, 'starting a new draw from armed still replaces any box '
+    + 'that is present (the re-enter-draw-after-"Use this box" path)')
     .toMatch(/if \(boxRef\.current\) map\.removeLayer\(boxRef\.current\);/);
 });
 
@@ -129,6 +138,19 @@ it('ExportFlow: scroll zoom stays available while the draw bar is up', () => {
     .toMatch(/map\.dragging\.disable\(\);\s*map\.scrollWheelZoom\.disable\(\);/);
   expect(src, 'mouseup re-enables scroll zoom along with dragging')
     .toMatch(/const up = \(\) => \{[\s\S]{0,600}map\.scrollWheelZoom\.enable\(\)/);
+});
+
+it('ExportFlow: armed draw mode shows the crosshair cursor, not the palm', () => {
+  const src = fs.readFileSync(EF, 'utf8');
+  expect(src, 'entering armed draw mode pins the container cursor to '
+    + 'crosshair right away — the user can draw without pressing first')
+    .toMatch(/const el = map\.getContainer\(\);\s*if \(mode === 'armed'\) el\.style\.cursor = 'crosshair';/);
+  expect(src, 'idle mousemove keeps the crosshair while armed (the palm '
+    + 'never flickers back the moment the pointer moves)')
+    .toMatch(/el\.style\.cursor = \(mode === 'drawn' && insideBox\(ev\)\)\s*\? 'move'\s*: \(mode === 'armed' \? 'crosshair' : ''\);/);
+  expect(src, 'the gesture release restores the default cursor — crosshair '
+    + 'is the armed-draw affordance, drawn keeps palm/move')
+    .toMatch(/const up = \(\) => \{[\s\S]{0,500}el\.style\.cursor = '';/);
 });
 
 it('ExportFlow: status surfaces server errors verbatim + the player-server hint', () => {

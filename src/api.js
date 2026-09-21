@@ -82,9 +82,10 @@ export function deactivate(id) {
     { method: 'POST', body: {} });
 }
 
-/* Server-side area export: POST /api/export-net -> the finished .net.xml
- * as a Blob. Binary response, so it bypasses the JSON `call` helper but
- * keeps the same auth + error-text contract. */
+/* Server-side area export: POST /api/export-net -> ONE .zip holding the
+ * finished .net.xml + the fetched .osm.xml, as a Blob. Binary response,
+ * so it bypasses the JSON `call` helper but keeps the same auth +
+ * error-text contract. */
 export async function exportNet(bbox, { name, zoom } = {}) {
   const token = await currentToken();
   if (!token) throw new Error('sign in to export');

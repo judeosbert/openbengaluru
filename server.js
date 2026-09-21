@@ -75,10 +75,10 @@
  * REQUIRED (the server becomes a shared OSM client; anonymous abuse would
  * burn its quota + CPU). The server fetches the OSM data, runs netconvert
  * (flags exactly as the retired convert.sh) in a worker-pool slot, and
- * answers the finished .net.xml as a text/xml attachment with
- * <!-- simo:zoom=N --> on line 2 (auto-snap provenance for the Submit
- * wizard).
- *   200 text/xml attachment     "<name>.net.xml"
+ * answers ONE .zip holding BOTH files: the finished .net.xml (with
+ * <!-- simo:zoom=N --> on line 2, auto-snap provenance for the Submit
+ * wizard) and the fetched .osm.xml.
+ *   200 application/zip attachment  "<name>.zip" (net + osm inside)
  *   401                         missing/invalid token (before body parse)
  *   400 { error }               bad bbox (shape/range/min<max/0.25° cap)
  *   400 { error }               OSM returned 400 (box too large upstream)
@@ -125,6 +125,7 @@ import { authorFromProfile } from './src/lib/profile.js';
 import { DATA_SOURCES, validSourceUrl } from './src/lib/submit.js';
 import { osmApiUrl, validateBbox, sanitizeAreaName }
   from './src/lib/areaExport.js';
+import { buildZip } from './src/lib/zip.js';
 
 const SERVER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -626,8 +627,9 @@ export function createSimServer(opts = {}) {
 
   /* POST /api/export-net — authenticated server-side area export: fetch
    * the OSM data for a bbox, run netconvert (same flags as the retired
-   * convert.sh) in a pool slot, return the finished .net.xml as a download.
-   * Auth-first like simulate; no DB/bucket involvement. */
+   * convert.sh) in a pool slot, answer ONE .zip holding the finished
+   * .net.xml + the fetched .osm.xml. Auth-first like simulate; no
+   * DB/bucket involvement. */
   async function handleExportNet(req, res) {
     const started = Date.now();
     const log = (status, err) => {
@@ -750,13 +752,18 @@ export function createSimServer(opts = {}) {
         net = nl === -1 ? net + '\n' + tag
           : net.slice(0, nl + 1) + tag + net.slice(nl);
       }
+      /* ONE zip, both artifacts: the finished net (zoom stamp on line 2)
+       * + the SAME fetched OSM the conversion consumed (zoom-stamped). */
+      const zip = buildZip([
+        { name: name + '.net.xml', body: net },
+        { name: name + '.osm.xml', body: xml },
+      ]);
       log(200, null);
       res.writeHead(200, {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="' + name
-          + '.net.xml"',
+        'Content-Type': 'application/zip',
+        'Content-Disposition': 'attachment; filename="' + name + '.zip"',
       });
-      res.end(net);
+      res.end(zip);
     } finally {
       fs.rmSync(td, { recursive: true, force: true });
     }
