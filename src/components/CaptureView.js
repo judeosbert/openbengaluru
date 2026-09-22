@@ -323,7 +323,7 @@ export function CaptureView({ store }) {
               h(Icon, { name: 'upload', className: 'capture-drop-ico' }),
               h('b', null, 'Tap to select a traffic recording'),
               h('span', null,
-                'video or image, recorded now or earlier — large clips '
+                'video , recorded now or earlier — large clips '
                 + 'upload best on Wi-Fi')),
           h('input', {
             ref: fileRef, type: 'file', className: 'capture-file',
