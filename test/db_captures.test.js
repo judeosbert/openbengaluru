@@ -172,8 +172,12 @@ it('the unique index rejects the duplicate even across the app-level check',
 
 /* --------------------------------------------------------- CHECK guards --- */
 
-it('an unknown method is rejected by the method CHECK', async () => {
+it('an unknown or removed method is rejected by the method CHECK', async () => {
   await expect(putCapture(pool, cap({ method: 'vibes' })))
+    .rejects.toThrow(/check constraint/i);
+  await expect(putCapture(pool, cap({ method: 'stopwatch' })))
+    .rejects.toThrow(/check constraint/i);
+  await expect(putCapture(pool, cap({ method: 'other' })))
     .rejects.toThrow(/check constraint/i);
 });
 

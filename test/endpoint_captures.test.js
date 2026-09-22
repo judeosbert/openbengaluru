@@ -233,10 +233,22 @@ it.each([
   expect((await res.json()).error, label).toBeTruthy();
 });
 
+/* the removed methods (stopwatch + other) must 400 with the enum error —
+ * junction is validated first, so a valid junction pins the method check */
+it('removed methods -> 400 with the enum error', async () => {
+  const { base } = await startServer();
+  for (const method of ['stopwatch', 'other']) {
+    const res = await postCapture(base, { params: { junction: 'A', method } });
+    expect(res.status, method).toBe(400);
+    expect((await res.json()).error, method).toMatch(/method/);
+  }
+});
+
 it('content type must be video/* or image/*', async () => {
   const { base } = await startServer();
   const res = await postCapture(base,
-    { contentType: 'text/plain', params: { junction: 'A', method: 'other' } });
+    { contentType: 'text/plain', params: { junction: 'A',
+      method: 'footbridge' } });
   expect(res.status).toBe(400);
 });
 
@@ -307,7 +319,7 @@ it('POST /api/captures -> 201 { id, points: 1 } with the object + row stored',
 it('a matching client hash short-circuits cleanly -> 201', async () => {
   const { base } = await startServer();
   const res = await postCapture(base, {
-    params: { junction: 'A', method: 'other', hash: sha256(CLIP) },
+    params: { junction: 'A', method: 'footbridge', hash: sha256(CLIP) },
   });
   expect(res.status).toBe(201);
 });
@@ -393,7 +405,7 @@ it('GET /api/captures/leaderboard is public with ranked entries', async () => {
     params: { junction: 'B', method: 'snapshot' } });
   await postCapture(base, {
     token: 'tok-other', bytes: Buffer.from('clip-3'),
-    params: { junction: 'C', method: 'stopwatch' } });
+    params: { junction: 'C', method: 'footbridge' } });
   /* anonymous — no Authorization header at all */
   const res = await fetch(base + '/api/captures/leaderboard');
   expect(res.status).toBe(200);

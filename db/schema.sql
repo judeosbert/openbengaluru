@@ -104,8 +104,7 @@ CREATE TABLE IF NOT EXISTS captures (
   junction     TEXT NOT NULL CHECK (length(trim(junction)) > 0),
   method       TEXT NOT NULL
                CONSTRAINT captures_method_check
-               CHECK (method IN
-                 ('snapshot', 'footbridge', 'stopwatch', 'other')),
+               CHECK (method IN ('snapshot', 'footbridge')),
   captured_at  TIMESTAMPTZ,
   content_hash TEXT NOT NULL,
   object_key   TEXT NOT NULL,
@@ -154,6 +153,26 @@ BEGIN
     ALTER TABLE sims ADD CONSTRAINT sims_data_source_check
       CHECK (data_source IN
         ('manual_survey', 'survey_data', 'approximation'));
+  END IF;
+END $$;
+
+-- captures_method_check evolved with the capture form's roster (stopwatch +
+-- other removed): drop and re-add under the same name. Legacy rows that
+-- still carry a removed method survive via NOT VALID (existing rows are
+-- never re-checked; every new insert is), so a boot against a database
+-- holding old accepted captures cannot fail — their leaderboard points
+-- stand, while fresh stopwatch/other uploads are rejected here too.
+DO $$
+BEGIN
+  ALTER TABLE captures DROP CONSTRAINT IF EXISTS captures_method_check;
+  IF EXISTS (
+    SELECT 1 FROM captures WHERE method NOT IN ('snapshot', 'footbridge')
+  ) THEN
+    ALTER TABLE captures ADD CONSTRAINT captures_method_check
+      CHECK (method IN ('snapshot', 'footbridge')) NOT VALID;
+  ELSE
+    ALTER TABLE captures ADD CONSTRAINT captures_method_check
+      CHECK (method IN ('snapshot', 'footbridge'));
   END IF;
 END $$;
 

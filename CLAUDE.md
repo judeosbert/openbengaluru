@@ -125,9 +125,10 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   rendering is unchanged; portrait phones get the scene cut at the sides
   instead of squished (locked by test/intro-scene.test.js).
   `capture.js` is the Capture page's pure copy module (plan:
-  capture-leaderboard page): `GUIDE_METHODS` (4 locked-roster pedestrian
-  capture-method cards), `METHODS` (the server-validated enum
-  ['snapshot','footbridge','stopwatch','other']), `LEADERBOARD_NOTE`
+  capture-leaderboard page): `GUIDE_METHODS` (3 locked-roster pedestrian
+  capture-method cards — stopwatch + other removed from the roster and
+  enum), `METHODS` (the server-validated enum
+  ['snapshot','footbridge']), `LEADERBOARD_NOTE`
   (scoring copy) and `sha256Hex` (client SHA-256 short-circuit via
   crypto.subtle — the server recomputes over the received bytes; the
   lib-purity regex bans the word `window` even in prose, so copy must

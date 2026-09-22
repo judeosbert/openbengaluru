@@ -246,7 +246,7 @@ it('buildCaptureRejectedEmail: subject pins the junction, body carries the '
 
 it('buildCaptureRejectedEmail: baseUrl appends a View line', () => {
   const mail = buildCaptureRejectedEmail({
-    capture: { id: 'cap-1', junction: 'A', method: 'other',
+    capture: { id: 'cap-1', junction: 'A', method: 'snapshot',
       captured_at: null },
     reason: 'blurry', baseUrl: 'https://app.test' });
   expect(mail.text).toContain('View: https://app.test');
