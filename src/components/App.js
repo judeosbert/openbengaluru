@@ -115,6 +115,8 @@ export function App() {
       onNewSim: store.startDraft,
       onExport: store.startExport,
     }),
+    /* competition countdown banner: full-width strip under the topbar */
+    h('div', { className: 'comp-banner' }, 'Capture Competition will be live from  Sep 25th - Oct 16th. Upload and top the leaderboard for the prize!'),
     h(MapProvider.Provider, { value: map },
       h(MapOverlayProvider.Provider, { value: overlayApi },
         h('div', { className: 'map-wrap' },

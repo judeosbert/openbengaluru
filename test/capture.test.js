@@ -1,7 +1,8 @@
 /* Capture page (plan: capture-leaderboard page) — data-shape assertions for
- * the pure copy module src/lib/capture.js (the four pedestrian capture-method
+ * the pure copy module src/lib/capture.js (the three pedestrian capture-method
  * cards, the method enum the upload widget validates against, the leaderboard
- * scoring note, and the client-side SHA-256 short-circuit helper), plus
+ * scoring note, the competition-rules copy, and the client-side SHA-256
+ * short-circuit helper), plus
  * regex-style wiring checks (pattern from contribute.test.js/tutorials.test.js)
  * pinning the public TopBar Capture toggle, App's 'capture' overlay branch,
  * the api wrappers the widget uses, and a SOURCE-ORDER check: the page must
@@ -21,14 +22,13 @@ function read(...parts) {
 
 /* ------------------------------------------------- copy module shape --- */
 
-/* the four guide cards are a locked roster, in order (the teach-first
+/* the three guide cards are a locked roster, in order (the teach-first
  * methods; the Wi-Fi card is advice, not an enum method). */
-it('four guide cards with the locked titles, in order', () => {
-  expect(Array.isArray(GUIDE_METHODS) && GUIDE_METHODS.length).toBe(4);
+it('three guide cards with the locked titles, in order', () => {
+  expect(Array.isArray(GUIDE_METHODS) && GUIDE_METHODS.length).toBe(3);
   expect(GUIDE_METHODS.map((c) => c.title)).toEqual([
     '30-second snapshot',
     'Footbridge clip',
-    'Traffic-light stopwatch',
     'Upload on Wi-Fi',
   ]);
 });
@@ -47,19 +47,17 @@ it('each card has ask / whyItWorks / howItIsUsed as non-empty strings', () => {
 /* the copy must teach the actual capture protocol — each card names its
  * subject and the Wi-Fi card carries the upload advice (plan: no offline
  * queue; upload when on Wi-Fi). */
-it('the copy teaches the four methods honestly', () => {
-  const [snap, bridge, light, wifi] = GUIDE_METHODS;
+it('the copy teaches the three cards honestly', () => {
+  const [snap, bridge, wifi] = GUIDE_METHODS;
   expect(snap.ask).toMatch(/30 seconds|thirty seconds/i);
   expect(bridge.ask).toMatch(/footbridge|bridge/i);
-  expect(light.ask).toMatch(/traffic light|signal/i);
   expect(wifi.ask).toMatch(/wi-?fi/i);
-  /* the stopwatch method stays copy-only: no numeric form anywhere */
-  expect(JSON.stringify(GUIDE_METHODS)).not.toMatch(/vehicles per|vph/i);
 });
 
-/* the upload widget's method enum — the same ids the server validates. */
-it('METHODS carries the four server-validated enum ids', () => {
-  expect(METHODS).toEqual(['snapshot', 'footbridge', 'stopwatch', 'other']);
+/* the upload widget's method enum — the same ids the server validates
+ * (stopwatch + other were removed: the roster is snapshot + footbridge). */
+it('METHODS carries the two server-validated enum ids', () => {
+  expect(METHODS).toEqual(['snapshot', 'footbridge']);
 });
 
 /* leaderboard scoring copy: 1 point per accepted capture, all-time totals. */
@@ -193,8 +191,9 @@ it('the leaderboard renders top 10 with a show-all expand + quiet failure', () =
 
 /* ------------------------------------------------- source order --- */
 
-/* the desktop stacking order (mobile shows one tab pane at a time — see
- * the tabs pins below): upload widget -> guide cards -> leaderboard. The
+/* the section order in source (the rendered page shows the upload pane's
+ * sections under the Upload tab, the leaderboard under its tab — see the
+ * tabs pins below): upload widget -> guide cards -> leaderboard. The
  * markers are the section headings; checking their positions AFTER the
  * import block pins the render order in source. */
 it('page stacks in the fixed order: widget -> guide cards -> leaderboard', () => {
@@ -228,23 +227,22 @@ it('CaptureView pulls copy from the lib module and data from api.js', () => {
 
 /* ------------------------------------------- redesign (design reference) ---
  * The capture page adopts the /tmp/design.html reference: a phone-shell
- * panel with a brand header + scroll body + sticky bottom CTA, a dropzone
- * upload card with a selected-file row, accordion guide cards, a ranked
- * leaderboard with initials avatars, and a Google sign-in bottom sheet.
- * Every pin below is a source-order/regex pin in the house style. */
-it('the dash becomes the phone shell: brand header, scroll body, CTA bar', () => {
+ * panel with a brand header + scroll body, a dropzone upload card with a
+ * selected-file row, accordion guide cards, a ranked leaderboard with
+ * initials avatars, and a Google sign-in bottom sheet. Every pin below is
+ * a source-order/regex pin in the house style. */
+it('the dash becomes the phone shell: brand header + scroll body', () => {
   const s = VIEW();
   expect(s, 'shell override class on the dash panel')
     .toMatch(/'dash capture-dash'/);
   expect(s, 'brand badge sits in the dash header').toMatch(/capture-brand/);
   expect(s, 'the page title stays CAPTURE').toMatch(/capture-title/);
   expect(s, 'scrollable body wrapper').toMatch(/capture-body/);
-  expect(s, 'sticky bottom CTA bar').toMatch(/capture-cta/);
 });
 
-it('the sticky CTA drives the file picker signed-in, the sign-in sheet not', () => {
+it('the dropzone drives the file picker signed-in, the sign-in sheet not', () => {
   const s = VIEW();
-  expect(s, 'the hidden file input is ref-tappable from the CTA bar')
+  expect(s, 'the hidden file input is ref-tappable from the dropzone')
     .toMatch(/fileRef/);
   expect(s, 'the sign-in bottom sheet state').toMatch(/sheetOpen/);
   expect(s, 'the sheet renders as capture-sheet').toMatch(/capture-sheet/);
@@ -289,7 +287,7 @@ const EXTRA = (() => {
 
 it('the redesign ships its CSS block in EXTRA_CSS with the shell classes', () => {
   for (const sel of ['.capture-dash', '.capture-head', '.capture-title',
-    '.capture-body', '.capture-cta', '.capture-sheet', '.capture-drop',
+    '.capture-body', '.capture-sheet', '.capture-drop',
     '.capture-file-row', '.capture-acc-body', '.capture-avatar',
     '.capture-lb-top']) {
     expect(EXTRA, `${sel} styled in EXTRA_CSS`).toMatch(
@@ -315,10 +313,10 @@ it('the capture redesign CSS is token-only (no raw hex colors)', () => {
  * On mobile (the house <=900px breakpoint, same as the SimPanel bottom
  * sheet) the capture page takes over the full screen: the topbar steps
  * aside while the capture view is open and the dash fills the phone.
- * The upload and leaderboard become tabs (Upload open by default); desktop
- * keeps the stacked layout. */
+ * The upload and leaderboard render as tabs (Upload open by default) at
+ * EVERY width — the same tab swap on desktop, not a mobile-only layout. */
 
-it('mobile tabs: Upload | Leaderboard with upload open by default', () => {
+it('tabs: Upload | Leaderboard with upload open by default', () => {
   const s = VIEW();
   expect(s, 'the tab state defaults to upload').toMatch(
     /useState\('upload'\)/);
@@ -342,31 +340,33 @@ it('mobile tabs: Upload | Leaderboard with upload open by default', () => {
     .toBeGreaterThanOrEqual(1);
 });
 
-it('mobile takeover CSS: full-bleed dash, topbar steps aside, tabs swap panes', () => {
+it('tabs swap panes at EVERY width; the mobile block keeps the takeover', () => {
   /* the capture mobile block is the LAST media query in EXTRA_CSS — slice
    * from it so the pins read the mobile rules and nothing else */
   const mobStart = EXTRA.lastIndexOf('@media (max-width:900px)');
+  const head = EXTRA.slice(0, mobStart);
   const mob = EXTRA.slice(mobStart);
   expect(mob, 'the capture mobile block uses the house 900px breakpoint')
     .toContain('@media (max-width:900px)');
+  /* universal section (outside the mobile block): the tab bar shows and
+   * the data-tab rules swap the panes — desktop gets the same tabs, not
+   * a stacked layout */
+  expect(head, 'the tab bar is visible on desktop too').toMatch(
+    /\.capture-tabs\{display:flex/);
+  expect(head, 'the upload pane hides on the leaderboard tab').toMatch(
+    /\.capture-dash\[data-tab='leaderboard'\] \.capture-pane-upload\{display:none\}/);
+  expect(head, 'the leaderboard pane hides on the upload tab').toMatch(
+    /\.capture-dash\[data-tab='upload'\] \.capture-pane-leaderboard\{display:none\}/);
+  expect(head, 'the takeover rules stay inside the mobile block')
+    .not.toMatch(/topbar-under-capture/);
+  /* mobile block: only the takeover tweaks remain (full-bleed dash,
+   * topbar aside) — the tab rules are deduped into the universal section */
   expect(mob, 'the dash fills the phone screen').toMatch(
     /\.capture-dash\{[^}]*width:100%;max-height:100%;height:100%/);
   expect(mob, 'the topbar steps aside under the capture takeover')
     .toMatch(/\.topbar-under-capture\{display:none\}/);
-  expect(mob, 'the tab bar shows on mobile').toMatch(
-    /\.capture-tabs\{[^}]*display:flex/);
-  expect(mob, 'the upload pane hides on the leaderboard tab').toMatch(
-    /\.capture-dash\[data-tab='leaderboard'\] \.capture-pane-upload\{display:none\}/);
-  expect(mob, 'the leaderboard pane hides on the upload tab').toMatch(
-    /\.capture-dash\[data-tab='upload'\] \.capture-pane-leaderboard\{display:none\}/);
-  expect(mob, 'the CTA bar rides only the upload tab').toMatch(
-    /\.capture-dash\[data-tab='leaderboard'\] \.capture-cta\{display:none\}/);
-  /* desktop (>900px): no tab bar, sections stay stacked, no pane hiding */
-  const head = EXTRA.slice(0, mobStart);
-  expect(head, 'the tab bar is display:none outside the mobile block')
-    .toMatch(/\.capture-tabs\{display:none/);
-  expect(head, 'no pane-hiding selectors leak outside the mobile block')
-    .not.toMatch(/\[data-tab=/);
+  expect(mob, 'the tab rules are deduped out of the mobile block')
+    .not.toMatch(/capture-tabs|data-tab/);
 });
 
 /* ------------------------------------------- direct /capture.html route --- */
@@ -412,4 +412,185 @@ it('the player server aliases /capture to capture.html', () => {
   const s = read('server.js');
   expect(s, "serveStatic maps '/capture' -> '/capture.html'")
     .toMatch(/p === '\/capture'/);
+});
+
+/* ------------------------------------- competition rules popup (plan) ---
+ * A "Rules" text link sits in the top header bar, right of the CAPTURE
+ * heading (between the title and the Close control); tapping it opens a
+ * popup over the dash with the competition rules — the copy rides in the
+ * pure lib module, verbatim. */
+
+/* the copy-shape tests import dynamically so a missing export shows up
+ * as THIS test's red, not a link error for the whole file. */
+it('the lib module exports the competition rules copy', async () => {
+  const mod = await import('../src/lib/capture.js');
+  expect(mod.COMPETITION_RULES,
+    'COMPETITION_RULES must be exported from src/lib/capture.js')
+    .toBeTruthy();
+});
+
+it('the rules copy: title + the eight numbered sections, in order', async () => {
+  const { COMPETITION_RULES } = await import('../src/lib/capture.js');
+  expect(COMPETITION_RULES.title)
+    .toBe('OpenBengaluru Capture — Competition Rules');
+  expect(COMPETITION_RULES.sections.map((s) => s.heading)).toEqual([
+    '1. The Challenge',
+    '2. Competition Period',
+    '3. How Points Work',
+    '4. Quality Over Quantity',
+    '5. Validation',
+    '6. Winner',
+    '7. Fair Play',
+    '8. The Bigger Goal',
+  ]);
+});
+
+it('the rules copy pins the competition terms verbatim', async () => {
+  const { COMPETITION_RULES } = await import('../src/lib/capture.js');
+  const flat = JSON.stringify(COMPETITION_RULES);
+  expect(flat, 'the challenge framing').toMatch(
+    /real-world data to OpenBengaluru/);
+  expect(flat, 'the 21-day period').toMatch(/run for \*\*21 days\*\*/);
+  expect(flat, 'dates announced on the page').toMatch(
+    /announced on the OpenBengaluru Capture page/);
+  expect(flat, 'points only for accepted submissions').toMatch(
+    /only for accepted submissions/);
+  expect(flat, 'zero points for rejected/dupes').toMatch(/\*\*0 points\*\*/);
+  expect(flat, 'quality over quantity').toMatch(
+    /low-quality or duplicate entries will not improve your score/);
+  expect(flat, 'points only after validation').toMatch(
+    /only after it has been accepted/);
+  expect(flat, 'the winner term').toMatch(/highest number of valid points/);
+  expect(flat, 'the prize').toMatch(/Prize: ₹500 voucher/);
+  expect(flat, 'the tie-break').toMatch(
+    /number of accepted submissions, followed by the acceptance rate/);
+  expect(flat, 'fair-play bans fabrication').toMatch(
+    /Submit fabricated observations/);
+  expect(flat, 'the bigger goal').toMatch(
+    /open, community-driven dataset of Bengaluru/);
+  /* lib-purity contract — no DOM-global word may ride in the copy */
+  expect(flat).not.toMatch(/\b(document|window|localStorage)\b/);
+});
+
+it('every rules section carries heading + p/ul blocks', async () => {
+  const { COMPETITION_RULES } = await import('../src/lib/capture.js');
+  for (const sec of COMPETITION_RULES.sections) {
+    expect(typeof sec.heading === 'string' && sec.heading.trim(),
+      `${sec.heading}: heading must be a non-empty string`).toBeTruthy();
+    expect(Array.isArray(sec.blocks) && sec.blocks.length,
+      `${sec.heading}: at least one block`).toBeGreaterThan(0);
+    for (const b of sec.blocks) {
+      expect(b.p || b.ul,
+        `${sec.heading}: a block is a paragraph or a bullet list`)
+        .toBeTruthy();
+      if (b.ul) {
+        expect(Array.isArray(b.ul) && b.ul.length,
+          `${sec.heading}: a bullet block has items`).toBeGreaterThan(0);
+      }
+    }
+  }
+});
+
+it('the Rules link sits in the header bar, right of the CAPTURE title', () => {
+  const s = VIEW();
+  const atTitle = s.indexOf("'capture-title'");
+  const atLink = s.indexOf('capture-rules-link');
+  const atClose = s.indexOf("store.setView('discover')");
+  expect(atTitle, 'the header title exists').toBeGreaterThan(-1);
+  expect(atLink, 'the rules link exists').toBeGreaterThan(-1);
+  expect(atClose, 'the header Close exists').toBeGreaterThan(-1);
+  expect(atLink, 'the rules link renders inside the header row, right of '
+    + 'the CAPTURE heading').toBeGreaterThan(atTitle);
+  expect(atLink, 'the link sits between the title and the Close control')
+    .toBeLessThan(atClose);
+  expect(s, 'the link is a Rules text control').toMatch(
+    /capture-rules-link[\s\S]{0,200}'Rules'/);
+  expect(s, 'the popup open state exists').toMatch(
+    /const \[rulesOpen, setRulesOpen\] = React\.useState\(false\)/);
+  expect(s, 'the link opens the popup').toMatch(
+    /onClick: \(\) => setRulesOpen\(true\)/);
+});
+
+it('the rules popup renders the lib copy with a close control', () => {
+  const s = VIEW();
+  expect(s, 'the popup copy comes from the pure lib module')
+    .toMatch(/COMPETITION_RULES/);
+  expect(s, 'the popup shell is a dialog over the dash')
+    .toMatch(/capture-rules-veil/);
+  expect(s, 'outside-tap closes the popup like the sign-in sheet')
+    .toMatch(/ev\.target === ev\.currentTarget/);
+  expect(s, 'the popup panel class').toMatch(/capture-rules-pop/);
+  expect(s, 'the popup closes via the X control').toMatch(/capture-rules-x/);
+  expect(s, 'sections render headings').toMatch(/capture-rules-h/);
+  expect(s, 'no transport — the view still never fetches directly')
+    .not.toMatch(/fetch\(/);
+});
+
+it('the rules popup ships token-only CSS in EXTRA_CSS', () => {
+  for (const sel of ['.capture-rules-link', '.capture-rules-veil',
+    '.capture-rules-pop', '.capture-rules-head', '.capture-rules-body',
+    '.capture-rules-h', '.capture-rules-p', '.capture-rules-ul']) {
+    expect(EXTRA, `${sel} styled in EXTRA_CSS`).toMatch(
+      new RegExp(sel.replace(/\./g, '\\.') + '[^{]*\\{'));
+  }
+  /* the long copy scrolls inside the popup — the dash never scrolls */
+  expect(EXTRA.match(/\.capture-rules-body\{[^}]*\}/)[0])
+    .toMatch(/overflow-y:auto/);
+});
+
+/* ------------------------------------------------- CTA removal (plan) ---
+ * The sticky bottom CTA bar was a duplicate entry point (the dropzone
+ * taps the picker, the form carries the sign-in prompt) — it is removed
+ * from the view and from EXTRA_CSS entirely. */
+
+it('the sticky bottom CTA is gone — the dropzone is the single CTA', () => {
+  const s = VIEW();
+  expect(s, 'the capture-cta bar is removed from the view')
+    .not.toMatch(/capture-cta/);
+  expect(EXTRA, 'the CTA CSS block is removed from EXTRA_CSS too')
+    .not.toMatch(/\.capture-cta/);
+  /* the dropzone + form keep their entry points */
+  expect(s, 'the dropzone still opens the picker').toMatch(/openPicker/);
+  expect(s, 'the sign-in prompt stays in the form').toMatch(
+    /Sign in to upload/);
+});
+
+/* ------------------------------------------- upload success takeover ---
+ * An accepted upload swaps the WHOLE popup body for a success moment
+ * ("Upload Successful" instead of the form — the redundant toast goes
+ * with it), then auto-advances to the Leaderboard tab. */
+
+it('the upload success state exists and replaces the whole body', () => {
+  const s = VIEW();
+  expect(s, 'success state exists').toMatch(
+    /const \[success, setSuccess\] = React\.useState\(false\)/);
+  expect(s, 'the accepted upload flips the success state')
+    .toMatch(/setSuccess\(true\)/);
+  expect(s, 'the body swaps the form for the success card').toMatch(
+    /const bodyKids = success\s*\?\s*\[successCard\]/);
+  expect(s, 'the normal sections return otherwise').toMatch(
+    /\[uploadCard, methodsSection, leaderboardSection\]/);
+  expect(s, 'the success card title says Upload Successful').toMatch(
+    /'Upload Successful'/);
+  expect(s, 'the success card carries its classes')
+    .toMatch(/capture-success-title/);
+  expect(s, 'the redundant upload toast is superseded by the success card')
+    .not.toMatch(/capture uploaded — 1 point/);
+});
+
+it('the success moment auto-advances to the leaderboard tab', () => {
+  const s = VIEW();
+  expect(s, 'the auto-advance delay constant').toMatch(/SUCCESS_MS/);
+  expect(s, 'a setTimeout drives the advance').toMatch(/setTimeout/);
+  expect(s, 'the advance lands on the leaderboard tab').toMatch(
+    /setTab\('leaderboard'\)/);
+  expect(s, 'the timer is cleaned up').toMatch(/clearTimeout/);
+});
+
+it('the success moment ships token-only CSS in EXTRA_CSS', () => {
+  for (const sel of ['.capture-success', '.capture-success-glyph',
+    '.capture-success-title', '.capture-success-sub']) {
+    expect(EXTRA, `${sel} styled in EXTRA_CSS`).toMatch(
+      new RegExp(sel.replace(/\./g, '\\.') + '[^{]*\\{'));
+  }
 });

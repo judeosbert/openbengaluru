@@ -11,6 +11,10 @@ import { IntroShell } from './components/IntroShell.js';
 /* App-only styles on top of BALAGERE_CSS_STYLE (dark tokens stay there). */
 const EXTRA_CSS = ''
   + '.map-el{position:absolute;inset:0}\n'
+  /* competition countdown banner: full-width strip under the topbar */
+  + '.comp-banner{flex:none;background:var(--red);color:var(--on-accent);'
+  + 'text-align:center;font-size:11.5px;font-weight:600;'
+  + 'letter-spacing:.04em;padding:5px 12px}\n'
   + '@keyframes flipIn{from{transform:perspective(700px) rotateY(7deg);'
   + 'opacity:0}to{transform:none;opacity:1}}\n'
   + '.flip-step{animation:flipIn .28s ease both}\n'
@@ -420,12 +424,14 @@ const EXTRA_CSS = ''
    + '.map-wrap{overflow:hidden}}\n'
    /* Capture page redesign (design reference: phone shell + dropzone +
     * accordion guide cards + ranked leaderboard rows + sign-in bottom
-    * sheet). The dash panel becomes the shell: header strip, scroll body
-    * and CTA bar are flex siblings, only .capture-body scrolls. Single
-    * column at EVERY width; on mobile the sections split into Upload |
-    * Leaderboard tabs (see the mobile block below), desktop keeps the
-    * stacked shell; 44px+ tap targets; token-only colors per the theme
-    * contract. */
+    * sheet). The dash panel becomes the shell: header strip and scroll
+    * body are flex siblings, only .capture-body scrolls (the sticky CTA
+    * bar is gone — the dropzone is the single entry point; an accepted
+    * upload swaps the whole body for the success moment, then
+    * auto-advances to the Leaderboard tab). Single column at EVERY
+    * width; on mobile the sections split into Upload | Leaderboard tabs
+    * (see the mobile block below), desktop keeps the stacked shell; 44px+
+    * tap targets; token-only colors per the theme contract. */
    + '/* capture page */\n'
    + '.capture-dash{position:relative;width:min(480px,94%);'
    + 'max-height:min(780px,92%);padding:0;display:flex;'
@@ -440,7 +446,7 @@ const EXTRA_CSS = ''
    + 'font-weight:700;font-size:16px;letter-spacing:.02em}\n'
    + '.capture-body{flex:1;min-height:0;overflow-y:auto;'
    + 'overscroll-behavior:contain;padding:12px 14px 16px}\n'
-   + '.capture-tabs{display:none;flex:none;margin:10px 12px 0;padding:4px;'
+   + '.capture-tabs{display:flex;flex:none;margin:10px 12px 0;padding:4px;'
    + 'gap:4px;border:1px solid var(--hair);border-radius:999px;'
    + 'background:var(--surface2)}\n'
    + '.capture-tab{flex:1;min-height:40px;border:0;border-radius:999px;'
@@ -448,16 +454,12 @@ const EXTRA_CSS = ''
    + 'font-weight:600;cursor:pointer;transition:color .15s,background .15s}\n'
    + '.capture-tab.on{background:var(--surface);color:var(--ink);'
    + 'box-shadow:var(--shadow-sm)}\n'
+   + '.capture-dash[data-tab=\'upload\'] .capture-pane-leaderboard'
+   + '{display:none}\n'
+   + '.capture-dash[data-tab=\'leaderboard\'] .capture-pane-upload'
+   + '{display:none}\n'
    + '.capture-form{display:flex;flex-direction:column;gap:10px;'
    + 'margin-top:10px}\n'
-   + '.capture-cta{flex:none;padding:10px 14px;'
-   + 'padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));'
-   + 'border-top:1px solid var(--hair);background:var(--surface)}\n'
-   + '.capture-cta .btn{width:100%;min-height:46px;display:flex;'
-   + 'align-items:center;justify-content:center;gap:8px}\n'
-   + '.capture-cta .btn svg{width:17px;height:17px}\n'
-   + '.capture-cta-note{margin:6px 0 0;font-size:10.5px;color:var(--ink3);'
-   + 'text-align:center}\n'
    + '.capture-user{display:flex;align-items:center;gap:10px;padding:10px;'
    + 'border:1px solid var(--hair);border-radius:var(--r-md);'
    + 'background:var(--surface2)}\n'
@@ -589,23 +591,66 @@ const EXTRA_CSS = ''
    + '.capture-sheet .hint{margin:0}\n'
    + '.capture-sheet .gbtn{margin-top:4px}\n'
    + '.capture-sheet-note{margin:0;font-size:10.5px;color:var(--ink3)}\n'
+   /* competition-rules popup: a header-bar text link right of the
+    * CAPTURE heading opens the verbatim rules copy over the dash —
+    * centered dialog, only the body scrolls; token-only per the theme
+    * contract. */
+   + '/* capture rules popup */\n'
+   + '.capture-rules-link{flex:none;min-height:32px;padding:0 6px;'
+   + 'border:0;background:transparent;color:var(--accent-ink);'
+   + 'font:inherit;font-size:12px;font-weight:600;cursor:pointer;'
+   + 'text-decoration:underline;text-underline-offset:3px}\n'
+   + '.capture-rules-link:hover{color:var(--accent)}\n'
+   + '.capture-rules-veil{position:absolute;inset:0;z-index:50;'
+   + 'background:var(--veil);display:flex;align-items:center;'
+   + 'justify-content:center;padding:14px}\n'
+   + '.capture-rules-pop{width:min(460px,100%);max-height:100%;'
+   + 'background:var(--surface);border:1px solid var(--hair);'
+   + 'border-radius:var(--r-lg);box-shadow:var(--shadow-lg);display:flex;'
+   + 'flex-direction:column;overflow:hidden}\n'
+   + '.capture-rules-head{flex:none;display:flex;align-items:center;'
+   + 'gap:10px;padding:12px 14px;border-bottom:1px solid var(--hair)}\n'
+   + '.capture-rules-title{flex:1;min-width:0;font-family:var(--serif);'
+   + 'font-weight:700;font-size:13px;color:var(--ink)}\n'
+   + '.capture-rules-x{flex:none;width:32px;height:32px;display:flex;'
+   + 'align-items:center;justify-content:center;border:0;'
+   + 'background:transparent;color:var(--ink3);cursor:pointer}\n'
+   + '.capture-rules-x svg{width:16px;height:16px}\n'
+   + '.capture-rules-body{flex:1;min-height:0;overflow-y:auto;'
+   + 'overscroll-behavior:contain;padding:4px 16px 16px}\n'
+   + '.capture-rules-h{margin:14px 0 4px;font-size:12.5px;font-weight:700;'
+   + 'color:var(--ink)}\n'
+   + '.capture-rules-p{margin:6px 0;font-size:12px;line-height:1.55;'
+   + 'color:var(--ink2)}\n'
+   + '.capture-rules-p strong{color:var(--ink);font-weight:700}\n'
+   + '.capture-rules-ul{margin:6px 0;padding-left:18px}\n'
+   + '.capture-rules-ul li{margin:5px 0;font-size:12px;line-height:1.55;'
+   + 'color:var(--ink2)}\n'
+   + '.capture-rules-ul li strong{color:var(--ink);font-weight:700}\n'
+   /* upload success takeover: the accepted upload swaps the whole body
+    * for the success moment, then auto-advances to the Leaderboard tab */
+   + '/* upload success takeover */\n'
+   + '.capture-success{min-height:280px;display:flex;flex-direction:column;'
+   + 'align-items:center;justify-content:center;gap:8px;text-align:center}\n'
+   + '.capture-success-glyph{width:56px;height:56px;flex:none;'
+   + 'border-radius:50%;background:var(--accent-soft);'
+   + 'color:var(--accent-ink);display:flex;align-items:center;'
+   + 'justify-content:center}\n'
+   + '.capture-success-glyph svg{width:26px;height:26px}\n'
+   + '.capture-success-title{font-family:var(--serif);font-weight:700;'
+   + 'font-size:17px;color:var(--ink)}\n'
+   + '.capture-success-sub{font-size:12px;color:var(--ink3);'
+   + 'max-width:32ch}\n'
    /* Capture mobile takeover (house <=900px breakpoint, same as the
     * compact topbar + SimPanel sheet): the capture page takes over the
     * full screen — the topbar steps aside via the TopBar marker and the
-    * dash fills the phone. The upload + leaderboard become tabs (Upload
-    * open by default; data-tab drives which pane shows) and the sticky
-    * CTA rides only the upload tab. Desktop (>900px) keeps the stacked
-    * phone shell with every section and no tab bar. */
+    * dash fills the phone. The Upload | Leaderboard tabs + data-tab pane
+    * swap are UNIVERSAL (styled in the capture block above, every width);
+    * this block only keeps the phone takeover tweaks. */
    + '@media (max-width:900px){\n'
    + '.capture-dash{width:100%;max-height:100%;height:100%;'
    + 'border-radius:0;border-left:0;border-right:0}\n'
    + '.topbar-under-capture{display:none}\n'
-   + '.capture-tabs{display:flex}\n'
-   + '.capture-dash[data-tab=\'upload\'] .capture-pane-leaderboard'
-   + '{display:none}\n'
-   + '.capture-dash[data-tab=\'leaderboard\'] .capture-pane-upload'
-   + '{display:none}\n'
-   + '.capture-dash[data-tab=\'leaderboard\'] .capture-cta{display:none}\n'
    + '.capture-body{padding:10px 12px 14px}\n'
    + '.capture-acc-tiles{grid-template-columns:1fr}}\n';
 

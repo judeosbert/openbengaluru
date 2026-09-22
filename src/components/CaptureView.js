@@ -1,7 +1,7 @@
 /* CaptureView (plan: capture-leaderboard page) — the public commuter
  * capture page, redesigned after the /tmp/design.html reference: a
- * phone-shell dash panel (brand header, scroll body, sticky bottom CTA)
- * holding the dropzone upload card (sign-in gated), the four capture-method
+ * phone-shell dash panel (brand header, scroll body) holding the dropzone
+ * upload card (sign-in gated), the four capture-method
  * accordion cards, and the ranked all-time leaderboard; signed-out
  * visitors get a Google sign-in bottom sheet (store.signIn) instead of the
  * form. Full-screen overlay panel over the map (ContributeView shell
@@ -16,18 +16,31 @@
  * wrappers (uploadCapture / fetchLeaderboard) — no direct fetch in this
  * component, and tokens are never touched here.
  *
+ * A 'Rules' text link sits in the header bar, right of the CAPTURE
+ * heading, and opens the competition-rules popup over the dash — verbatim
+ * copy from the lib module's COMPETITION_RULES; a centered dialog whose
+ * body scrolls (outside-tap, X and Escape close it).
+ *
+ * An accepted upload swaps the WHOLE body for a success moment ("Upload
+ * Successful" instead of the form) and auto-advances to the Leaderboard
+ * tab; the sticky bottom CTA bar is gone — the dropzone is the single
+ * entry point into the picker.
+ *
  * No location capture — the form collects junction/method/time only. The
  * client-side sha256Hex digest is a duplicate short-circuit only — the
  * server recomputes over the received bytes. */
 import React from 'react';
-import { GUIDE_METHODS, METHODS, LEADERBOARD_NOTE, sha256Hex }
-  from '../lib/capture.js';
+import { GUIDE_METHODS, METHODS, LEADERBOARD_NOTE, sha256Hex,
+  COMPETITION_RULES } from '../lib/capture.js';
 import { G_MARK } from './SignInGate.js';
 import { uploadCapture, fetchLeaderboard } from '../api.js';
 
 const h = React.createElement;
 
 const LB_LIMIT = 50;   // the server-side top; 'show all' expands to this
+
+/* the upload success moment auto-advances to the Leaderboard tab */
+const SUCCESS_MS = 1600;
 
 /* datetime-local needs a local-wall-clock "YYYY-MM-DDTHH:mm" string. */
 function toLocalInput(d) {
@@ -45,6 +58,18 @@ function initials(name) {
   return (parts[0][0] + last).toUpperCase();
 }
 
+/* **bold** markers in the rules copy render as strong runs — the lib
+ * module keeps the markdown emphasis, the view splits on it. */
+function mdRuns(text) {
+  const parts = String(text).split('**');
+  const out = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (!parts[i]) continue;
+    out.push(i % 2 === 1 ? h('strong', { key: i }, parts[i]) : parts[i]);
+  }
+  return out;
+}
+
 /* Minimal stroke-glyph set for the redesign (lucide-style 24-box paths).
  * Decorative only — every color flows through currentColor + tokens. */
 const GLYPHS = {
@@ -55,8 +80,6 @@ const GLYPHS = {
   ['circle', { cx: 12, cy: 13, r: 3 }]],
   arrowDown: [['path', { d: 'M12 5v14' }],
     ['path', { d: 'm19 12-7 7-7-7' }]],
-  clock: [['circle', { cx: 12, cy: 12, r: 10 }],
-    ['path', { d: 'M12 6v6l4 2' }]],
   wifi: [['path', { d: 'M12 20h.01' }],
     ['path', { d: 'M2 8.82a15 15 0 0 1 20 0' }],
     ['path', { d: 'M5 12.86a10 10 0 0 1 14 0' }],
@@ -81,10 +104,7 @@ const GLYPHS = {
     ['path', { d: 'M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 '
       + '22' }],
     ['path', { d: 'M18 2H6v7a6 6 0 0 0 12 0V2Z' }]],
-  plus: [['circle', { cx: 12, cy: 12, r: 10 }], ['path', { d: 'M12 8v8' }],
-    ['path', { d: 'M8 12h8' }]],
-  login: [['path', { d: 'M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4' }],
-    ['path', { d: 'm10 17 5-5-5-5' }], ['path', { d: 'M15 12H3' }]],
+  check: [['path', { d: 'M20 6 9 17l-5-5' }]],
 };
 
 function Icon({ name, className }) {
@@ -95,7 +115,7 @@ function Icon({ name, className }) {
 }
 
 /* one glyph per guide card, in GUIDE_METHODS order (token-tinted tiles) */
-const ACC_GLYPHS = ['camera', 'arrowDown', 'clock', 'wifi'];
+const ACC_GLYPHS = ['camera', 'arrowDown', 'wifi'];
 
 export function CaptureView({ store }) {
   const signedIn = Boolean(store.user);
@@ -110,9 +130,14 @@ export function CaptureView({ store }) {
   /* sign-in bottom sheet (signed-out visitors) + accordion open index */
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [accOpen, setAccOpen] = React.useState(0);
-  /* mobile tabs: Upload | Leaderboard, upload open by default (desktop
-   * shows every section stacked — the tab bar is display:none there) */
+  /* tabs: Upload | Leaderboard, upload open by default — the same tab
+   * swap at every width (the CSS pane rules are universal, not mobile) */
   const [tab, setTab] = React.useState('upload');
+  /* competition-rules popup: opened by the header-bar text link */
+  const [rulesOpen, setRulesOpen] = React.useState(false);
+  /* upload success takeover: the accepted upload swaps the body for the
+   * success moment, then auto-advances to the Leaderboard tab */
+  const [success, setSuccess] = React.useState(false);
   /* the hidden picker input stays mounted so the sticky CTA bar can tap
    * it while a file-row shows in the card */
   const fileRef = React.useRef(null);
@@ -130,6 +155,25 @@ export function CaptureView({ store }) {
 
   /* the sheet is for signed-out visitors only — sign-in success closes it */
   React.useEffect(() => { if (signedIn) setSheetOpen(false); }, [signedIn]);
+
+  /* Escape closes the rules popup while it is open (outside-tap + X too) */
+  React.useEffect(() => {
+    if (!rulesOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setRulesOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [rulesOpen]);
+
+  /* the success moment auto-advances to the Leaderboard tab; the timer
+   * cleans up if the popup closes or success ends early */
+  React.useEffect(() => {
+    if (!success) return;
+    const t = setTimeout(() => {
+      setSuccess(false);
+      setTab('leaderboard');
+    }, SUCCESS_MS);
+    return () => clearTimeout(t);
+  }, [success]);
 
   /* picked file: prefill capturedAt from its lastModified (editable) */
   const onFile = (e) => {
@@ -173,7 +217,9 @@ export function CaptureView({ store }) {
           ? new Date(capturedAt).toISOString() : null,
         hash,
       });
-      store.setToast('capture uploaded — 1 point on the leaderboard');
+      /* the success card supersedes the old toast — the body takeover
+       * carries the feedback, then the auto-advance moves to the board */
+      setSuccess(true);
       setFile(null);
       setJunction('');
       setCapturedAt('');
@@ -197,11 +243,15 @@ export function CaptureView({ store }) {
   const head = h('div', { className: 'dash-head capture-head' },
     h('span', { className: 'capture-brand' }, h(Icon, { name: 'video' })),
     h('h3', { className: 'capture-title' }, 'CAPTURE'),
+    /* rules text link: right of the CAPTURE heading; opens the
+     * competition-rules popup over the dash */
+    h('button', { className: 'capture-rules-link',
+      onClick: () => setRulesOpen(true) }, 'Rules'),
     h('button', { className: 'ghost',
       onClick: () => store.setView('discover') }, 'Close'));
 
-  /* mobile tab bar: Upload | Leaderboard, Upload first + default (shown
-   * only on mobile — the CSS hides it on desktop) */
+  /* tab bar: Upload | Leaderboard, Upload first + default (visible at
+   * every width — desktop gets the same tabs, not a stacked layout) */
   const tabs = h('div', { className: 'capture-tabs', role: 'tablist' },
     h('button', {
       className: 'capture-tab' + (tab === 'upload' ? ' on' : ''),
@@ -366,12 +416,21 @@ export function CaptureView({ store }) {
               'show all (' + entries.length + ')')
               : null));
 
-  const ctaBar = h('div', { className: 'capture-cta' },
-    h('button', { className: 'btn', onClick: openPicker },
-      h(Icon, { name: signedIn ? 'plus' : 'login' }),
-      signedIn ? 'Select & Upload Clip' : 'Sign in to Upload'),
-    signedIn ? null : h('p', { className: 'capture-cta-note' },
-      'Google sign-in records your submissions and scores the point'));
+  /* upload success takeover: the whole body becomes the success moment
+   * ("Upload Successful" instead of the form), then the auto-advance
+   * moves to the leaderboard tab */
+  const successCard = h('div', { className: 'capture-success' },
+    h('span', { className: 'capture-success-glyph' },
+      h(Icon, { name: 'check' })),
+    h('b', { className: 'capture-success-title' }, 'Upload Successful'),
+    h('span', { className: 'capture-success-sub' },
+      '1 point on the leaderboard — taking you there…'));
+
+  /* success takeover: the accepted upload swaps the WHOLE body for the
+   * success moment, then the auto-advance lands on the leaderboard */
+  const bodyKids = success
+    ? [successCard]
+    : [uploadCard, methodsSection, leaderboardSection];
 
   const sheet = sheetOpen
     ? h('div', { className: 'capture-veil',
@@ -395,10 +454,35 @@ export function CaptureView({ store }) {
           'Clips recorded on the road can be uploaded later on Wi-Fi.')))
     : null;
 
+  /* competition-rules popup: centered dialog over the dash; only the
+   * body scrolls (the copy is long — eight numbered sections) */
+  const rulesPop = rulesOpen
+    ? h('div', { className: 'capture-rules-veil',
+        onClick: (ev) => {
+          if (ev.target === ev.currentTarget) setRulesOpen(false);
+        } },
+      h('div', { className: 'capture-rules-pop', role: 'dialog',
+        'aria-modal': 'true', 'aria-label': COMPETITION_RULES.title },
+        h('div', { className: 'capture-rules-head' },
+          h('b', { className: 'capture-rules-title' },
+            COMPETITION_RULES.title),
+          h('button', { className: 'capture-rules-x',
+            onClick: () => setRulesOpen(false),
+            'aria-label': 'Close' }, h(Icon, { name: 'x' }))),
+        h('div', { className: 'capture-rules-body' },
+          COMPETITION_RULES.sections.map((sec) => h('section',
+            { key: sec.heading, className: 'capture-rules-sec' },
+            h('h4', { className: 'capture-rules-h' }, sec.heading),
+            sec.blocks.map((b, bi) => b.ul
+              ? h('ul', { key: bi, className: 'capture-rules-ul' },
+                  b.ul.map((li, li2) => h('li', { key: li2 }, mdRuns(li))))
+              : h('p', { key: bi, className: 'capture-rules-p' },
+                  mdRuns(b.p))))))))
+    : null;
+
   return h('div', { className: 'dash-veil' },
     h('div', { className: 'dash capture-dash', 'data-tab': tab }, head,
       tabs,
-      h('div', { className: 'capture-body' },
-        uploadCard, methodsSection, leaderboardSection, ctaBar),
-      sheet));
+      h('div', { className: 'capture-body' }, bodyKids),
+      sheet, rulesPop));
 }
