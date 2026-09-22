@@ -223,6 +223,14 @@ describe('TopBar render structure (source-pinned — node env has no DOM)', () =
     expect(TOPBAR).toMatch(/onClick: onSignIn/);
   });
 
+  it('capture takeover: the bar marks itself while the capture view is open', () => {
+    /* on mobile the capture page takes over the full screen, so the whole
+     * bar steps aside (display:none lives in the capture mobile block,
+     * pinned by test/capture.test.js) — TopBar only stamps the marker */
+    expect(TOPBAR, "a topbar-under-capture marker rides view === 'capture'")
+      .toMatch(/view === 'capture' \? ' topbar-under-capture' : ''/);
+  });
+
   it('right cluster: Export ghost, then auth, then exactly one primary CTA', () => {
     expect(TOPBAR).toMatch(/'Export area'/);
     expect(TOPBAR).toMatch(/onClick: onExport/);
@@ -374,7 +382,12 @@ describe('topbar CSS contract (EXTRA_CSS overrides, tokens only)', () => {
     expect(EXTRA)
       .toMatch(/@media \(max-width:900px\)\{\s*\.topbar\{padding:8px 12px/);
     expect(EXTRA).toMatch(/\.userbox > button\{[^}]*min-width:0/);
-    const stack = EXTRA.slice(EXTRA.indexOf('@media (max-width:640px)'));
+    /* scope the stack guard to the topbar's own responsive rules: the
+     * first <=640px block through the next <=900px block (the SimPanel
+     * sheet block). Later blocks are pinned in their own suites. */
+    const at640 = EXTRA.indexOf('@media (max-width:640px)');
+    const stack = EXTRA.slice(at640,
+      EXTRA.indexOf('@media (max-width:900px)', at640));
     expect(stack, 'the <=640px stack block must exist').toContain('@media');
     expect(stack).toMatch(/\.topbar\{[^}]*flex-wrap:wrap/);
     expect(stack)
@@ -385,5 +398,9 @@ describe('topbar CSS contract (EXTRA_CSS overrides, tokens only)', () => {
       .toMatch(/\.mark small:where\(\*\)\{[^}]*text-align:center/);
     expect(stack, 'the stack keeps every element visible — no display:none')
       .not.toMatch(/display:none/);
+    /* the slice above covers ONLY the topbar stack block — later blocks
+     * (SimPanel sheet, capture mobile) own their own media queries; the
+     * sanctioned whole-bar capture-takeover hide is pinned positively in
+     * test/capture.test.js, not here */
   });
 });

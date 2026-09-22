@@ -5,9 +5,13 @@
  * accordion cards, and the ranked all-time leaderboard; signed-out
  * visitors get a Google sign-in bottom sheet (store.signIn) instead of the
  * form. Full-screen overlay panel over the map (ContributeView shell
- * pattern); no router. Mobile-first: the sections ALWAYS stack in the
- * fixed order upload widget -> guide cards -> leaderboard (pinned by
- * test/capture.test.js via the section markers). Copy comes from the pure
+ * pattern); no router. On mobile (<=900px, the house mobile breakpoint)
+ * the page takes over the full screen (the topbar steps aside via the
+ * TopBar marker) and the upload + leaderboard become TABS — Upload open
+ * by default, the active pane swapped by data-tab CSS; desktop keeps the
+ * sections stacked in the fixed order upload widget -> guide cards ->
+ * leaderboard (pinned by test/capture.test.js via the section markers).
+ * Copy comes from the pure
  * src/lib/capture.js module; ALL transport goes through src/api.js
  * wrappers (uploadCapture / fetchLeaderboard) — no direct fetch in this
  * component, and tokens are never touched here.
@@ -124,6 +128,9 @@ export function CaptureView({ store }) {
   /* sign-in bottom sheet (signed-out visitors) + accordion open index */
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [accOpen, setAccOpen] = React.useState(0);
+  /* mobile tabs: Upload | Leaderboard, upload open by default (desktop
+   * shows every section stacked — the tab bar is display:none there) */
+  const [tab, setTab] = React.useState('upload');
   /* the hidden picker input stays mounted so the sticky CTA bar can tap
    * it while a file-row shows in the card */
   const fileRef = React.useRef(null);
@@ -219,7 +226,22 @@ export function CaptureView({ store }) {
     h('button', { className: 'ghost',
       onClick: () => store.setView('discover') }, 'Close'));
 
-  const uploadCard = h('div', { className: 'row-item capture-widget' },
+  /* mobile tab bar: Upload | Leaderboard, Upload first + default (shown
+   * only on mobile — the CSS hides it on desktop) */
+  const tabs = h('div', { className: 'capture-tabs', role: 'tablist' },
+    h('button', {
+      className: 'capture-tab' + (tab === 'upload' ? ' on' : ''),
+      role: 'tab', 'aria-selected': String(tab === 'upload'),
+      onClick: () => setTab('upload'),
+    }, 'Upload'),
+    h('button', {
+      className: 'capture-tab' + (tab === 'leaderboard' ? ' on' : ''),
+      role: 'tab', 'aria-selected': String(tab === 'leaderboard'),
+      onClick: () => setTab('leaderboard'),
+    }, 'Leaderboard'));
+
+  const uploadCard = h('div', { className: 'row-item capture-widget'
+    + ' capture-pane-upload' },
     h('div', { className: 'row-line' },
       h('b', null, 'UPLOAD A CAPTURE'),
       h('span', { className: 'meta-inline' },
@@ -333,16 +355,17 @@ export function CaptureView({ store }) {
             h('span', null, c.howItIsUsed)))))));
 
   const methodsSection = h(React.Fragment, null,
-    h('div', { className: 'row-item' },
+    h('div', { className: 'row-item capture-pane-upload' },
       h('div', { className: 'row-line' },
         h('b', null, 'CAPTURE METHODS'),
         h('span', { className: 'meta-inline' },
           'ultra-short recordings from the street — every method counts '
           + 'the same'))),
-    h('div', { className: 'capture-acc' },
+    h('div', { className: 'capture-acc capture-pane-upload' },
       GUIDE_METHODS.map((c, i) => accItem(c, i))));
 
-  const leaderboardSection = h('div', { className: 'row-item' },
+  const leaderboardSection = h('div', { className: 'row-item'
+    + ' capture-pane-leaderboard' },
     h('div', { className: 'row-line' },
       h('span', { className: 'capture-lb-glyph' },
         h(Icon, { name: 'trophy' })),
@@ -401,7 +424,8 @@ export function CaptureView({ store }) {
     : null;
 
   return h('div', { className: 'dash-veil' },
-    h('div', { className: 'dash capture-dash' }, head,
+    h('div', { className: 'dash capture-dash', 'data-tab': tab }, head,
+      tabs,
       h('div', { className: 'capture-body' },
         uploadCard, methodsSection, leaderboardSection, ctaBar),
       sheet));

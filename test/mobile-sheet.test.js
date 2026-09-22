@@ -34,11 +34,13 @@ const extraCss = () => read('src', 'main.js')
   /* stitch the EXTRA_CSS string-concatenation back into one stylesheet */
   .replace(/'\s*\+\s*'/g, '');
 
-/* the mobile-sheet media block is the LAST @media (max-width:900px) in the
- * sheet (the topbar responsive block comes earlier) */
+/* the mobile-sheet media block is the last @media (max-width:900px) BEFORE
+ * the capture page section — the capture mobile block lands after it and
+ * owns its own <=900px rules (pinned by test/capture.test.js) */
 const sheetMedia = () => {
   const css = extraCss();
-  const i = css.lastIndexOf('@media (max-width:900px)');
+  const cap = css.indexOf('/* capture page */');
+  const i = css.lastIndexOf('@media (max-width:900px)', cap);
   expect(i, 'mobile media block missing').toBeGreaterThanOrEqual(0);
   return css.slice(i);
 };

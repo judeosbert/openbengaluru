@@ -99,7 +99,11 @@ export function TopBar({ view, onView, user, me, onSignIn, onSignOut, onNewSim, 
   const closeMore = React.useCallback(() => setMoreOpen(false), []);
   const closeAcct = React.useCallback(() => setAcctOpen(false), []);
   const identity = user ? (user.displayName || user.email || user.uid) : '';
-  return h('div', { className: 'topbar' },
+  /* capture takeover: on mobile the capture page takes over the full
+   * screen, so the bar stamps a marker the capture mobile block hides
+   * (desktop keeps the bar; Close returns to discover and the bar with it) */
+  return h('div', { className: 'topbar'
+    + (view === 'capture' ? ' topbar-under-capture' : '') },
     h('div', { className: 'mark' },
       h('i', null), 'OpenBengaluru ',
       h('a', { key: 'gh', className: 'gh', href: GITHUB_URL,

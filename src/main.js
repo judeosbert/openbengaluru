@@ -421,9 +421,11 @@ const EXTRA_CSS = ''
    /* Capture page redesign (design reference: phone shell + dropzone +
     * accordion guide cards + ranked leaderboard rows + sign-in bottom
     * sheet). The dash panel becomes the shell: header strip, scroll body
-    * and CTA bar are flex siblings, only .capture-body scrolls. Mobile-
-    * first single column at EVERY width (the shell stacks); 44px+ tap
-    * targets; token-only colors per the theme contract. */
+    * and CTA bar are flex siblings, only .capture-body scrolls. Single
+    * column at EVERY width; on mobile the sections split into Upload |
+    * Leaderboard tabs (see the mobile block below), desktop keeps the
+    * stacked shell; 44px+ tap targets; token-only colors per the theme
+    * contract. */
    + '/* capture page */\n'
    + '.capture-dash{position:relative;width:min(480px,94%);'
    + 'max-height:min(780px,92%);padding:0;display:flex;'
@@ -438,6 +440,14 @@ const EXTRA_CSS = ''
    + 'font-weight:700;font-size:16px;letter-spacing:.02em}\n'
    + '.capture-body{flex:1;min-height:0;overflow-y:auto;'
    + 'overscroll-behavior:contain;padding:12px 14px 16px}\n'
+   + '.capture-tabs{display:none;flex:none;margin:10px 12px 0;padding:4px;'
+   + 'gap:4px;border:1px solid var(--hair);border-radius:999px;'
+   + 'background:var(--surface2)}\n'
+   + '.capture-tab{flex:1;min-height:40px;border:0;border-radius:999px;'
+   + 'background:transparent;color:var(--ink2);font:inherit;font-size:12.5px;'
+   + 'font-weight:600;cursor:pointer;transition:color .15s,background .15s}\n'
+   + '.capture-tab.on{background:var(--surface);color:var(--ink);'
+   + 'box-shadow:var(--shadow-sm)}\n'
    + '.capture-form{display:flex;flex-direction:column;gap:10px;'
    + 'margin-top:10px}\n'
    + '.capture-cta{flex:none;padding:10px 14px;'
@@ -579,9 +589,23 @@ const EXTRA_CSS = ''
    + '.capture-sheet .hint{margin:0}\n'
    + '.capture-sheet .gbtn{margin-top:4px}\n'
    + '.capture-sheet-note{margin:0;font-size:10.5px;color:var(--ink3)}\n'
-   + '@media (max-width:640px){\n'
+   /* Capture mobile takeover (house <=900px breakpoint, same as the
+    * compact topbar + SimPanel sheet): the capture page takes over the
+    * full screen — the topbar steps aside via the TopBar marker and the
+    * dash fills the phone. The upload + leaderboard become tabs (Upload
+    * open by default; data-tab drives which pane shows) and the sticky
+    * CTA rides only the upload tab. Desktop (>900px) keeps the stacked
+    * phone shell with every section and no tab bar. */
+   + '@media (max-width:900px){\n'
    + '.capture-dash{width:100%;max-height:100%;height:100%;'
    + 'border-radius:0;border-left:0;border-right:0}\n'
+   + '.topbar-under-capture{display:none}\n'
+   + '.capture-tabs{display:flex}\n'
+   + '.capture-dash[data-tab=\'upload\'] .capture-pane-leaderboard'
+   + '{display:none}\n'
+   + '.capture-dash[data-tab=\'leaderboard\'] .capture-pane-upload'
+   + '{display:none}\n'
+   + '.capture-dash[data-tab=\'leaderboard\'] .capture-cta{display:none}\n'
    + '.capture-body{padding:10px 12px 14px}\n'
    + '.capture-acc-tiles{grid-template-columns:1fr}}\n';
 

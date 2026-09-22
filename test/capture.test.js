@@ -192,9 +192,10 @@ it('the leaderboard renders top 10 with a show-all expand + quiet failure', () =
 
 /* ------------------------------------------------- source order --- */
 
-/* the locked mobile-first stacking order: upload widget -> guide cards ->
- * leaderboard. The markers are the section headings; checking their
- * positions AFTER the import block pins the render order in source. */
+/* the desktop stacking order (mobile shows one tab pane at a time — see
+ * the tabs pins below): upload widget -> guide cards -> leaderboard. The
+ * markers are the section headings; checking their positions AFTER the
+ * import block pins the render order in source. */
 it('page stacks in the fixed order: widget -> guide cards -> leaderboard', () => {
   const s = VIEW();
   const body = s.slice(s.lastIndexOf("from '"));
@@ -307,6 +308,64 @@ it('the capture redesign CSS is token-only (no raw hex colors)', () => {
   }
   expect(seen, 'the redesign ships a real capture CSS block')
     .toBeGreaterThan(10);
+});
+
+/* ------------------------------------- mobile takeover + tabs (plan) ---
+ * On mobile (the house <=900px breakpoint, same as the SimPanel bottom
+ * sheet) the capture page takes over the full screen: the topbar steps
+ * aside while the capture view is open and the dash fills the phone.
+ * The upload and leaderboard become tabs (Upload open by default); desktop
+ * keeps the stacked layout. */
+
+it('mobile tabs: Upload | Leaderboard with upload open by default', () => {
+  const s = VIEW();
+  expect(s, 'the tab state defaults to upload').toMatch(
+    /useState\('upload'\)/);
+  expect(s, 'the tab bar renders').toMatch(/capture-tabs/);
+  expect(s, 'the tab buttons carry the capture-tab class').toMatch(
+    /'capture-tab' \+/);
+  expect(s, 'the tab state is exposed for assistive tech')
+    .toMatch(/aria-selected/);
+  expect(s, 'the active tab rides the dash root as data-tab')
+    .toMatch(/'data-tab': tab/);
+  const atUpload = s.indexOf("'Upload'");
+  const atLb = s.indexOf("'Leaderboard'");
+  expect(atUpload, 'the Upload tab exists').toBeGreaterThan(-1);
+  expect(atLb, 'the Leaderboard tab exists').toBeGreaterThan(-1);
+  expect(atUpload, 'Upload is the first tab (default)').toBeLessThan(atLb);
+  expect((s.match(/capture-pane-upload/g) || []).length,
+    'the upload widget + both guide-card nodes carry the upload pane class')
+    .toBeGreaterThanOrEqual(3);
+  expect((s.match(/capture-pane-leaderboard/g) || []).length,
+    'the leaderboard section carries the leaderboard pane class')
+    .toBeGreaterThanOrEqual(1);
+});
+
+it('mobile takeover CSS: full-bleed dash, topbar steps aside, tabs swap panes', () => {
+  /* the capture mobile block is the LAST media query in EXTRA_CSS — slice
+   * from it so the pins read the mobile rules and nothing else */
+  const mobStart = EXTRA.lastIndexOf('@media (max-width:900px)');
+  const mob = EXTRA.slice(mobStart);
+  expect(mob, 'the capture mobile block uses the house 900px breakpoint')
+    .toContain('@media (max-width:900px)');
+  expect(mob, 'the dash fills the phone screen').toMatch(
+    /\.capture-dash\{[^}]*width:100%;max-height:100%;height:100%/);
+  expect(mob, 'the topbar steps aside under the capture takeover')
+    .toMatch(/\.topbar-under-capture\{display:none\}/);
+  expect(mob, 'the tab bar shows on mobile').toMatch(
+    /\.capture-tabs\{[^}]*display:flex/);
+  expect(mob, 'the upload pane hides on the leaderboard tab').toMatch(
+    /\.capture-dash\[data-tab='leaderboard'\] \.capture-pane-upload\{display:none\}/);
+  expect(mob, 'the leaderboard pane hides on the upload tab').toMatch(
+    /\.capture-dash\[data-tab='upload'\] \.capture-pane-leaderboard\{display:none\}/);
+  expect(mob, 'the CTA bar rides only the upload tab').toMatch(
+    /\.capture-dash\[data-tab='leaderboard'\] \.capture-cta\{display:none\}/);
+  /* desktop (>900px): no tab bar, sections stay stacked, no pane hiding */
+  const head = EXTRA.slice(0, mobStart);
+  expect(head, 'the tab bar is display:none outside the mobile block')
+    .toMatch(/\.capture-tabs\{display:none/);
+  expect(head, 'no pane-hiding selectors leak outside the mobile block')
+    .not.toMatch(/\[data-tab=/);
 });
 
 /* ------------------------------------------- direct /capture.html route --- */
