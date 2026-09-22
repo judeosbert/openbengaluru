@@ -16,9 +16,7 @@
  * wrappers (uploadCapture / fetchLeaderboard) — no direct fetch in this
  * component, and tokens are never touched here.
  *
- * Geo is best-effort and requested ONLY on the upload tap (a permission
- * prompt on page load is bad UX and can be denied permanently); granted
- * coordinates ride along RAW and the chip copy says so honestly. The
+ * No location capture — the form collects junction/method/time only. The
  * client-side sha256Hex digest is a duplicate short-circuit only — the
  * server recomputes over the received bytes. */
 import React from 'react';
@@ -29,22 +27,7 @@ import { uploadCapture, fetchLeaderboard } from '../api.js';
 
 const h = React.createElement;
 
-const GEO_TIMEOUT_MS = 10000;
 const LB_LIMIT = 50;   // the server-side top; 'show all' expands to this
-
-/* Best-effort geolocation — called ONLY on the upload tap. Resolves null
- * on any refusal/timeout; the upload never waits on a denied permission. */
-function readGeo() {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude,
-        lng: pos.coords.longitude }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  });
-}
 
 /* datetime-local needs a local-wall-clock "YYYY-MM-DDTHH:mm" string. */
 function toLocalInput(d) {
@@ -122,7 +105,6 @@ export function CaptureView({ store }) {
   const [capturedAt, setCapturedAt] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
-  const [geo, setGeo] = React.useState(null);   // 'captured' | 'none' | null
   const [entries, setEntries] = React.useState(null);
   const [showAll, setShowAll] = React.useState(false);
   /* sign-in bottom sheet (signed-out visitors) + accordion open index */
@@ -153,7 +135,6 @@ export function CaptureView({ store }) {
   const onFile = (e) => {
     const f = e.target.files && e.target.files[0];
     setError(null);
-    setGeo(null);
     if (fileRef.current) fileRef.current.value = '';
     if (!f) return;
     setFile(f);
@@ -164,7 +145,6 @@ export function CaptureView({ store }) {
   const clearFile = () => {
     setFile(null);
     setCapturedAt('');
-    setGeo(null);
     setError(null);
   };
 
@@ -182,9 +162,6 @@ export function CaptureView({ store }) {
     setBusy(true);
     setError(null);
     try {
-      /* best-effort geo FIRST (permission prompt fires on this tap) */
-      const coords = await readGeo();
-      setGeo(coords ? 'captured' : 'none');
       /* client hash short-circuit — server recomputes regardless */
       let hash = null;
       try {
@@ -194,15 +171,12 @@ export function CaptureView({ store }) {
         junction: junction.trim(), method,
         capturedAt: capturedAt
           ? new Date(capturedAt).toISOString() : null,
-        lat: coords ? coords.lat : null,
-        lng: coords ? coords.lng : null,
         hash,
       });
       store.setToast('capture uploaded — 1 point on the leaderboard');
       setFile(null);
       setJunction('');
       setCapturedAt('');
-      setGeo(null);
       setError(null);
       loadLeaderboard();
     } catch (e) {
@@ -313,8 +287,6 @@ export function CaptureView({ store }) {
               value: capturedAt,
               onChange: (e) => setCapturedAt(e.target.value),
             })),
-          geo ? h('span', { className: 'capture-chip' },
-            geo === 'captured' ? 'location captured' : 'no location') : null,
           error ? h('div', { className: 'form-error' }, error) : null,
           h('button', {
             className: 'btn',

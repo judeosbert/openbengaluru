@@ -160,7 +160,8 @@ it('the upload widget gates on store.user with the existing sign-in flow', () =>
 
 /* the widget: method radio-chips (not a select), junction input, the file
  * input keeps accept WITHOUT a forced capture attribute, datetime-local
- * prefilled from file.lastModified, best-effort geo chip, client hash. */
+ * prefilled from file.lastModified, client hash — NO location capture
+ * (removed: not required). */
 it('the widget pins the upload controls', () => {
   const s = VIEW();
   expect(s, 'method picker renders from the pure enum — large-tap radio-chips')
@@ -172,9 +173,9 @@ it('the widget pins the upload controls', () => {
     + 'pickable').not.toMatch(/capture:\s*'environment'|capture:\s*'user'/);
   expect(s, 'capturedAt uses a datetime-local input')
     .toMatch(/datetime-local/);
-  expect(s, 'geo is best-effort on the upload tap (never on page load)')
-    .toMatch(/navigator\.geolocation/);
-  expect(s, 'the geo chip copy is straight').toMatch(
+  expect(s, 'no geolocation — location capture was removed from the form')
+    .not.toMatch(/navigator\.geolocation/);
+  expect(s, 'no location chip — the geo copy is gone entirely').not.toMatch(
     /location captured|no location/);
   expect(s, 'the client hash short-circuit goes through the shared '
     + 'sha256Hex helper (crypto.subtle itself lives in the lib module)')
