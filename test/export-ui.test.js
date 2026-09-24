@@ -9,9 +9,9 @@
  *     exports only the pure head the server also uses)
  *   - the component calls the authed /api/export-net wrapper (exportNet)
  *     and offers the draw-draw UX: armed draw mode, Redraw, Use this box
- *   - ONE request now returns BOTH files as a .zip (net + osm, built by
- *     the shared src/lib/zip.js): exportNet hands back the Blob and the
- *     component saves it as one download
+ *   - ONE request now returns THREE files as a .zip (net + osm + the
+ *     vtypes preset, built by the shared src/lib/zip.js): exportNet hands
+ *     back the Blob and the component saves it as one download
  *   - failures surface server errors verbatim + the player-server hint
  */
 import { it, expect } from 'vitest';
@@ -66,14 +66,14 @@ it('ExportFlow: downloads the server-built zip (net + osm) via exportNet', () =>
   const src = fs.readFileSync(EF, 'utf8');
   expect(src, 'imports the api wrapper').toMatch(
     /import\s*\{[^}]*exportNet[^}]*\}\s*from\s*'\.\.\/api\.js'/);
-  expect(src, 'primary action is the zip bundle (net + osm)')
-    .toMatch(/Download \.zip \(net \+ osm\)/);
+  expect(src, 'primary action is the zip bundle (net + osm + vtypes)')
+    .toMatch(/Download \.zip \(net \+ osm \+ vtypes\)/);
   expect(src, 'calls exportNet(bbox, { name, zoom })')
     .toMatch(/exportNet\(\s*bbox\s*,\s*\{[^}]*zoom/);
   expect(src, 'saves the returned zip Blob via the generalized download')
     .toMatch(/downloadBlob\(\s*nm \+ '\.zip'/);
-  expect(src, 'the saved-status names both artifacts inside the zip')
-    .toMatch(/\.net\.xml[\s\S]{0,120}\.osm\.xml/);
+  expect(src, 'the saved-status names all three artifacts inside the zip')
+    .toMatch(/\.net\.xml[\s\S]{0,200}\.osm\.xml[\s\S]{0,200}vtypes\.rou\.xml/);
 });
 
 it('ExportFlow: drag-draw state machine (armed -> drawn) with move + redraw', () => {

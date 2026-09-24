@@ -17,6 +17,7 @@ import { findSumo as findSumoBinary, geom, geoLock, sumoDataHome }
 import {
   buildTypeMap, readDemand, packFcd, packStats, readFcd, readSummary,
 } from './blgr_pack.js';
+import { injectAggressiveDriving } from '../src/lib/vtypePreset.js';
 
 /* Exact flag list from video_capture.py:34-38 — locked by test/tools.test.js
  * (seed 42, step-length 1). */
@@ -299,8 +300,15 @@ export async function main(argv) {
   for (const [key, netPath, rouPath] of specs) {
     const fcdOut = path.join(td, `${key}-fcd.xml`);
     const summOut = path.join(td, `${key}-sum.xml`);
+    /* Mandated aggressive-driving vTypes (plan: indian-driving-vtypes):
+     * SUMO runs a patched temp copy. buildTypeMap/readDemand keep reading
+     * the ORIGINAL (render classes + demand semantics unchanged; the
+     * injection never touches <vehicle>/<flow>/<trip> elements). */
+    const patchedRou = path.join(td, `${key}-patched.rou.xml`);
+    fs.writeFileSync(patchedRou,
+      injectAggressiveDriving(fs.readFileSync(rouPath, 'utf8')));
     process.stdout.write(`  Running SUMO for '${key}' (${path.basename(netPath)})...\n`);
-    runSumo(sumo, netPath, rouPath, fcdOut, summOut, args.end, sumoHome);
+    runSumo(sumo, netPath, patchedRou, fcdOut, summOut, args.end, sumoHome);
     const tmap = buildTypeMap(rouPath);
     const [frames, nVeh] = await readFcd(key, td, args.end, tmap);
     const stats = await readSummary(key, td, args.end);

@@ -561,7 +561,15 @@ it.skipIf(!SUMO)('a simulated run persists its uploaded XMLs for /api/files', as
   const rou = await fetch(base + '/api/files/endp-store/demand.rou.xml',
     { headers: { Authorization: 'Bearer tok-qa' } });
   expect(rou.status).toBe(200);
-  expect(await rou.text()).toBe(ROU_XML);
+  /* the server patches body.rouXml with the mandated aggressive-driving
+   * vTypes BEFORE the bucket put — the stored bytes (and the resubmit
+   * prefill) carry the block, not the raw fixture */
+  const storedRou = await rou.text();
+  expect(storedRou).not.toBe(ROU_XML);
+  expect(storedRou).toContain('tau="0.5"');
+  expect(storedRou).toContain('lcPushy="1.0"');
+  expect(storedRou).toContain('<vType id="DEFAULT_VEHTYPE"');
+  expect(storedRou).toContain('<flow');   // the original demand survives
 });
 
 it.skipIf(!SUMO)('a proposed net adds proposed.net.xml to the stored set', async () => {

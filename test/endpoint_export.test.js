@@ -14,10 +14,11 @@
  *   502 other OSM status / fetch failure
  *   503 pool busy (POOL_BUSY) + OSM 429/509 (rate-limited)
  *   504 netconvert timeout
- *   200 application/zip attachment "<name>.zip" holding BOTH files:
+ *   200 application/zip attachment "<name>.zip" holding THREE files:
  *   "<name>.net.xml" (with '<!-- simo:zoom=N -->' as line 2, the
- *   convert.sh awk step) AND "<name>.osm.xml" (the same fetched OSM the
- *   conversion consumed, zoom-stamped) — one request, both artifacts,
+ *   convert.sh awk step), "<name>.osm.xml" (the same fetched OSM the
+ *   conversion consumed, zoom-stamped) AND "vtypes.rou.xml" (the
+ *   aggressive-driving vType preset) — one request, all artifacts,
  *   verified through the system unzip.
  *
  * Skips the netconvert-running cases when the binary is undiscoverable
@@ -224,7 +225,8 @@ it('a full pool -> 503 server busy (same body as simulate)', async () => {
   expect((await res.json()).error).toBe('server busy — try again shortly');
 });
 
-it.skipIf(!NETCONVERT || !UNZIP)('happy path: 200 zip attachment carrying BOTH the .net.xml and the .osm.xml', async () => {
+it.skipIf(!NETCONVERT || !UNZIP)('happy path: 200 zip attachment carrying '
+  + 'the .net.xml, the .osm.xml and the vtypes preset', async () => {
   const { base } = await startServer();
   const res = await exportReq(base, {
     bbox: [12.94, 77.71, 12.95, 77.72],
@@ -238,7 +240,8 @@ it.skipIf(!NETCONVERT || !UNZIP)('happy path: 200 zip attachment carrying BOTH t
   const p = await saveZip(res);
   const names = execFileSync('unzip', ['-Z1', p]).toString('utf8')
     .split('\n').filter(Boolean).sort();
-  expect(names).toEqual(['test-area.net.xml', 'test-area.osm.xml']);
+  expect(names).toEqual(['test-area.net.xml', 'test-area.osm.xml',
+    'vtypes.rou.xml']);
 
   /* the net file: today's contract, unchanged — zoom stamp on line 2 */
   const net = execFileSync('unzip', ['-p', p, 'test-area.net.xml'])
@@ -254,6 +257,16 @@ it.skipIf(!NETCONVERT || !UNZIP)('happy path: 200 zip attachment carrying BOTH t
     .toString('utf8');
   expect(osm).toContain('<bounds ');
   expect(osm).toContain('<!-- simo:zoom=14 -->');
+
+  /* the vtypes preset: paste-ready aggressive-driving vTypes for the
+   * contributor's own demand file */
+  const vt = execFileSync('unzip', ['-p', p, 'vtypes.rou.xml'])
+    .toString('utf8');
+  expect(vt).toContain('tau="0.5"');
+  expect(vt).toContain('<vType id="DEFAULT_VEHTYPE"');
+  for (const id of ['car', 'motorcycle', 'bus', 'truck', 'auto']) {
+    expect(vt).toContain(`<vType id="${id}"`);
+  }
 });
 
 it.skipIf(!NETCONVERT)('garbage OSM -> 422 with the netconvert stderr tail', async () => {

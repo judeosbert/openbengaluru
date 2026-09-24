@@ -184,6 +184,8 @@ import { DATA_SOURCES, validSourceUrl } from './src/lib/submit.js';
 import { osmApiUrl, validateBbox, sanitizeAreaName }
   from './src/lib/areaExport.js';
 import { buildZip } from './src/lib/zip.js';
+import { injectAggressiveDriving, buildPresetRoutesXml, PRESET_FILE_NAME }
+  from './src/lib/vtypePreset.js';
 
 const SERVER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -562,6 +564,12 @@ export function createSimServer(opts = {}) {
     const invalid = validateBody(body);
     if (invalid) return respond(400, { error: invalid });
 
+    /* Mandated aggressive-driving vTypes (plan: indian-driving-vtypes):
+     * patch BEFORE the ownership check / bucket put, so the stored
+     * demand.rou.xml (and the resubmit prefill that re-downloads it)
+     * carry the block. Total + idempotent (no <routes> -> unchanged). */
+    body.rouXml = injectAggressiveDriving(body.rouXml);
+
     /* Ownership check BEFORE any bucket mutation: a foreign same-id POST
      * must never delete/replace the owner's stored sources. Legacy rows
      * (author_uid null) are admin-only. */
@@ -829,11 +837,13 @@ export function createSimServer(opts = {}) {
         net = nl === -1 ? net + '\n' + tag
           : net.slice(0, nl + 1) + tag + net.slice(nl);
       }
-      /* ONE zip, both artifacts: the finished net (zoom stamp on line 2)
-       * + the SAME fetched OSM the conversion consumed (zoom-stamped). */
+      /* ONE zip, all artifacts: the finished net (zoom stamp on line 2)
+       * + the SAME fetched OSM the conversion consumed (zoom-stamped)
+       * + the paste-ready Indian road-behavior vType preset. */
       const zip = buildZip([
         { name: name + '.net.xml', body: net },
         { name: name + '.osm.xml', body: xml },
+        { name: PRESET_FILE_NAME, body: buildPresetRoutesXml() },
       ]);
       log(200, null);
       res.writeHead(200, {

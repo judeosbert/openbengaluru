@@ -1,7 +1,7 @@
 /* Export-area modal: draw a box on the map, the SERVER fetches the OSM
  * roads + runs netconvert and answers ONE .zip holding the finished
- * .net.xml + the fetched .osm.xml (POST /api/export-net via the authed
- * exportNet wrapper). Draw UX:
+ * .net.xml + the fetched .osm.xml + the paste-ready vtypes.rou.xml
+ * (POST /api/export-net via the authed exportNet wrapper). Draw UX:
  *   modal (idle) -> 'Draw a box' arms draw mode (minimizes to the
  *   anchor-bar) -> click-drag on the map draws an arbitrary rect ->
  *   drawn (bar: Redraw / Use this box / Cancel; drag inside the box
@@ -188,7 +188,8 @@ export function ExportFlow({ store, map, onClose }) {
       const blob = await exportNet(bbox,
         { name: nm, zoom: map.getZoom() });
       downloadBlob(nm + '.zip', blob);
-      setStatus('saved ' + nm + '.zip (the .net.xml + the .osm.xml) — '
+      setStatus('saved ' + nm + '.zip (the .net.xml + the .osm.xml '
+        + '+ vtypes.rou.xml paste-ready aggressive-driving vTypes) — '
         + 'Edit,Simulate and Submit the Simulation');
     } catch (e) {
       const msg = String((e && e.message) || e);
@@ -245,8 +246,9 @@ export function ExportFlow({ store, map, onClose }) {
       h('div', { className: 'hint' },
         'The player server downloads the OpenStreetMap roads for your box '
         + 'and runs netconvert for you — you get one .zip holding the OSM '
-        + 'extract and a SUMO .net.xml ready to upload in the Submit '
-        + 'wizard.'),
+        + 'extract, a SUMO .net.xml ready to upload in the Submit wizard, '
+        + 'and vtypes.rou.xml: a paste-ready aggressive-driving vType set '
+        + 'for your demand file.'),
       h('input', {
         type: 'text', defaultValue: name.current, placeholder: 'area name',
         onChange: (ev) => { name.current = ev.target.value || 'area'; },
@@ -264,6 +266,6 @@ export function ExportFlow({ store, map, onClose }) {
       h('div', { className: 'row' },
         h('button', { className: 'ghost', onClick: onClose }, 'Cancel'),
         h('button', { onClick: doExport, disabled: busy },
-          'Download .zip (net + osm)')),
+          'Download .zip (net + osm + vtypes)')),
       status ? h('div', { className: 'hint' }, status) : null));
 }

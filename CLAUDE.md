@@ -104,7 +104,8 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
 ## Layout
 
 - `src/lib/` — pure logic (engine, netxml, geo, draft, submit, areaExport,
-  util, profile, catalogMerge, ingestSlot, introScene, capture). **Must stay DOM-free and
+  util, profile, catalogMerge, ingestSlot, introScene, capture,
+  vtypePreset). **Must stay DOM-free and
   react/leaflet-free** — enforced by `test/lib-purity.test.js`. New pure
   logic goes here so vitest's node environment can run it directly.
   `engine.js` decodes BLGR frames/stats ONLY — the synthetic-traffic
@@ -133,6 +134,19 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   crypto.subtle — the server recomputes over the received bytes; the
   lib-purity regex bans the word `window` even in prose, so copy must
   avoid it).
+  `vtypePreset.js` (plan: indian-driving-vtypes) is the single source of
+  truth for the mandated Indian road-behavior vTypes: the car block
+  verbatim (id="car", 18 attrs), the 17 behavior attrs forced onto every
+  existing `<vType>` (vClass/maxSpeed/length survive — buses stay buses,
+  render classes survive), a `DEFAULT_VEHTYPE` override for typeless
+  vehicles, all emitted right after `<routes ...>` (one per line,
+  4-space indent); `vTypeDistribution` children are patched in place,
+  never hoisted. `injectAggressiveDriving(xml)` is total (no `<routes>`
+  → unchanged) and idempotent; `buildPresetRoutesXml()` emits the
+  contributor preset checked in byte-identical at
+  `presets/indian-roads.rou.xml` and bundled as the third entry of the
+  /api/export-net zip (locked by test/vtype_preset.test.js + the
+  real-SUMO smoke).
 - `src/data.js` — adapter over the classic-script bundle `public/data.js`.
   `index.html` loads `/data.js` as a classic script BEFORE the module entry
   (classic blocks, modules defer — order is guaranteed). Script-level `const`
@@ -229,7 +243,10 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
 - `tools/*.js` — packer/injector, ports of the retired Python tools:
   `sumo_geom.js` (geom/geoLock/findSumo), `blgr_pack.js` (BLGR packing,
   readline XML parsing), `pack_run.js` (exact SUMO_FLAGS — seed 42,
-  step-length 1; argparse-parity CLI), `dev_inject.js` (idempotent CATALOG
+  step-length 1; argparse-parity CLI; every scenario's rou is patched
+  with `injectAggressiveDriving` into a `${key}-patched.rou.xml` temp
+  copy that SUMO consumes, while buildTypeMap/readDemand keep reading the
+  ORIGINAL), `dev_inject.js` (idempotent CATALOG
   patch + stream writer; wizard metadata flags fill the non-geo-locked
   fallback placement; the pure `buildEntry(pack, opts)` extraction is
   shared with the server's simulate flow — netGeo is pre-resolved by the
@@ -248,7 +265,10 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   parsing/validation; missing/invalid → `401 { error: 'authentication
   failed' }`, and the catalog/DB author comes from the verified claims via
   `authorFromProfile` (src/lib/profile.js) — the body `author` field is
-  ignored. Simulate order: auth → validateBody → OWNERSHIP CHECK (existing
+  ignored. Simulate order: auth → validateBody → vType patch
+  (`body.rouXml = injectAggressiveDriving(body.rouXml)` — the stored
+  demand.rou.xml AND the resubmit prefill carry the mandated block) →
+  OWNERSHIP CHECK (existing
   sims row with a different author_uid and not admin → 403 BEFORE any
   bucket mutation) → resolveSumo → bucket delete (best-effort) + putObjects
   + putUploadRefs (review state untouched) → pack_run (422/504) →
@@ -273,8 +293,9 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
    `SIMO_CONVERT_TIMEOUT_MS` (default 120 s → 504; nonzero → 422 stderr
    tail) → 200 `application/zip` attachment `<name>.zip` bundling
    `<name>.net.xml` (with `<!-- simo:zoom=N -->` on line 2) +
-   `<name>.osm.xml` (the fetched OSM, zoom-stamped; src/lib/zip.js
-   writer). Tempdir removed on every path. Seams:
+   `<name>.osm.xml` (the fetched OSM, zoom-stamped) + `vtypes.rou.xml`
+   (the paste-ready Indian road-behavior preset, plan: indian-driving-vtypes;
+   src/lib/zip.js writer). Tempdir removed on every path. Seams:
 `fetchOsm` / `netconvertResolver` / `convertTimeoutMs`
    (test/endpoint_export.test.js, fixture test/fixtures/mini.osm.xml).
    Captures (plan: capture-leaderboard page): `POST /api/captures`
