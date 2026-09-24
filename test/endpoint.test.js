@@ -566,8 +566,9 @@ it.skipIf(!SUMO)('a simulated run persists its uploaded XMLs for /api/files', as
    * prefill) carry the block, not the raw fixture */
   const storedRou = await rou.text();
   expect(storedRou).not.toBe(ROU_XML);
-  expect(storedRou).toContain('tau="0.5"');
+  expect(storedRou).toContain('tau="1.0"');
   expect(storedRou).toContain('lcPushy="1.0"');
+  expect(storedRou).toContain('jmIgnoreFoeProb="1.0"');
   expect(storedRou).toContain('<vType id="DEFAULT_VEHTYPE"');
   expect(storedRou).toContain('<flow');   // the original demand survives
 });

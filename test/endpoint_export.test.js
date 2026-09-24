@@ -262,7 +262,7 @@ it.skipIf(!NETCONVERT || !UNZIP)('happy path: 200 zip attachment carrying '
    * contributor's own demand file */
   const vt = execFileSync('unzip', ['-p', p, 'vtypes.rou.xml'])
     .toString('utf8');
-  expect(vt).toContain('tau="0.5"');
+  expect(vt).toContain('tau="1.0"');
   expect(vt).toContain('<vType id="DEFAULT_VEHTYPE"');
   for (const id of ['car', 'motorcycle', 'bus', 'truck', 'auto']) {
     expect(vt).toContain(`<vType id="${id}"`);

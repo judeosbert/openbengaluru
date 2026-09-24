@@ -136,13 +136,28 @@ Node ≥18 required. npm 11 warns on node 20.11 — harmless.
   avoid it).
   `vtypePreset.js` (plan: indian-driving-vtypes) is the single source of
   truth for the mandated Indian road-behavior vTypes: the car block
-  verbatim (id="car", 18 attrs), the 17 behavior attrs forced onto every
+  verbatim (id="car", 21 attrs), the 20 behavior attrs forced onto every
   existing `<vType>` (vClass/maxSpeed/length survive — buses stay buses,
-  render classes survive), a `DEFAULT_VEHTYPE` override for typeless
+  render classes survive). The 17 car-following/lane-change attrs are
+  joined by the junction model: `jmIgnoreFoeProb="1.0"` +
+  `jmTimegapMinor="0.5"` + `impatience="1.0"` push vehicles into a busy
+  junction instead of politely waiting at the stop line (real-life choke:
+  jam teleports still happen, yield teleports collapse, verified
+  A/B against a balagere net+demand: yields 252→21, jams survive at 42,
+  zero collision teleports). `tau="1.0"` NOT 0.5: the pipeline runs SUMO
+  with `--step-length 1` (pack_run), and sub-step tau turns every conflict
+  into a collision teleport, which drains jams and erases the choke
+  (tau=0.5 measured: 4199 collision teleports, avg wait 4.5 s — the free
+  flow that removed balagere's junction block; a test pins tau >= 1.0).
+  A `DEFAULT_VEHTYPE` override for typeless
   vehicles, all emitted right after `<routes ...>` (one per line,
   4-space indent); `vTypeDistribution` children are patched in place,
   never hoisted. `injectAggressiveDriving(xml)` is total (no `<routes>`
-  → unchanged) and idempotent; `buildPresetRoutesXml()` emits the
+  → unchanged) and idempotent — including CRLF demand files (netedit on
+  Windows): removed vType lines take their `\r\n` terminator along and
+  the re-emitted block uses the file's own EOL (an earlier LF-only
+  version left orphan `\r` blank lines on every CRLF submit);
+  `buildPresetRoutesXml()` emits the
   contributor preset checked in byte-identical at
   `presets/indian-roads.rou.xml` and bundled as the third entry of the
   /api/export-net zip (locked by test/vtype_preset.test.js + the

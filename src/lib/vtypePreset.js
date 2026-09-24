@@ -3,7 +3,7 @@
  *
  *   - injectAggressiveDriving(xml): EVERY .rou.xml our SUMO commands run
  *     carries the vType family. The car block is mandated verbatim; the
- *     17 behavior attrs are forced onto every existing <vType> (vClass /
+ *     20 behavior attrs are forced onto every existing <vType> (vClass /
  *     maxSpeed / length survive, so buses stay buses and the player's
  *     render classes survive); <vType id="DEFAULT_VEHTYPE"> covers
  *     typeless vehicles and must precede any vehicle reference, so the
@@ -18,15 +18,26 @@
  * Regex-based XML editing is deliberate: comment-stripped tag heads,
  * idempotency locks, and the real-SUMO smoke test are the guardrails. */
 
-/* The 17 behavior attrs (the user's car block minus vClass), in the
- * snippet's order. Forced onto every vType; ours win over any
- * pre-existing value. */
+/* The 20 behavior attrs (the user's car block minus vClass, plus the
+ * junction model), in emission order. Forced onto every vType; ours win
+ * over any pre-existing value.
+ *
+ * tau must stay >= the pipeline step-length (pack_run runs SUMO with
+ * --step-length 1): a sub-step tau turns every conflict into a collision
+ * teleport, which drains jams and erases junction choke.
+ *
+ * The jm* attrs + impatience are the junction model: jmIgnoreFoeProb=1.0
+ * pushes vehicles into a busy junction instead of politely waiting at the
+ * stop line (jmTimegapMinor 5.0 -> 0.5 accepts tiny gaps on minor links,
+ * impatience=1.0 drops courtesy). The junction still chokes — jam
+ * teleports keep occurring — but nobody deadlocks waiting for cross
+ * traffic to clear. */
 export const BEHAVIOR_ATTRS = [
   ['carFollowModel', 'Krauss'],
   ['accel', '4.5'],
   ['decel', '6.0'],
   ['emergencyDecel', '9.0'],
-  ['tau', '0.5'],
+  ['tau', '1.0'],
   ['sigma', '0.9'],
   ['laneChangeModel', 'LC2013'],
   ['lcSublane', '1.0'],
@@ -39,9 +50,12 @@ export const BEHAVIOR_ATTRS = [
   ['lcKeepRight', '0.0'],
   ['lcAssertive', '2.5'],
   ['lcPushy', '1.0'],
+  ['jmIgnoreFoeProb', '1.0'],
+  ['jmTimegapMinor', '0.5'],
+  ['impatience', '1.0'],
 ];
 
-/* The mandated car block: vClass first (snippet order), then the 17. */
+/* The mandated car block: vClass first (snippet order), then the 20. */
 export const CAR_VTYPE_ATTRS = [
   ['vClass', 'passenger'],
   ...BEHAVIOR_ATTRS,
@@ -135,18 +149,17 @@ function formatVType(id, rawAttrs, inner) {
 }
 
 /* Extend [start, end) to swallow the element's line: the leading indent
- * when the line opens with the element, plus one trailing newline (or a
- * trailing blank run) — removals leave no empty lines behind, which is
- * what keeps f(f(x)) byte-stable. */
+ * when the line opens with the element, plus the line terminator — LF,
+ * CRLF or lone CR (netedit on Windows writes CRLF; leaving the \r behind
+ * would break idempotency with stray blank lines). Removals leave no
+ * empty lines behind, which is what keeps f(f(x)) byte-stable. */
 function swallowLine(s, start, end) {
   const nl = s.lastIndexOf('\n', start - 1) + 1;
   if (/^[ \t]*$/.test(s.slice(nl, start))) start = nl;
-  if (s[end] === '\n') {
-    end += 1;
-  } else {
-    const next = s.indexOf('\n', end);
-    if (next !== -1 && /^[ \t]*$/.test(s.slice(end, next))) end = next + 1;
-  }
+  const term = /[ \t]*(?:\r\n|[\n\r])/gy;
+  term.lastIndex = end;
+  const m = term.exec(s);
+  if (m) end = m.index + m[0].length;
   return [start, end];
 }
 
@@ -243,8 +256,11 @@ export function injectAggressiveDriving(xml) {
     if (el.id === 'DEFAULT_VEHTYPE' || el.id === 'car') continue;
     lines.push(formatVType(el.id, el.attrs, el.inner));
   }
+  /* the re-emitted block uses the file's own line endings — a CRLF demand
+   * stays pure CRLF, which keeps the block byte-stable across re-passes */
+  const eol = xml.includes('\r\n') ? '\r\n' : '\n';
   edits.push({ start: routesEnd, end: routesEnd,
-    text: '\n' + lines.join('\n') });
+    text: eol + lines.join(eol) });
 
   edits.sort((a, b) => a.start - b.start || a.end - b.end);
   let out = '';

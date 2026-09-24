@@ -3,9 +3,14 @@
  * mandated aggressive-driving vType block:
  *
  *   - injectAggressiveDriving(): EVERY .rou.xml we hand to SUMO carries
- *     the vType family — the car block verbatim, the 17 behavior attrs
+ *     the vType family — the car block verbatim, the 20 behavior attrs
  *     forced onto every existing vType (vClass/maxSpeed/length preserved,
- *     so buses stay buses and render classes survive), a DEFAULT_VEHTYPE
+ *     so buses stay buses and render classes survive; car-following +
+ *     lane-changing + junction-model attrs: jmIgnoreFoeProb/jmTimegapMinor
+ *     make vehicles push into busy junctions instead of politely waiting,
+ *     and tau stays >= the pipeline step-length 1 — sub-step tau turns
+ *     every conflict into a collision teleport and drains all jams), a
+ *     DEFAULT_VEHTYPE
  *     override for typeless vehicles, all emitted right after <routes ...>
  *     (SUMO needs DEFAULT_VEHTYPE before any vehicle reference). Idempotent.
  *   - buildPresetRoutesXml(): the contributor preset file (checked in
@@ -48,27 +53,37 @@ function tagOf(xml, id) {
 /* --------------------------------------------------------- module shape */
 
 describe('vtypePreset module shape', () => {
-  it('exports the 17 behavior attrs as ordered [key, value] pairs', () => {
+  it('exports the 20 behavior attrs as ordered [key, value] pairs', () => {
     expect(BEHAVIOR_ATTRS.map(([k]) => k)).toEqual([
       'carFollowModel', 'accel', 'decel', 'emergencyDecel', 'tau', 'sigma',
       'laneChangeModel', 'lcSublane', 'latAlignment', 'minGapLat',
       'maxSpeedLat', 'lcStrategic', 'lcCooperative', 'lcSpeedGain',
       'lcKeepRight', 'lcAssertive', 'lcPushy',
+      'jmIgnoreFoeProb', 'jmTimegapMinor', 'impatience',
     ]);
     for (const [k, v] of [
       ['accel', '4.5'], ['decel', '6.0'], ['emergencyDecel', '9.0'],
-      ['tau', '0.5'], ['sigma', '0.9'], ['lcSublane', '1.0'],
+      ['tau', '1.0'], ['sigma', '0.9'], ['lcSublane', '1.0'],
       ['latAlignment', 'arbitrary'], ['minGapLat', '0.2'],
       ['maxSpeedLat', '2.5'], ['lcStrategic', '0.5'],
       ['lcCooperative', '0.0'], ['lcSpeedGain', '9.0'],
       ['lcKeepRight', '0.0'], ['lcAssertive', '2.5'], ['lcPushy', '1.0'],
+      ['jmIgnoreFoeProb', '1.0'], ['jmTimegapMinor', '0.5'],
+      ['impatience', '1.0'],
     ]) {
       expect(BEHAVIOR_ATTRS).toContainEqual([k, v]);
     }
   });
 
-  it('CAR_VTYPE_ATTRS = vClass passenger first + the 17 behavior attrs', () => {
-    expect(CAR_VTYPE_ATTRS.length).toBe(18);
+  it('tau is never below the pipeline step-length (1 s): sub-step tau '
+    + 'turns every conflict into a collision teleport and drains all jams',
+  () => {
+    const tau = Number(BEHAVIOR_ATTRS.find(([k]) => k === 'tau')[1]);
+    expect(tau).toBeGreaterThanOrEqual(1.0);
+  });
+
+  it('CAR_VTYPE_ATTRS = vClass passenger first + the 20 behavior attrs', () => {
+    expect(CAR_VTYPE_ATTRS.length).toBe(21);
     expect(CAR_VTYPE_ATTRS[0]).toEqual(['vClass', 'passenger']);
     expect(CAR_VTYPE_ATTRS.slice(1)).toEqual(BEHAVIOR_ATTRS);
   });
@@ -87,7 +102,7 @@ describe('injectAggressiveDriving', () => {
     <vehicle id="v0" route="r0" depart="1"/>
 </routes>`;
 
-  it('injects car (all 18 attrs) + DEFAULT_VEHTYPE (17, no vClass) into a '
+  it('injects car (all 21 attrs) + DEFAULT_VEHTYPE (20, no vClass) into a '
     + 'vType-less rou', () => {
     const out = injectAggressiveDriving(BARE);
     const car = tagOf(out, 'car');
@@ -142,8 +157,8 @@ describe('injectAggressiveDriving', () => {
     expect(out).toContain('<vehicle id="v0" route="r0" depart="1"/>');
   });
 
-  it('mini.rou.xml: bus keeps vClass/maxSpeed, gains the behavior attrs; '
-    + 'passenger patched too', () => {
+  it('mini.rou.xml: bus keeps vClass/maxSpeed, gains the behavior attrs '
+    + 'including the junction model; passenger patched too', () => {
     const out = injectAggressiveDriving(ROU_XML);
     const bus = tagOf(out, 'bus');
     expect(bus).toBeTruthy();
@@ -151,8 +166,12 @@ describe('injectAggressiveDriving', () => {
     expect(bus, 'physical params survive').toContain('maxSpeed="11.0"');
     expect(bus).toContain(' accel="4.5"');
     expect(bus).toContain(' decel="6.0"');
-    expect(bus).toContain(' tau="0.5"');
+    expect(bus).toContain(' tau="1.0"');
     expect(bus).toContain(' lcPushy="1.0"');
+    expect(bus, 'barges into busy junctions').toContain(
+      ' jmIgnoreFoeProb="1.0"');
+    expect(bus).toContain(' jmTimegapMinor="0.5"');
+    expect(bus).toContain(' impatience="1.0"');
     const pass = tagOf(out, 'passenger');
     expect(pass).toBeTruthy();
     expect(pass).toContain('maxSpeed="13.9"');
@@ -196,7 +215,8 @@ describe('injectAggressiveDriving', () => {
       const bus = tagOf(out, 'bus');
       expect(bus).toContain('vClass="bus"');
       expect(bus).toContain('maxSpeed="11.0"');
-      expect(bus).toContain(' tau="0.5"');
+      expect(bus).toContain(' tau="1.0"');
+      expect(bus).toContain(' jmIgnoreFoeProb="1.0"');
       /* the flow must NOT be swallowed by the paired-form matcher */
       expect(out).toContain('<flow id="f0" type="bus"');
     });
@@ -229,6 +249,44 @@ describe('injectAggressiveDriving', () => {
     expect(injectAggressiveDriving(once)).toBe(once);
     const preset = buildPresetRoutesXml();
     expect(injectAggressiveDriving(preset)).toBe(preset);
+  });
+
+  it('CRLF demand (netedit on Windows): idempotent — removed vType lines '
+    + 'take their CR along and the re-emitted block uses the file EOL', () => {
+    const src = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<routes>',
+      '    <vType id="bus" vClass="bus"/>',
+      '    <route id="r0" edges="A0B0"/>',
+      '    <vehicle id="v0" type="bus" route="r0" depart="1"/>',
+      '</routes>',
+    ].join('\r\n') + '\r\n';
+    const once = injectAggressiveDriving(src);
+    expect(injectAggressiveDriving(once)).toBe(once);
+    /* no orphan CR: every \r is the first half of a CRLF pair */
+    expect(once.match(/\r(?!\n)/g)).toBeNull();
+    /* the file stays pure CRLF — no LF-only lines introduced */
+    expect(once.match(/(?<!\r)\n/g)).toBeNull();
+  });
+
+  it('CRLF demand (netedit on Windows): idempotent, no orphan CR bytes — '
+    + 'removed vType lines take their CRLF terminator with them and the '
+    + 're-emitted block uses the file\'s own EOL', () => {
+    const src = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<routes>',
+      '    <vType id="bus" vClass="bus"/>',
+      '    <route id="r0" edges="A0B0"/>',
+      '    <vehicle id="v0" type="bus" route="r0" depart="1"/>',
+      '</routes>',
+    ].join('\r\n') + '\r\n';
+    const once = injectAggressiveDriving(src);
+    expect(injectAggressiveDriving(once)).toBe(once);
+    /* every CR is half of a CRLF pair — no orphan \r blank lines */
+    expect(once.match(/\r(?!\n)/g) || []).toEqual([]);
+    /* the re-emitted block matches the file's EOL */
+    expect(once).toContain(
+      '<routes>\r\n    <vType id="DEFAULT_VEHTYPE"');
   });
 
   it('no <routes> open tag -> input returned unchanged', () => {
@@ -290,7 +348,7 @@ describe('injectAggressiveDriving', () => {
 
 describe('buildPresetRoutesXml', () => {
   it('carries the header, the usage comment and the 5-class family + '
-    + 'DEFAULT_VEHTYPE, each with the 17 behavior attrs', () => {
+    + 'DEFAULT_VEHTYPE, each with the 20 behavior attrs', () => {
     const preset = buildPresetRoutesXml();
     expect(preset).toMatch(/^<\?xml/);
     expect(preset).toMatch(/paste/i);
